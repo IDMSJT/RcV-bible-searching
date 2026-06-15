@@ -230,6 +230,8 @@ mark{background:rgba(201,168,76,.2);color:var(--gold2);border-radius:2px;padding
   <div class="outline-actions">
     <select class="sel" id="outlineStyle"><option value="cards">卡片式</option><option value="compact">緊湊文字</option><option value="refs">只列引經</option></select>
     <button class="cbtn" onclick="copyOutline()">複製結果</button>
+    <button class="cbtn" onclick="exportOutlinePdf()">輸出 PDF</button>
+    <button class="cbtn" onclick="exportOutlineDocx()">輸出 DOCX</button>
     <span class="hint">可解析省略書卷、參、範圍；引經可點擊右側顯示章節。</span>
   </div>
 </div>
@@ -346,7 +348,7 @@ function tryAnchor(text, pos) {
     const m = cp.exec(s);
     if (m && m.index === 0) {
       const bk = resolveZh(m[1]), ch = pn(m[2]), v1 = pn(m[3]);
-      if (!bk || !ch || !v1) continue;
+      if (!bk || !DB.db[bk] || !ch || !v1) continue;
       return {bk, ch, v1, v2: m[4] ? pn(m[4]) : v1, end: pos + m[0].length};
     }
   }
@@ -724,6 +726,7 @@ function toggleTheme(){
 
 // ═══════════════════════════════ OUTLINE ═══════════════════════════════
 let lastOutlineText = '';
+let lastOutlineGroups = [];
 const OUTLINE_MARK = /^(壹|貳|參|叁|肆|伍|陸|柒|捌|玖|拾|一|二|三|四|五|六|七|八|九|十|\d+|[a-z])(?:[、.．\s]|$)/;
 const BOOK_PREFIX_RE = new RegExp('參\\s*(?=(?:'+FP+'|'+AP+'|'+PP+'))','g');
 function normalizeOutlineText(t){return normalize(t).replace(BOOK_PREFIX_RE,'').replace(/[（）]/g, m=>m==='（'?'(' : ')').replace(/[～—–－]/g,'~');}
@@ -773,6 +776,7 @@ function runOutline(){
   renderOutline(groups);
 }
 function renderOutline(groups){
+  lastOutlineGroups = groups;
   const style=document.getElementById('outlineStyle').value;
   const res=document.getElementById('res');
   document.getElementById('chnav').classList.remove('show');
@@ -801,6 +805,63 @@ function buildOutlineCopy(groups){
 function copyOutline(){
   if(!lastOutlineText) runOutline();
   if(lastOutlineText) navigator.clipboard.writeText(lastOutlineText).then(()=>toast('已複製綱目結果'));
+}
+function ensureOutlineReady(){
+  if(!lastOutlineGroups.length) runOutline();
+  return lastOutlineGroups.length;
+}
+function outlineExportTitle(){return '恢復本聖經綱目';}
+function outlineExportHtml(){
+  const groups=lastOutlineGroups;
+  const body=groups.map(g=>{
+    const cls='lvl-'+g.level;
+    const verses=g.verses.length ? g.verses.map(v=>`<p class="verse"><b>${esc(fmtZh(v.bk,v.ch,v.v))}</b>　${esc(v.zh)}</p>`).join('') : '<p class="missing">此點未解析出引經</p>';
+    const miss=g.missing.length?`<p class="missing">未找到：${esc(g.missing.join('、'))}</p>`:'';
+    return `<section class="item ${cls}"><h2>${esc(g.line)}</h2><div class="verses">${verses}${miss}</div></section>`;
+  }).join('');
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${outlineExportTitle()}</title><style>
+    body{font-family:'PingFang TC','Microsoft JhengHei','Noto Sans TC',serif;color:#222;line-height:1.75;padding:28px;font-size:12pt}
+    h1{text-align:center;font-size:20pt;margin:0 0 20px} h2{font-size:13.5pt;margin:0 0 6px}.item{margin:0 0 14px;page-break-inside:avoid}
+    .lvl-big h2{font-size:15pt}.lvl-mid{margin-left:20px}.lvl-small{margin-left:40px}.verses{border-left:3px solid #c9a84c;padding-left:12px}.verse{margin:3px 0}.verse b{color:#8a6819}.missing{color:#a33;margin:3px 0}
+  </style></head><body><h1>${outlineExportTitle()}</h1>${body}</body></html>`;
+}
+function exportOutlinePdf(){
+  if(!ensureOutlineReady()) return;
+  const w=window.open('', '_blank');
+  if(!w){toast('請允許彈出視窗以輸出 PDF');return;}
+  w.document.open(); w.document.write(outlineExportHtml()); w.document.close();
+  w.onload=()=>{w.focus(); w.print();};
+}
+function xmlEsc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function docxTextRun(text,bold=false){return `<w:r>${bold?'<w:rPr><w:b/></w:rPr>':''}<w:t xml:space="preserve">${xmlEsc(text)}</w:t></w:r>`;}
+function docxP(text,style){return `<w:p>${style?`<w:pPr><w:pStyle w:val="${style}"/></w:pPr>`:''}${docxTextRun(text)}</w:p>`;}
+function outlineDocXml(){
+  const parts=[docxP(outlineExportTitle(),'Title')];
+  lastOutlineGroups.forEach(g=>{
+    parts.push(docxP(g.line, g.level==='big'?'Heading1':g.level==='mid'?'Heading2':'Heading3'));
+    if(g.verses.length){g.verses.forEach(v=>parts.push(`<w:p>${docxTextRun(fmtZh(v.bk,v.ch,v.v)+'　',true)}${docxTextRun(v.zh)}</w:p>`));}
+    else parts.push(docxP('此點未解析出引經',''));
+    if(g.missing.length) parts.push(docxP('未找到：'+g.missing.join('、'),''));
+  });
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${parts.join('')}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>`;
+}
+function crc32(bytes){let c=~0;for(const b of bytes){c^=b;for(let k=0;k<8;k++)c=(c>>>1)^(0xEDB88320&-(c&1));}return ~c>>>0;}
+function u16(n){return [n&255,n>>>8&255];} function u32(n){return [n&255,n>>>8&255,n>>>16&255,n>>>24&255];}
+function makeZip(files){
+  const enc=new TextEncoder(), chunks=[], central=[]; let off=0;
+  files.forEach(f=>{const name=enc.encode(f.name), data=enc.encode(f.data), crc=crc32(data); const local=new Uint8Array([0x50,0x4b,3,4,...u16(20),0,0,0,0,0,0,0,0,...u32(crc),...u32(data.length),...u32(data.length),...u16(name.length),0,0]); chunks.push(local,name,data); central.push({name,data,crc,off}); off+=local.length+name.length+data.length;});
+  const cdStart=off, cd=[]; central.forEach(f=>{const name=enc.encode(f.name); const h=new Uint8Array([0x50,0x4b,1,2,...u16(20),...u16(20),0,0,0,0,0,0,0,0,...u32(f.crc),...u32(f.data.length),...u32(f.data.length),...u16(name.length),0,0,0,0,0,0,0,0,0,0,...u32(f.off)]); cd.push(h,name); off+=h.length+name.length;});
+  const end=new Uint8Array([0x50,0x4b,5,6,0,0,0,0,...u16(files.length),...u16(files.length),...u32(off-cdStart),...u32(cdStart),0,0]);
+  return new Blob([...chunks,...cd,end],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+}
+function exportOutlineDocx(){
+  if(!ensureOutlineReady()) return;
+  const files=[
+    {name:'[Content_Types].xml',data:'<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'},
+    {name:'_rels/.rels',data:'<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'},
+    {name:'word/document.xml',data:outlineDocXml()}
+  ];
+  const a=document.createElement('a'); a.href=URL.createObjectURL(makeZip(files)); a.download='恢復本聖經綱目.docx'; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500); toast('已輸出 DOCX');
 }
 
 // ═══════════════════════════════ INIT ═══════════════════════════════
