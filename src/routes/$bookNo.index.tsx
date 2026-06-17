@@ -23,7 +23,7 @@ function BookOutlinePage() {
 
   return (
     <>
-      <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
+      <header className="sticky top-0 z-10 border-b border-border bg-card">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-3 md:px-8">
           <div className="flex w-7 justify-start">
             <span className="inline-flex size-7 items-center justify-center text-muted-foreground/40">

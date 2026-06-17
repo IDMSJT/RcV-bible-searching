@@ -1,16 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, Outlet, createRootRoute, useLocation, useNavigate } from '@tanstack/react-router'
+import { Outlet, createRootRoute, useLocation, useNavigate } from '@tanstack/react-router'
 // import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
-import { BookOpen, ClipboardList, Monitor, Moon, Search, Settings, Sun } from 'lucide-react'
-import { CANON, BOOK_BY_NO, type CanonBook } from '@/data/canon'
-import { BOOK_ABBREV } from '@/data/abbrev'
+import { BookOpen, ClipboardList, Search, Settings } from 'lucide-react'
+import { BOOK_BY_NO } from '@/data/canon'
 import { LookupPanel } from '@/components/LookupPanel'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+import { CatalogPanel } from '@/components/CatalogPanel'
+import { ComposePanel } from '@/components/ComposePanel'
+import { SettingsPanel } from '@/components/SettingsPanel'
+import { ReadingPreferences } from '@/components/ReadingPreferences'
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
@@ -20,7 +17,6 @@ export const Route = createRootRoute({
 })
 
 type SidebarMode = 'catalog' | 'lookup' | 'compose' | 'settings'
-type Theme = 'light' | 'dark' | 'system'
 
 function RootComponent() {
   const { pathname } = useLocation()
@@ -30,20 +26,11 @@ function RootComponent() {
   const activeBook = activeBookNo ? BOOK_BY_NO.get(activeBookNo) ?? null : null
 
   const [mode, setMode] = useLocalStorage<SidebarMode>('rcv/sidebar-mode', 'catalog')
-  const [theme, setTheme] = useLocalStorage<Theme>('rcv/theme', 'system')
-  const [showOutline, setShowOutline] = useLocalStorage('rcv/show-outline', true)
-  const [showEnglish, setShowEnglish] = useLocalStorage('rcv/show-english', false)
-  const [fontSize, setFontSize] = useLocalStorage('rcv/font-size', 16)
-  const [composeInput, setComposeInput] = useLocalStorage('rcv/compose-input', '')
-
-  // Expose the reading font-size as a CSS variable on <html>. Components opt in
-  // via `font-size: var(--reading-fs)` so only the prose scales, not the chrome.
-  useEffect(() => {
-    document.documentElement.style.setProperty('--reading-fs', `${fontSize}px`)
-  }, [fontSize])
   // Mobile-only: the sidebar content lives inside a Drawer below md. On desktop
   // the aside is permanently visible and this flag is ignored.
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const navigate = useNavigate()
+
   // Vaul's `onOpenChange` is just `(open: boolean) => void` — it doesn't tell
   // us which event caused the close. Instead of guessing with a timeout, we
   // mirror the most recent pointerdown target from a document-level capture
@@ -60,7 +47,6 @@ function RootComponent() {
     document.addEventListener('pointerdown', onDown, { capture: true })
     return () => document.removeEventListener('pointerdown', onDown, { capture: true })
   }, [])
-  const navigate = useNavigate()
 
   // Close the mobile drawer whenever the user navigates to a chapter view, so
   // after picking a chapter the reading pane is unobstructed. Book-outline and
@@ -70,33 +56,16 @@ function RootComponent() {
     if (/^\/\d+\/\d+/.test(pathname)) setDrawerOpen(false)
   }, [pathname])
 
-  // After picking a book (URL = /:bookNo, no chapter), bring the chapter section
-  // into view so the user sees the chapter grid immediately — without this they
-  // have to scroll past the OT/NT lists to find the chapters that just appeared.
-  const chapterAnchorRef = useRef<HTMLDivElement>(null)
+  // If the viewport crosses from mobile to desktop while the drawer is open
+  // (rare but possible — rotate, resize), force it closed so we don't keep
+  // vaul mounted on a layout that doesn't show its content.
   useEffect(() => {
-    if (mode !== 'catalog' || !activeBookNo || activeChapterNo) return
-    chapterAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [activeBookNo, activeChapterNo, mode])
-
-  // Apply the theme; 'system' tracks the OS preference live via the media query.
-  useEffect(() => {
-    const root = document.documentElement
-    if (theme !== 'system') {
-      root.classList.toggle('dark', theme === 'dark')
-      return
-    }
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const apply = () => root.classList.toggle('dark', mq.matches)
-    apply()
-    mq.addEventListener('change', apply)
-    return () => mq.removeEventListener('change', apply)
-  }, [theme])
-  const otBooks = CANON.filter((b) => b.testament === 'OT')
-  const ntBooks = CANON.filter((b) => b.testament === 'NT')
-
-  // The catalog now keeps 舊約, 新約 and (when there is an active book) 章節
-  // permanently open; tapping a header just scrolls that section into view.
+    const mq = window.matchMedia('(min-width: 768px)')
+    const handler = () => { if (mq.matches) setDrawerOpen(false) }
+    handler()
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
 
   const openMode = (m: SidebarMode, onNav?: () => void) => {
     // Tapping the lit nav button while its drawer is already open closes it
@@ -116,16 +85,6 @@ function RootComponent() {
     }
   }
 
-  // If the viewport crosses from mobile to desktop while the drawer is open
-  // (rare but possible — rotate, resize), force it closed so we don't keep
-  // vaul mounted on a layout that doesn't show its content.
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 768px)')
-    const handler = () => { if (mq.matches) setDrawerOpen(false) }
-    handler()
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
-  }, [])
   // size-5 on mobile (more thumb-friendly), size-4 on desktop where they sit in
   // the slim left rail.
   const navIcon = 'size-5 md:size-4'
@@ -165,91 +124,16 @@ function RootComponent() {
     mode === 'lookup' ? (
       <LookupPanel onNavigate={() => setDrawerOpen(false)} />
     ) : mode === 'compose' ? (
-      <>
-        <StickyHeader>綱要</StickyHeader>
-        <textarea
-          value={composeInput}
-          onChange={(e) => setComposeInput(e.target.value)}
-          placeholder="貼上綱要，右邊會列出每個點下面的經文…"
-          className="flex-1 resize-none bg-transparent p-4 font-serif text-base leading-relaxed outline-none placeholder:text-muted-foreground md:text-sm"
-        />
-      </>
+      <ComposePanel />
     ) : mode === 'settings' ? (
-      <>
-        <StickyHeader>設定</StickyHeader>
-        <div className="flex flex-col divide-y divide-border">
-          <SettingRow label="主題" stack>
-            <div className="flex gap-1 rounded-lg bg-muted p-0.5">
-              <ThemeButton active={theme === 'light'} onClick={() => setTheme('light')} icon={Sun} label="淺色" />
-              <ThemeButton active={theme === 'dark'} onClick={() => setTheme('dark')} icon={Moon} label="深色" />
-              <ThemeButton active={theme === 'system'} onClick={() => setTheme('system')} icon={Monitor} label="系統" />
-            </div>
-          </SettingRow>
-          <SettingRow label="顯示綱目" onClick={() => setShowOutline(!showOutline)}>
-            <Switch on={showOutline} />
-          </SettingRow>
-          <SettingRow label="顯示英文" onClick={() => setShowEnglish(!showEnglish)}>
-            <Switch on={showEnglish} />
-          </SettingRow>
-          <SettingRow label={`字體大小　${fontSize}px`} stack>
-            <input
-              type="range"
-              min={13}
-              max={24}
-              step={1}
-              value={fontSize}
-              onChange={(e) => setFontSize(Number(e.target.value))}
-              className="mb-1.5 h-2 w-full cursor-pointer appearance-none rounded-full bg-muted accent-primary"
-            />
-          </SettingRow>
-        </div>
-      </>
+      <SettingsPanel />
     ) : (
-      <>
-        <AccordionHeader
-          label="舊約"
-          stickyCls="sticky top-0 bottom-28 md:bottom-16"
-          anchorCls="scroll-mt-0"
-        />
-        <BookSection books={otBooks} activeBookNo={activeBookNo} />
-        <AccordionHeader
-          label="新約"
-          topBorder
-          stickyCls="sticky top-14 md:top-8 bottom-14 md:bottom-8"
-          anchorCls="scroll-mt-14 md:scroll-mt-8"
-        />
-        <BookSection books={ntBooks} activeBookNo={activeBookNo} />
-        {activeBook && (
-          <>
-            <AccordionHeader
-              label={activeBook.name}
-              topBorder
-              stickyCls="sticky top-28 md:top-16 bottom-0"
-              anchorCls="scroll-mt-28 md:scroll-mt-16"
-              anchorRef={chapterAnchorRef}
-            />
-            <div className="-my-px grid grid-cols-5 border-t border-l border-border md:my-0 md:gap-1 md:border-0 md:p-2">
-                {Array.from({ length: activeBook.chapterCount }, (_, i) => i + 1).map((ch) => (
-                  <Link
-                    key={ch}
-                    to="/$bookNo/$chapterNo"
-                    params={{ bookNo: activeBook.bookNo, chapterNo: ch }}
-                    search={{}}
-                    onClick={() => setDrawerOpen(false)}
-                    className={cn(
-                      '@container flex aspect-square items-center justify-center border-r border-b border-border transition-colors md:rounded-md md:border-0',
-                      activeChapterNo === ch
-                        ? 'bg-secondary text-secondary-foreground font-medium'
-                        : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                    )}
-                  >
-                    <span className="text-[clamp(0.75rem,39cqw,1.125rem)]">{ch}</span>
-                  </Link>
-                ))}
-            </div>
-          </>
-        )}
-      </>
+      <CatalogPanel
+        activeBookNo={activeBookNo}
+        activeChapterNo={activeChapterNo}
+        activeBook={activeBook}
+        onPick={() => setDrawerOpen(false)}
+      />
     )
 
   const sidebarWidth =
@@ -258,6 +142,8 @@ function RootComponent() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground md:flex-row">
+      <ReadingPreferences />
+
       {/* Desktop: left vertical rail */}
       <nav className="hidden w-12 shrink-0 flex-col items-center gap-1 border-r border-border bg-card p-1.5 md:flex">
         {navButtons((m) => mode === m)}
@@ -354,191 +240,5 @@ function NavButton({
       {children}
       <span className="text-xs leading-none md:hidden">{label}</span>
     </button>
-  )
-}
-
-function SettingRow({
-  label,
-  children,
-  stack,
-  onClick,
-}: {
-  label: string
-  children: React.ReactNode
-  /** Stack label above children (for wider controls like the theme picker). */
-  stack?: boolean
-  /** When set, the whole row is the click target (for boolean switches). */
-  onClick?: () => void
-}) {
-  const cls = cn(
-    'gap-3 px-4 py-3',
-    stack ? 'flex flex-col items-stretch' : 'flex items-center justify-between',
-  )
-  if (onClick) {
-    return (
-      <button type="button" onClick={onClick} className={cn(cls, 'w-full text-left transition-colors hover:bg-muted/40')}>
-        <span className="text-sm text-foreground">{label}</span>
-        {children}
-      </button>
-    )
-  }
-  return (
-    <div className={cls}>
-      <span className="text-sm text-foreground">{label}</span>
-      {children}
-    </div>
-  )
-}
-
-function ThemeButton({
-  active,
-  onClick,
-  icon: Icon,
-  label,
-}: {
-  active: boolean
-  onClick: () => void
-  icon: typeof Sun
-  label: string
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'flex flex-auto items-center justify-center gap-1 rounded-md px-2 py-2.5 text-xs transition-colors md:py-1',
-        active
-          ? 'bg-card text-foreground shadow-sm'
-          : 'text-muted-foreground hover:text-foreground',
-      )}
-      aria-label={label}
-    >
-      <Icon className="size-3.5" />
-      {active && label}
-    </button>
-  )
-}
-
-/** Presentational switch indicator — the surrounding SettingRow handles clicks
- * so the entire row is the toggle target (good for thumbs on mobile). */
-function Switch({ on }: { on: boolean }) {
-  return (
-    <span
-      role="switch"
-      aria-checked={on}
-      className={cn(
-        'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors',
-        on ? 'bg-primary' : 'bg-muted-foreground/30',
-      )}
-    >
-      <span
-        className={cn(
-          'inline-block size-4 rounded-full bg-card shadow transition-transform',
-          on ? 'translate-x-4.5' : 'translate-x-0.5',
-        )}
-      />
-    </span>
-  )
-}
-
-function AccordionHeader({
-  label,
-  topBorder,
-  stickyCls = 'sticky top-0',
-  anchorCls = '',
-  anchorRef: externalRef,
-}: {
-  label: string
-  topBorder?: boolean
-  /** Tailwind sticky-position classes. Pass both top-… and bottom-… utilities
-   * so the header stacks at the top when its natural position is above the
-   * viewport and at the bottom when it's below — both ends always visible. */
-  stickyCls?: string
-  /** scroll-margin-top utilities for the anchor div that mirror the sticky
-   * top inset. scrollIntoView is called on this anchor (NOT the sticky button)
-   * because the browser reads sticky elements' currently-stuck box position
-   * as "where they are" — so clicking a bottom-stuck or top-stuck button gives
-   * the wrong delta. The anchor sits at the natural flow position with no
-   * sticky transform, so its position is unambiguous. */
-  anchorCls?: string
-  /** Optional external ref to the anchor div so the parent can trigger a
-   * scroll (e.g. auto-scroll to the chapter section when a book is picked). */
-  anchorRef?: React.RefObject<HTMLDivElement | null>
-}) {
-  const localRef = useRef<HTMLDivElement>(null)
-  const ref = externalRef ?? localRef
-  return (
-    <>
-      <div ref={ref} aria-hidden className={cn('h-0', anchorCls)} />
-      <button
-        type="button"
-        onClick={() => ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-        className={cn(
-          stickyCls,
-          'z-10 flex h-14 w-full items-center justify-between border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur transition-colors hover:bg-muted md:h-8 md:text-xs',
-          topBorder && 'border-t',
-        )}
-      >
-        <span>{label}</span>
-      </button>
-    </>
-  )
-}
-
-function StickyHeader({
-  children,
-  action,
-}: {
-  children: React.ReactNode
-  action?: React.ReactNode
-}) {
-  return (
-    <h2 className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur md:h-8 md:text-xs">
-      <span>{children}</span>
-      {action}
-    </h2>
-  )
-}
-
-function BookSection({
-  books,
-  activeBookNo,
-}: {
-  books: CanonBook[]
-  activeBookNo: number | null
-}) {
-  return (
-    <TooltipProvider delay={0}>
-      <div className="-my-px grid grid-cols-5 border-t border-l border-border md:my-0 md:gap-1 md:border-0 md:p-2">
-        {books.map((b) => (
-          <BookGridCell key={b.bookNo} book={b} active={activeBookNo === b.bookNo} />
-        ))}
-      </div>
-    </TooltipProvider>
-  )
-}
-
-function BookGridCell({ book, active }: { book: CanonBook; active: boolean }) {
-  const abbrev = BOOK_ABBREV[book.bookNo] ?? book.name.slice(0, 1)
-  return (
-    <Tooltip disableHoverablePopup>
-      <TooltipTrigger
-        render={
-          <Link
-            to="/$bookNo"
-            params={{ bookNo: book.bookNo }}
-            className={cn(
-              '@container flex aspect-square items-center justify-center border-r border-b border-border transition-colors md:rounded-md md:border-0',
-              active
-                ? 'bg-secondary text-secondary-foreground font-medium'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-            )}
-          />
-        }
-      >
-        <span className="text-[clamp(0.75rem,39cqw,1.125rem)]">{abbrev}</span>
-      </TooltipTrigger>
-      <TooltipContent>{book.name}</TooltipContent>
-    </Tooltip>
   )
 }
