@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 type Theme = 'light' | 'dark' | 'system'
 
 const HEADER_CLS =
-  'sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur md:h-8 md:text-xs'
+  'sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur md:h-9 md:text-xs'
 
 // All settings state lives here. The values themselves are picked up by other
 // consumers (ChapterView, ReadingPreferences, …) via useLocalStorage on the

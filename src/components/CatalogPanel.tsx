@@ -63,15 +63,15 @@ function BookPicker({ activeBookNo }: { activeBookNo: number | null }) {
     <>
       <AccordionHeader
         label="舊約"
-        stickyCls="sticky top-0 bottom-14 md:bottom-8"
+        stickyCls="sticky top-0 bottom-14 md:bottom-9"
         anchorCls="scroll-mt-0"
       />
       <BookSection books={OT_BOOKS} activeBookNo={activeBookNo} />
       <AccordionHeader
         label="新約"
         topBorder
-        stickyCls="sticky top-14 md:top-8 bottom-0"
-        anchorCls="scroll-mt-14 md:scroll-mt-8"
+        stickyCls="sticky top-14 md:top-9 bottom-0"
+        anchorCls="scroll-mt-14 md:scroll-mt-9"
       />
       <BookSection books={NT_BOOKS} activeBookNo={activeBookNo} />
     </>
@@ -117,21 +117,21 @@ function ChapterHeader({
   onBack: () => void
 }) {
   return (
-    <div className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur md:h-8 md:px-3 md:text-xs">
+    <div className="sticky top-0 z-10 flex h-14 items-stretch justify-between border-b border-border bg-muted/80 text-sm font-semibold backdrop-blur md:h-9 md:text-xs">
       <button
         type="button"
         onClick={onBack}
         aria-label="返回書卷選擇"
-        className="-ml-1 inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
+        className="inline-flex items-center px-4 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:px-3"
       >
         <ChevronLeft className="size-4 md:size-3.5" />
       </button>
-      <span>{book.name}</span>
+      <span className="inline-flex items-center">{book.name}</span>
       <Link
         to="/$bookNo"
         params={{ bookNo: book.bookNo }}
         onClick={onPick}
-        className="font-normal text-muted-foreground transition-colors hover:text-foreground"
+        className="inline-flex items-center px-4 font-normal text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:px-3"
       >
         綱目
       </Link>
@@ -168,7 +168,7 @@ function AccordionHeader({
         onClick={() => anchorRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' })}
         className={cn(
           stickyCls,
-          'z-10 flex h-14 w-full items-center justify-between border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur transition-colors hover:bg-muted md:h-8 md:px-3 md:text-xs',
+          'z-10 flex h-14 w-full items-center justify-between border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur transition-colors hover:bg-muted md:h-9 md:px-3 md:text-xs',
           topBorder && 'border-t',
         )}
       >

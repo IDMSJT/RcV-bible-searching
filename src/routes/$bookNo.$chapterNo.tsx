@@ -85,13 +85,20 @@ function ChapterPage() {
   const { hl, oh } = Route.useSearch()
   const { book } = Route.useLoaderData()
 
-  // Chapter 1's previous page is the book outline (which sits before chapter 1).
+  // The linear reading sequence is: [book1 outline, book1 ch1, …, book1 chN,
+  // book2 outline, book2 ch1, …]. So chapter 1's prev is the same book's
+  // outline, and the last chapter's next is the *following* book's outline
+  // (only nullable when we run off the end at Revelation).
   const prev: NavTarget =
     chapterNo > 1
       ? { kind: 'chapter', bookNo, chapterNo: chapterNo - 1 }
       : { kind: 'outline', bookNo }
   const next: NavTarget =
-    chapterNo < book.chapterCount ? { kind: 'chapter', bookNo, chapterNo: chapterNo + 1 } : null
+    chapterNo < book.chapterCount
+      ? { kind: 'chapter', bookNo, chapterNo: chapterNo + 1 }
+      : BOOK_BY_NO.has(bookNo + 1)
+        ? { kind: 'outline', bookNo: bookNo + 1 }
+        : null
   const { start, end } = parseHighlight(hl)
   const headingAnchor = parseHeadingAnchor(oh)
 

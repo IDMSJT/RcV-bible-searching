@@ -1,7 +1,7 @@
 import { useLocalStorage } from '@/lib/useLocalStorage'
 
 const HEADER_CLS =
-  'sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur md:h-8 md:text-xs'
+  'sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur md:h-9 md:text-xs'
 
 // State lives here so typing in the textarea doesn't re-render the root.
 // /compose reads the same key via useLocalStorage and stays in sync via the

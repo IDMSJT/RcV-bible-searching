@@ -21,14 +21,30 @@ function BookOutlinePage() {
   const { data: outline } = useOutline()
   const entries = outline?.books.find((b) => b.bookNo === bookNo)?.outline ?? []
 
+  // Symmetric to chapterN-next-is-next-book-outline: outline-prev is the
+  // previous book's last chapter, so the reader can walk backwards through
+  // the whole canon without ever hitting a dead end.
+  const prevBook = BOOK_BY_NO.get(bookNo - 1)
+
   return (
     <>
       <header className="sticky top-0 z-10 border-b border-border bg-card">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-3 md:px-8">
           <div className="flex w-7 justify-start">
-            <span className="inline-flex size-7 items-center justify-center text-muted-foreground/40">
-              <ChevronLeft className="size-3.5" />
-            </span>
+            {prevBook ? (
+              <Link
+                to="/$bookNo/$chapterNo"
+                params={{ bookNo: prevBook.bookNo, chapterNo: prevBook.chapterCount }}
+                search={{}}
+                className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <ChevronLeft className="size-3.5" />
+              </Link>
+            ) : (
+              <span className="inline-flex size-7 items-center justify-center text-muted-foreground/40">
+                <ChevronLeft className="size-3.5" />
+              </span>
+            )}
           </div>
           <h1 className="text-base font-medium tracking-tight">
             {book.name} <span className="text-muted-foreground">綱目</span>

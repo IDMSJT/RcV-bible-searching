@@ -234,7 +234,7 @@ export function ChapterView({
 
       <article className="mx-auto max-w-3xl px-4 py-6 md:px-8 md:py-10">
         {chapter ? (
-        <div className="grid grid-cols-[minmax(1.3125rem,auto)_1fr] gap-x-2 gap-y-2.5 font-serif leading-relaxed text-[length:var(--reading-fs,1rem)]">
+        <div className="grid grid-cols-[minmax(1.3125rem,auto)_1fr] gap-x-2 gap-y-2.5 font-serif text-[length:var(--reading-fs,1rem)]">
           {rows.map((r) =>
             r.kind === 'heading' ? (
               <OutlineHeading
