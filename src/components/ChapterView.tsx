@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useRef, type ReactNode } from 'react'
 import { useBible, useBibleEn, useOutline, findChapter, chapterOutlineByAnchor } from '@/data/loadBible'
 import { BOOK_BY_NO } from '@/data/canon'
-import { toChineseNumber, chapterUnit, formatOutlineRange, displayMarker } from '@/lib/chinese'
+import { chapterUnit, formatOutlineRange, displayMarker } from '@/lib/chinese'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
 import type { Mark, OutlineEntry } from '@/types/bible'
@@ -225,7 +225,7 @@ export function ChapterView({
           <h1 className="text-base font-medium tracking-tight">
             {book.name}{' '}
             <span className="text-muted-foreground">
-              第{toChineseNumber(chapterNo)}{chapterUnit(bookNo)}
+              第 {chapterNo} {chapterUnit(bookNo)}
             </span>
           </h1>
           <div className="flex w-7 justify-end">{rightAction}</div>
