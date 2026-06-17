@@ -39,7 +39,7 @@ type NavTarget =
 
 function ArrowLink({ target, children }: { target: NavTarget; children: React.ReactNode }) {
   const cls = cn(
-    'inline-flex size-9 items-center justify-center rounded-md',
+    'inline-flex size-7 items-center justify-center rounded-md',
     target
       ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
       : 'text-muted-foreground/40 pointer-events-none',
@@ -104,12 +104,12 @@ function ChapterPage() {
       headingAnchor={headingAnchor}
       leftAction={
         <ArrowLink target={prev}>
-          <ChevronLeft className="size-4" />
+          <ChevronLeft className="size-3.5" />
         </ArrowLink>
       }
       rightAction={
         <ArrowLink target={next}>
-          <ChevronRight className="size-4" />
+          <ChevronRight className="size-3.5" />
         </ArrowLink>
       }
     />

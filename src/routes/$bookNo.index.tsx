@@ -25,28 +25,28 @@ function BookOutlinePage() {
     <>
       <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-8 py-3">
-          <div className="flex w-9 justify-start">
-            <span className="inline-flex size-9 items-center justify-center text-muted-foreground/40">
-              <ChevronLeft className="size-4" />
+          <div className="flex w-7 justify-start">
+            <span className="inline-flex size-7 items-center justify-center text-muted-foreground/40">
+              <ChevronLeft className="size-3.5" />
             </span>
           </div>
-          <h1 className="text-lg font-medium tracking-tight">
+          <h1 className="text-base font-medium tracking-tight">
             {book.name} <span className="text-muted-foreground">綱目</span>
           </h1>
-          <div className="flex w-9 justify-end">
+          <div className="flex w-7 justify-end">
             <Link
               to="/$bookNo/$chapterNo"
               params={{ bookNo, chapterNo: 1 }}
               search={{}}
-              className="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
             >
-              <ChevronRight className="size-4" />
+              <ChevronRight className="size-3.5" />
             </Link>
           </div>
         </div>
       </header>
 
-      <article className="mx-auto max-w-3xl px-8 py-8">
+      <article className="mx-auto max-w-3xl px-[3.8125rem] py-10">
         <div className="flex flex-col gap-y-2.5 font-sans text-sm">
           {entries.map((e, i) => (
             <Link

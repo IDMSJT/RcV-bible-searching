@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, type ReactNode } from 'react'
-import { useBible, useOutline, findChapter, chapterOutlineByAnchor } from '@/data/loadBible'
+import { useBible, useBibleEn, useOutline, findChapter, chapterOutlineByAnchor } from '@/data/loadBible'
 import { BOOK_BY_NO } from '@/data/canon'
 import { toChineseNumber, chapterUnit, formatOutlineRange, displayMarker } from '@/lib/chinese'
 import { useLocalStorage } from '@/lib/useLocalStorage'
@@ -89,6 +89,9 @@ type Row =
       kind: 'verse'
       num: number | ''
       text: string
+      /** English under the verse, only when 顯示英文 is on AND the verse number's
+       * start segment (not split fragments) maps to a known English string. */
+      en?: string
       marks?: Mark[]
       hl: boolean
       ref: boolean
@@ -115,6 +118,9 @@ export function ChapterView({
   const { data, error } = useBible()
   const { data: outline } = useOutline()
   const [showOutline] = useLocalStorage('rcv/show-outline', true)
+  const [showEnglish] = useLocalStorage('rcv/show-english', false)
+  const { data: bibleEn } = useBibleEn(showEnglish)
+  const enChapter = showEnglish ? findChapter(bibleEn, bookNo, chapterNo) : null
   const book = BOOK_BY_NO.get(bookNo)
   const scrollRef = useRef<HTMLElement | null>(null)
   const assignScroll = useCallback((el: HTMLElement | null) => {
@@ -173,14 +179,21 @@ export function ChapterView({
         })
       }
 
+      // English text for this verse (under the LAST segment if split, else the
+      // single row). 詩篇 v0 superscriptions don't have an English equivalent
+      // in this DB, so the lookup naturally returns undefined and we skip.
+      const enText = enChapter?.verses.find((x) => x.verse === v.verse)?.text
+
       if (anyMid && v.segments) {
         let off = 0
+        const lastSeg = v.segments.length - 1
         v.segments.forEach((segText, s) => {
           headingsAt(s).forEach((e, i) => pushHeading(e, `h${v.verse}-${s}-${i}`, s))
           rows.push({
             kind: 'verse',
             num: s === 0 && v.verse !== 0 ? v.verse : '',
             text: segText,
+            en: s === lastSeg ? enText : undefined,
             marks: sliceMarks(v.marks, off, off + segText.length),
             hl,
             ref: isFirst && s === 0,
@@ -194,6 +207,7 @@ export function ChapterView({
           kind: 'verse',
           num: v.verse === 0 ? '' : v.verse,
           text: v.text,
+          en: enText,
           marks: v.marks,
           hl,
           ref: isFirst,
@@ -207,14 +221,14 @@ export function ChapterView({
     <>
       <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-8 py-3">
-          <div className="flex w-9 justify-start">{leftAction}</div>
-          <h1 className="text-lg font-medium tracking-tight">
+          <div className="flex w-7 justify-start">{leftAction}</div>
+          <h1 className="text-base font-medium tracking-tight">
             {book.name}{' '}
             <span className="text-muted-foreground">
               第{toChineseNumber(chapterNo)}{chapterUnit(bookNo)}
             </span>
           </h1>
-          <div className="flex w-9 justify-end">{rightAction}</div>
+          <div className="flex w-7 justify-end">{rightAction}</div>
         </div>
       </header>
 
@@ -238,9 +252,14 @@ export function ChapterView({
                 >
                   {r.num}
                 </span>
-                <p className={cn('font-medium', r.hl && 'rounded bg-yellow-400/25 px-1 -mx-1')}>
-                  {renderMarkedText(r.text, r.marks)}
-                </p>
+                <div>
+                  <p className={cn('font-medium', r.hl && 'rounded bg-yellow-400/25 px-1 -mx-1')}>
+                    {renderMarkedText(r.text, r.marks)}
+                  </p>
+                  {r.en && (
+                    <p className="mt-0.5 font-sans text-sm text-muted-foreground">{r.en}</p>
+                  )}
+                </div>
               </Fragment>
             ),
           )}

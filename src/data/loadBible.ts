@@ -5,12 +5,16 @@ function makeJsonLoader<T>(file: string) {
   let cached: T | null = null
   let pending: Promise<T> | null = null
 
-  return function useJson(): { data: T | null; error: string | null } {
+  return function useJson(enabled: boolean = true): { data: T | null; error: string | null } {
     const [data, setData] = useState<T | null>(cached)
     const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
-      if (cached) return
+      if (!enabled) return
+      if (cached) {
+        setData(cached)
+        return
+      }
       if (!pending) {
         pending = fetch(`${import.meta.env.BASE_URL}${file}`).then((r) => {
           if (!r.ok) throw new Error(`${file} ${r.status}`)
@@ -23,13 +27,14 @@ function makeJsonLoader<T>(file: string) {
           setData(d)
         })
         .catch((e) => setError(String(e)))
-    }, [])
+    }, [enabled])
 
     return { data, error }
   }
 }
 
 export const useBible = makeJsonLoader<Bible>('verse.json')
+export const useBibleEn = makeJsonLoader<Bible>('verse_en.json')
 export const useOutline = makeJsonLoader<Outline>('outline.json')
 
 export function findChapter(

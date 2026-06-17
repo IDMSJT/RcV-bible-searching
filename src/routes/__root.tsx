@@ -31,6 +31,7 @@ function RootComponent() {
   const [mode, setMode] = useLocalStorage<SidebarMode>('rcv/sidebar-mode', 'catalog')
   const [theme, setTheme] = useLocalStorage<Theme>('rcv/theme', 'system')
   const [showOutline, setShowOutline] = useLocalStorage('rcv/show-outline', true)
+  const [showEnglish, setShowEnglish] = useLocalStorage('rcv/show-english', false)
   const [composeInput, setComposeInput] = useLocalStorage('rcv/compose-input', '')
   const navigate = useNavigate()
 
@@ -132,6 +133,9 @@ function RootComponent() {
             </SettingRow>
             <SettingRow label="顯示綱目">
               <Switch on={showOutline} onChange={() => setShowOutline(!showOutline)} />
+            </SettingRow>
+            <SettingRow label="顯示英文">
+              <Switch on={showEnglish} onChange={() => setShowEnglish(!showEnglish)} />
             </SettingRow>
           </div>
         </aside>
