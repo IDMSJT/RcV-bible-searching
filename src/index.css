@@ -51,39 +51,42 @@
 }
 
 /* ── Theme tokens — RcV palette (米色書頁+金 / 深藍灰+金) ──
- * Adopted from the friend's HTML prototype:
- *   light  bg #f7f2e8 米黃紙, tx #24313a 藍黑, gold #9d7a22
- *   dark   bg #0f1923 深藍灰, tx #e8dcc8 米色, gold #c9a84c
+ * Adopted from the friend's HTML prototype, converted to OkLCh so colour
+ * interpolation, opacity stacking and dark↔light swaps stay perceptually even
+ * (the Tailwind v4 default). Original hex in comments for reference.
  */
 @theme {
   /* Light (default) */
-  --color-background: #f7f2e8;
-  --color-foreground: #24313a;
+  --color-background: oklch(0.962 0.014 84.6);   /* #f7f2e8 米黃紙 */
+  --color-foreground: oklch(0.305 0.024 238.8);  /* #24313a 藍黑 */
 
-  --color-card: #fffaf1;
-  --color-card-foreground: #24313a;
+  --color-card: oklch(0.987 0.013 82.4);         /* #fffaf1 */
+  --color-card-foreground: oklch(0.305 0.024 238.8);
 
-  --color-popover: #fffaf1;
-  --color-popover-foreground: #24313a;
+  --color-popover: oklch(0.987 0.013 82.4);
+  --color-popover-foreground: oklch(0.305 0.024 238.8);
 
-  --color-primary: #9d7a22;
-  --color-primary-foreground: #fffaf1;
+  --color-primary: oklch(0.598 0.110 85.7);      /* #9d7a22 深金 */
+  --color-primary-foreground: oklch(0.987 0.013 82.4);
 
-  --color-secondary: #f0e7d8;
-  --color-secondary-foreground: #24313a;
+  --color-secondary: oklch(0.931 0.022 80.7);    /* #f0e7d8 */
+  --color-secondary-foreground: oklch(0.305 0.024 238.8);
 
-  --color-muted: #f0e7d8;
-  --color-muted-foreground: #5f6b62;
+  --color-muted: oklch(0.931 0.022 80.7);
+  --color-muted-foreground: oklch(0.515 0.020 153.2); /* #5f6b62 灰綠 */
 
-  --color-accent: #e8d6a3;
-  --color-accent-foreground: #7d5f14;
+  --color-accent: oklch(0.879 0.069 90.9);       /* #e8d6a3 軟金 */
+  --color-accent-foreground: oklch(0.503 0.095 84.9); /* #7d5f14 暗金 */
 
   --color-destructive: oklch(0.577 0.245 27.325);
   --color-destructive-foreground: oklch(0.985 0 0);
 
-  --color-border: #e3d7c5;
-  --color-input: #e3d7c5;
-  --color-ring: #9d7a22;
+  --color-border: oklch(0.884 0.028 78.2);       /* #e3d7c5 */
+  --color-input: oklch(0.884 0.028 78.2);
+  --color-ring: oklch(0.598 0.110 85.7);
+
+  /* Verse / outline jump highlight — soft gold tint (replaces yellow-400/25). */
+  --color-highlight: oklch(0.82 0.16 87 / 0.35);
 
   --radius: 0.5rem;
 
@@ -94,33 +97,36 @@
 
 /* Dark theme — toggled by the `.dark` class on <html> (see settings). */
 .dark {
-  --color-background: #0f1923;
-  --color-foreground: #e8dcc8;
+  --color-background: oklch(0.209 0.025 249.1);  /* #0f1923 深藍灰 */
+  --color-foreground: oklch(0.899 0.030 80.7);   /* #e8dcc8 米色 */
 
-  --color-card: #16232e;
-  --color-card-foreground: #e8dcc8;
+  --color-card: oklch(0.250 0.028 244.8);        /* #16232e */
+  --color-card-foreground: oklch(0.899 0.030 80.7);
 
-  --color-popover: #16232e;
-  --color-popover-foreground: #e8dcc8;
+  --color-popover: oklch(0.250 0.028 244.8);
+  --color-popover-foreground: oklch(0.899 0.030 80.7);
 
-  --color-primary: #c9a84c;
-  --color-primary-foreground: #0f1923;
+  --color-primary: oklch(0.743 0.117 89.5);      /* #c9a84c 金 */
+  --color-primary-foreground: oklch(0.209 0.025 249.1);
 
-  --color-secondary: #1e2e3e;
-  --color-secondary-foreground: #e8dcc8;
+  --color-secondary: oklch(0.295 0.036 249.2);   /* #1e2e3e */
+  --color-secondary-foreground: oklch(0.899 0.030 80.7);
 
-  --color-muted: #1e2e3e;
-  --color-muted-foreground: #9aaa9a;
+  --color-muted: oklch(0.295 0.036 249.2);
+  --color-muted-foreground: oklch(0.721 0.029 145.3); /* #9aaa9a 灰綠 */
 
-  --color-accent: #5a4010;
-  --color-accent-foreground: #e0c06a;
+  --color-accent: oklch(0.391 0.072 78.5);       /* #5a4010 暗金 */
+  --color-accent-foreground: oklch(0.818 0.112 89.4); /* #e0c06a 亮金 */
 
   --color-destructive: oklch(0.704 0.191 22.216);
   --color-destructive-foreground: oklch(0.985 0 0);
 
-  --color-border: #253545;
-  --color-input: #253545;
-  --color-ring: #c9a84c;
+  --color-border: oklch(0.322 0.036 249.0);      /* #253545 */
+  --color-input: oklch(0.322 0.036 249.0);
+  --color-ring: oklch(0.743 0.117 89.5);
+
+  /* Slightly less alpha against the darker bg so it still reads clearly. */
+  --color-highlight: oklch(0.78 0.15 87 / 0.30);
 }
 
 html, body, #root {

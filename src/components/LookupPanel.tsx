@@ -55,7 +55,7 @@ function renderBackdrop(
     const isActive =
       ref != null && activeKey === refKey(ref.bookNo, ref.chapterNo, refHl(ref))
     return isActive ? (
-      <span key={i} className="rounded-sm bg-yellow-400/25">
+      <span key={i} className="rounded-sm bg-highlight">
         {seg.text}
       </span>
     ) : (

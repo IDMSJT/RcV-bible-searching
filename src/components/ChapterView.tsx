@@ -64,7 +64,7 @@ function OutlineHeading({
   const cls =
     'col-start-2 justify-self-start flex gap-1.5 font-sans text-sm text-muted-foreground ' +
     (tight ? '' : 'mt-2 first:mt-0 ') +
-    (highlight ? 'rounded bg-yellow-400/25 px-1' : '')
+    (highlight ? 'rounded bg-highlight px-1' : '')
   const style = highlight
     ? { marginLeft: `calc(${indent}rem - 0.25rem)`, marginRight: '-0.25rem' }
     : { marginLeft: `${indent}rem` }
@@ -253,7 +253,7 @@ export function ChapterView({
                   {r.num}
                 </span>
                 <div>
-                  <p className={cn('font-medium', r.hl && 'rounded bg-yellow-400/25 px-1 -mx-1')}>
+                  <p className={cn('font-medium', r.hl && 'rounded bg-highlight px-1 -mx-1')}>
                     {renderMarkedText(r.text, r.marks)}
                   </p>
                   {r.en && (
