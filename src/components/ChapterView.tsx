@@ -62,7 +62,7 @@ function OutlineHeading({
   // room and the margins are pulled in by 0.25rem to compensate (no layout shift).
   const indent = (entry.level - 1) * 0.5
   const cls =
-    'col-start-2 justify-self-start flex gap-1.5 font-sans text-sm text-muted-foreground ' +
+    'col-start-2 justify-self-start flex gap-1.5 font-sans text-[0.875em] text-muted-foreground ' +
     (tight ? '' : 'mt-2 first:mt-0 ') +
     (highlight ? 'rounded bg-highlight px-1' : '')
   const style = highlight
@@ -220,7 +220,7 @@ export function ChapterView({
   return (
     <>
       <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-8 py-3">
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-3 md:px-8">
           <div className="flex w-7 justify-start">{leftAction}</div>
           <h1 className="text-base font-medium tracking-tight">
             {book.name}{' '}
@@ -232,9 +232,9 @@ export function ChapterView({
         </div>
       </header>
 
-      <article className="mx-auto max-w-3xl px-8 py-10">
+      <article className="mx-auto max-w-3xl px-4 py-6 md:px-8 md:py-10">
         {chapter ? (
-        <div className="grid grid-cols-[minmax(1.3125rem,auto)_1fr] gap-x-2 gap-y-2.5 font-serif text-base leading-relaxed">
+        <div className="grid grid-cols-[minmax(1.3125rem,auto)_1fr] gap-x-2 gap-y-2.5 font-serif leading-relaxed text-[length:var(--reading-fs,1rem)]">
           {rows.map((r) =>
             r.kind === 'heading' ? (
               <OutlineHeading
@@ -257,7 +257,7 @@ export function ChapterView({
                     {renderMarkedText(r.text, r.marks)}
                   </p>
                   {r.en && (
-                    <p className="mt-0.5 font-sans text-sm text-muted-foreground">{r.en}</p>
+                    <p className="mt-0.5 font-sans text-[0.85em] text-muted-foreground">{r.en}</p>
                   )}
                 </div>
               </Fragment>

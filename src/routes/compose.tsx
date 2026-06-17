@@ -138,7 +138,7 @@ function ComposePage() {
 
   if (input.trim() === '') {
     return (
-      <article className="mx-auto max-w-3xl px-8 py-10">
+      <article className="mx-auto max-w-3xl px-4 py-6 md:px-8 md:py-10">
         <p className="text-sm text-muted-foreground">
           在左邊側邊欄貼上綱要，這裡就會列出每個點下面的經文。
         </p>
@@ -147,8 +147,8 @@ function ComposePage() {
   }
 
   return (
-    <article className="mx-auto max-w-3xl px-8 py-10">
-      <div className="flex flex-col font-serif text-base leading-relaxed">
+    <article className="mx-auto max-w-3xl px-4 py-6 md:px-8 md:py-10">
+      <div className="flex flex-col font-serif leading-relaxed text-[length:var(--reading-fs,1rem)]">
         {lines.map((line, i) => {
           const p = parsed[i]
           if (!p || p.kind === 'empty') return null
