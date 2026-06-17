@@ -405,6 +405,9 @@ function parseZh(text) {
       addV(out, a.bk, a.ch, a.v1, a.v2); i = a.end;
       let curBk = a.bk, curCh = a.ch;
       while (i < text.length) {
+        // Skip a trailing 上/下/中 annotation (e.g. "24下") that may follow
+        // the verse number just consumed — it shouldn't break continuation.
+        while (i < text.length && '上下中'.includes(text[i])) i++;
         m = rSEP.exec(text.slice(i));
         const ap = (m && m.index === 0) ? i + m[0].length : i;
         if (ap === i && !',，、；;～~\u2013\u2014\-至到'.includes(text[i])) break;
