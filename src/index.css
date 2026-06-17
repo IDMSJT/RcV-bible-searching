@@ -50,35 +50,40 @@
   }
 }
 
-/* ── Theme tokens (shadcn neutral, with dark mode via media query) ── */
+/* ── Theme tokens — RcV palette (米色書頁+金 / 深藍灰+金) ──
+ * Adopted from the friend's HTML prototype:
+ *   light  bg #f7f2e8 米黃紙, tx #24313a 藍黑, gold #9d7a22
+ *   dark   bg #0f1923 深藍灰, tx #e8dcc8 米色, gold #c9a84c
+ */
 @theme {
-  --color-background: oklch(1 0 0);
-  --color-foreground: oklch(0.145 0 0);
+  /* Light (default) */
+  --color-background: #f7f2e8;
+  --color-foreground: #24313a;
 
-  --color-card: oklch(1 0 0);
-  --color-card-foreground: oklch(0.145 0 0);
+  --color-card: #fffaf1;
+  --color-card-foreground: #24313a;
 
-  --color-popover: oklch(1 0 0);
-  --color-popover-foreground: oklch(0.145 0 0);
+  --color-popover: #fffaf1;
+  --color-popover-foreground: #24313a;
 
-  --color-primary: oklch(0.205 0 0);
-  --color-primary-foreground: oklch(0.985 0 0);
+  --color-primary: #9d7a22;
+  --color-primary-foreground: #fffaf1;
 
-  --color-secondary: oklch(0.97 0 0);
-  --color-secondary-foreground: oklch(0.205 0 0);
+  --color-secondary: #f0e7d8;
+  --color-secondary-foreground: #24313a;
 
-  --color-muted: oklch(0.97 0 0);
-  --color-muted-foreground: oklch(0.556 0 0);
+  --color-muted: #f0e7d8;
+  --color-muted-foreground: #5f6b62;
 
-  --color-accent: oklch(0.97 0 0);
-  --color-accent-foreground: oklch(0.205 0 0);
+  --color-accent: #e8d6a3;
+  --color-accent-foreground: #7d5f14;
 
   --color-destructive: oklch(0.577 0.245 27.325);
   --color-destructive-foreground: oklch(0.985 0 0);
 
-  --color-border: oklch(0.922 0 0);
-  --color-input: oklch(0.922 0 0);
-  --color-ring: oklch(0.708 0 0);
+  --color-border: #e3d7c5;
+  --color-input: #e3d7c5;
+  --color-ring: #9d7a22;
 
   --radius: 0.5rem;
 
@@ -89,33 +94,33 @@
 
 /* Dark theme — toggled by the `.dark` class on <html> (see settings). */
 .dark {
-  --color-background: oklch(0.145 0 0);
-  --color-foreground: oklch(0.985 0 0);
+  --color-background: #0f1923;
+  --color-foreground: #e8dcc8;
 
-  --color-card: oklch(0.205 0 0);
-  --color-card-foreground: oklch(0.985 0 0);
+  --color-card: #16232e;
+  --color-card-foreground: #e8dcc8;
 
-  --color-popover: oklch(0.205 0 0);
-  --color-popover-foreground: oklch(0.985 0 0);
+  --color-popover: #16232e;
+  --color-popover-foreground: #e8dcc8;
 
-  --color-primary: oklch(0.922 0 0);
-  --color-primary-foreground: oklch(0.205 0 0);
+  --color-primary: #c9a84c;
+  --color-primary-foreground: #0f1923;
 
-  --color-secondary: oklch(0.269 0 0);
-  --color-secondary-foreground: oklch(0.985 0 0);
+  --color-secondary: #1e2e3e;
+  --color-secondary-foreground: #e8dcc8;
 
-  --color-muted: oklch(0.269 0 0);
-  --color-muted-foreground: oklch(0.708 0 0);
+  --color-muted: #1e2e3e;
+  --color-muted-foreground: #9aaa9a;
 
-  --color-accent: oklch(0.269 0 0);
-  --color-accent-foreground: oklch(0.985 0 0);
+  --color-accent: #5a4010;
+  --color-accent-foreground: #e0c06a;
 
   --color-destructive: oklch(0.704 0.191 22.216);
   --color-destructive-foreground: oklch(0.985 0 0);
 
-  --color-border: oklch(1 0 0 / 10%);
-  --color-input: oklch(1 0 0 / 15%);
-  --color-ring: oklch(0.556 0 0);
+  --color-border: #253545;
+  --color-input: #253545;
+  --color-ring: #c9a84c;
 }
 
 html, body, #root {
