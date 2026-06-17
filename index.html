@@ -12,11 +12,11 @@
   --gold:#c9a84c;--gold2:#e0c06a;--gdim:#5a4010;
   --bd:#253545;--bd2:#3a5060;--fs:18px;
 }
-html{font-size:var(--fs)}
+html{font-size:var(--fs);background:var(--bg)}
 body{font-family:'PingFang TC','Microsoft JhengHei','Noto Sans TC',sans-serif;
      background:var(--bg);color:var(--tx);height:100vh;display:flex;
      flex-direction:column;overflow:hidden;-webkit-text-size-adjust:100%}
-body.day{--bg:#f7f2e8;--bg2:#fffaf1;--bg3:#f0e7d8;--tx:#24313a;--tx2:#5f6b62;--tx3:#8b8b76;--gold:#9d7a22;--gold2:#7d5f14;--gdim:#e8d6a3;--bd:#e3d7c5;--bd2:#cdbda6}
+html.day{--bg:#f7f2e8;--bg2:#fffaf1;--bg3:#f0e7d8;--tx:#24313a;--tx2:#5f6b62;--tx3:#8b8b76;--gold:#9d7a22;--gold2:#7d5f14;--gdim:#e8d6a3;--bd:#e3d7c5;--bd2:#cdbda6}
 
 /* HEADER */
 header{background:var(--bg2);border-bottom:1px solid var(--bd);padding:8px 14px;
@@ -79,9 +79,14 @@ textarea.rta::placeholder{color:var(--tx3)}
 
 /* COL 1 - SIDEBAR */
 aside{width:168px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--bd);
-      display:flex;flex-direction:column;overflow:hidden}
+      display:flex;flex-direction:column;overflow:hidden;transition:width .18s,min-width .18s}
 .aside-hd{padding:6px 11px;font-size:.61rem;color:var(--tx3);letter-spacing:.1em;
-          border-bottom:1px solid var(--bd);flex-shrink:0}
+          border-bottom:1px solid var(--bd);flex-shrink:0;display:flex;
+          align-items:center;justify-content:space-between;gap:6px}
+.aside-toggle{background:var(--bg3);border:1px solid var(--bd);border-radius:4px;
+      color:var(--tx2);cursor:pointer;font-size:.72rem;padding:2px 7px;line-height:1.4;
+      flex-shrink:0;-webkit-tap-highlight-color:transparent}
+.aside-toggle:active{border-color:var(--gold);color:var(--gold)}
 .aside-body{overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch}
 .aside-body::-webkit-scrollbar{width:3px}
 .aside-body::-webkit-scrollbar-thumb{background:var(--bd);border-radius:2px}
@@ -95,8 +100,8 @@ aside{width:168px;flex-shrink:0;background:var(--bg2);border-right:1px solid var
 
 /* COL 2 - RESULTS */
 .col2{flex:1.2;display:flex;flex-direction:column;min-width:0;
-      overflow:hidden;border-right:1px solid var(--bd)}
-.toolbar{padding:6px 12px;display:flex;align-items:center;gap:6px;
+      overflow:hidden;border-right:1px solid var(--bd);background:var(--bg2)}
+.toolbar{padding:6px 12px;display:flex;align-items:center;gap:6px;background:var(--bg2);
          border-bottom:1px solid var(--bd);flex-shrink:0;flex-wrap:wrap;min-height:34px}
 .rc{font-size:.72rem;color:var(--tx2);flex:1;min-width:0;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -105,14 +110,14 @@ aside{width:168px;flex-shrink:0;background:var(--bg2);border-right:1px solid var
       border-radius:4px;color:var(--tx2);cursor:pointer;transition:all .15s;white-space:nowrap;
       -webkit-tap-highlight-color:transparent}
 .cbtn:active{border-color:var(--gold);color:var(--gold)}
-.chnav{display:none;gap:3px;flex-wrap:wrap;padding:5px 12px;
+.chnav{display:none;gap:3px;flex-wrap:wrap;padding:5px 12px;background:var(--bg2);
        border-bottom:1px solid var(--bd);flex-shrink:0}
 .chnav.show{display:flex}
 .chbtn{padding:3px 8px;font-size:.7rem;background:var(--bg3);border:1px solid var(--bd);
        border-radius:4px;color:var(--tx2);cursor:pointer;
        -webkit-tap-highlight-color:transparent}
 .chbtn.on{background:var(--gdim);border-color:var(--gold);color:var(--gold2)}
-.results{flex:1;overflow-y:auto;padding:7px 12px;display:flex;
+.results{flex:1;overflow-y:auto;padding:7px 12px;display:flex;background:var(--bg);
          flex-direction:column;gap:5px;-webkit-overflow-scrolling:touch}
 .results::-webkit-scrollbar{width:4px}
 .results::-webkit-scrollbar-thumb{background:var(--bd);border-radius:2px}
@@ -169,10 +174,15 @@ mark{background:rgba(201,168,76,.2);color:var(--gold2);border-radius:2px;padding
        transition:opacity .25s;z-index:999;white-space:nowrap}
 .toast.show{opacity:1}
 
+/* SIDEBAR COLLAPSE */
+aside.collapsed{width:34px;min-width:34px}
+aside.collapsed .aside-hd-label,aside.collapsed .aside-body{display:none}
+aside.collapsed .aside-hd{justify-content:center;padding:6px 4px}
+
 /* RESPONSIVE */
 @media(max-width:900px){.col3{display:none}}
 @media(max-width:580px){aside{width:120px}.bk{font-size:.72rem;padding:4px 8px}}
-@media(max-width:400px){aside{display:none}}
+@media(max-width:760px){aside.collapsed{width:34px;min-width:34px}}
 @media(max-width:360px){.hint{display:none}}
 </style>
 </head>
@@ -233,7 +243,7 @@ mark{background:rgba(201,168,76,.2);color:var(--gold2);border-radius:2px;padding
     <button class="go-btn" onclick="runOutline()">產生綱目</button>
   </div>
   <div class="outline-actions">
-    <select class="sel" id="outlineStyle"><option value="cards">卡片式</option><option value="compact">緊湊文字</option><option value="refs">只列引經</option></select>
+    <select class="sel" id="outlineStyle"><option value="cards">卡片式</option><option value="merged">同章合併</option></select>
     <button class="cbtn" onclick="copyOutline()">複製結果</button>
     <button class="cbtn" onclick="exportOutlinePdf()">輸出 PDF</button>
     <button class="cbtn" onclick="exportOutlineDocx()">輸出 DOCX</button>
@@ -242,8 +252,8 @@ mark{background:rgba(201,168,76,.2);color:var(--gold2);border-radius:2px;padding
 </div>
 
 <div class="main">
-  <aside>
-    <div class="aside-hd">書卷目錄</div>
+  <aside id="aside">
+    <div class="aside-hd"><span class="aside-hd-label">書卷目錄</span><button class="aside-toggle" id="asideToggle" onclick="toggleAside()">◀</button></div>
     <div class="aside-body" id="bklist"></div>
   </aside>
   <div class="col2">
@@ -327,7 +337,7 @@ const AP = ABBR_KEYS.map(er).join('|');
 const PP = PART_KEYS.map(er).join('|');
 const CND = '[一二三四五六七八九十百〇]+';
 const NUM = `(?:${CND}|\\d+)`;
-const RS  = '[~\uff5e\\u2013\\u2014\\-至到]';
+const RS  = '[~\uff5e\u301c\\u2013\\u2014\\-至到]';
 
 // Anchor patterns
 const cPC = new RegExp(`(${AP}|${PP})\\s*(${CND})\\s*(\\d+)(?:\\s*${RS}\\s*(\\d+))?`);
@@ -340,6 +350,20 @@ const rCC2 = new RegExp(`(${CND})\\s*(\\d+)(?:\\s*${RS}\\s*(\\d+))?`);
 const rACV = /(\d+)\s*[:|：]\s*(\d+)(?:\s*[~\uff5e\u2013\u2014\-至到]\s*(\d+))?/;
 const rBV  = /(\d+)(?![：:])(?:\s*[~\uff5e\u2013\u2014\-至到]\s*(\d+))?/;
 const rSEP = /[\s,，、；;]+/;
+
+// Chapter-only anchor (no verse number), e.g. "約翰十三章" / "馬太福音二十六章"
+// — establishes book+chapter context without itself yielding a verse.
+const cPCh = new RegExp(`(${FP}|${AP}|${PP})\\s*(?:第\\s*)?(${NUM})\\s*章`);
+
+function tryChapterAnchor(text, pos) {
+  const s = text.slice(pos);
+  const m = cPCh.exec(s);
+  if (m && m.index === 0) {
+    const bk = resolveZh(m[1]), ch = pn(m[2]);
+    if (bk && DB.db[bk] && ch) return {bk, ch, end: pos + m[0].length};
+  }
+  return null;
+}
 
 function resolveZh(s) {
   if (DB.db[s]) return s;
@@ -363,9 +387,16 @@ function addV(out, bk, ch, v1, v2) {
   for (let v = v1; v <= (v2||v1); v++) out.push({bk, ch, v});
 }
 
+// Parenthetical continuation pattern: (27。) or （二八1～6。）— a verse-only or
+// chapter+verse reference inside brackets, with no book name, meant to inherit
+// the most recently mentioned book (and possibly chapter) from earlier prose.
+const rParenChCV = new RegExp(`^[（(]\\s*(${CND})\\s*(\\d+)(?:\\s*${RS}\\s*(\\d+))?\\s*[。．]?\\s*[)）]`);
+const rParenV     = new RegExp(`^[（(]\\s*(\\d+)(?:\\s*${RS}\\s*(\\d+))?\\s*[。．]?\\s*[)）]`);
+
 function parseZh(text) {
   text = normalize(text);
   const out = []; let i = 0;
+  let ctxBk = null, ctxCh = null; // last resolved book/chapter, carried across prose
   while (i < text.length) {
     let m = rSEP.exec(text.slice(i));
     if (m && m.index === 0) { i += m[0].length; continue; }
@@ -411,7 +442,36 @@ function parseZh(text) {
         }
         break;
       }
+      ctxBk = curBk; ctxCh = curCh;
       continue;
+    }
+    // No direct anchor here. Check for a chapter-only mention (e.g. "約翰十三章")
+    // which sets context but yields no verse by itself.
+    const ca = tryChapterAnchor(text, i);
+    if (ca) { ctxBk = ca.bk; ctxCh = ca.ch; i = ca.end; continue; }
+    // If we have a carried-forward book/chapter context
+    // (from an earlier reference elsewhere in the text), check whether this
+    // position starts a parenthetical continuation reference, e.g. "（27。）"
+    // (bare verse, same chapter) or "（二八1～6。）" (chapter+verse, same book).
+    if (ctxBk) {
+      const s = text.slice(i);
+      let pm = rParenChCV.exec(s);
+      if (pm) {
+        const nc = pn(pm[1]), nv1 = +pm[2], nv2 = pm[3] ? +pm[3] : nv1;
+        if (nc && nv1) {
+          ctxCh = nc;
+          addV(out, ctxBk, ctxCh, nv1, nv2);
+          i += pm[0].length;
+          continue;
+        }
+      }
+      pm = rParenV.exec(s);
+      if (pm && ctxCh) {
+        const nv1 = +pm[1], nv2 = pm[2] ? +pm[2] : nv1;
+        addV(out, ctxBk, ctxCh, nv1, nv2);
+        i += pm[0].length;
+        continue;
+      }
     }
     i++;
   }
@@ -724,15 +784,27 @@ function showCtx(bk, ch, v) {
 
 // ═══════════════════════════════ THEME ═══════════════════════════════
 function toggleTheme(){
-  const isDay = document.body.classList.toggle('day');
+  const isDay = document.documentElement.classList.toggle('day');
   document.getElementById('themeBtn').textContent = isDay ? '夜間' : '日間';
   try{localStorage.setItem('rcvTheme', isDay?'day':'night');}catch(_){ }
+}
+
+// ═══════════════════════════════ SIDEBAR COLLAPSE ═══════════════════════════════
+function setAsideCollapsed(collapsed){
+  const aside = document.getElementById('aside');
+  aside.classList.toggle('collapsed', collapsed);
+  document.getElementById('asideToggle').textContent = collapsed ? '▶' : '◀';
+  try{localStorage.setItem('rcvAsideCollapsed', collapsed?'1':'0');}catch(_){ }
+}
+function toggleAside(){
+  setAsideCollapsed(!document.getElementById('aside').classList.contains('collapsed'));
 }
 
 // ═══════════════════════════════ OUTLINE ═══════════════════════════════
 let lastOutlineText = '';
 let lastOutlineGroups = [];
-const OUTLINE_MARK = /^(壹|貳|參|叁|肆|伍|陸|柒|捌|玖|拾|一|二|三|四|五|六|七|八|九|十|\d+|[a-z])(?:[、.．\s]|$)/;
+const CN_NUM_RE = '(?:[一二三四五六七八九]?十[一二三四五六七八九]?|[一二三四五六七八九][一二三四五六七八九]|[一二三四五六七八九])';
+const OUTLINE_MARK = new RegExp('^(壹|貳|參|叁|肆|伍|陸|柒|捌|玖|拾|'+CN_NUM_RE+'|\\d+|[a-z])(?:[、.．\\s]|$)');
 const BOOK_PREFIX_RE = new RegExp('參\\s*(?=(?:'+FP+'|'+AP+'|'+PP+'))','g');
 function normalizeOutlineText(t){
   return normalize(t)
@@ -753,8 +825,18 @@ function refTextForParse(s){
 function seedOmittedBook(text, bk){
   if(!bk) return text;
   const cp='一二三四五六七八九十百〇';
+  // Only seed a leading bare-numeral reference (e.g. "六19" at the very start
+  // of the text, before any actual book name has appeared). Once a real book
+  // name shows up later in the line, parseZh's own continuation logic already
+  // carries that book forward correctly — seeding every later bare segment
+  // with the previous-line's book would incorrectly override that.
+  const bookNameRe = new RegExp(`(?:${FP}|${AP}|${PP})`);
+  const firstBookIdx = text.search(bookNameRe);
+  const head = firstBookIdx === -1 ? text : text.slice(0, firstBookIdx);
+  const tail = firstBookIdx === -1 ? '' : text.slice(firstBookIdx);
   const re=new RegExp('(^|[\\(（,，、；;\\s])(['+cp+']+\\s*\\d+(?:\\s*[-~至到]\\s*\\d+)?)(?=\\s*[,，、；;\\)）]|$)','g');
-  return text.replace(re, (m,p,ref)=>p+bk+ref);
+  const newHead = head.replace(re, (m,p,ref)=>p+bk+ref);
+  return newHead + tail;
 }
 function parseOutlineRefs(line, state){
   const beforeBook = state.lastBook;
@@ -783,7 +865,7 @@ function uniqueRefs(refs){
 function outlineLevel(line){
   const m=line.trim().match(OUTLINE_MARK); if(!m) return 'small'; const x=m[1];
   if (/^(壹|貳|參|叁|肆|伍|陸|柒|捌|玖|拾)$/.test(x)) return 'big';
-  if (/^[一二三四五六七八九十]$/.test(x)) return 'mid';
+  if (new RegExp('^'+CN_NUM_RE+'$').test(x)) return 'mid';
   return 'small';
 }
 function runOutline(){
@@ -802,6 +884,30 @@ function runOutline(){
   if(!groups.length){setMsg('找不到綱目點，請確認每行以壹、一、1、a 等開頭');return;}
   renderOutline(groups);
 }
+// Group consecutive verses (same book+chapter, sequential v) into merged runs
+function mergeConsecutiveVerses(verses){
+  const runs=[];
+  for(const v of verses){
+    const last=runs[runs.length-1];
+    if(last && last.bk===v.bk && last.ch===v.ch && v.v===last.vEnd+1){
+      last.vEnd=v.v; last.items.push(v);
+    } else {
+      runs.push({bk:v.bk, ch:v.ch, vStart:v.v, vEnd:v.v, items:[v]});
+    }
+  }
+  return runs;
+}
+function fmtZhRange(bk,ch,vStart,vEnd){
+  return vStart===vEnd ? fmtZh(bk,ch,vStart) : fmtZh(bk,ch,vStart)+'〜'+vEnd;
+}
+function mergedRunBody(run){
+  return run.items.length > 1
+    ? run.items.map(v=>v.v+v.zh).join('')
+    : run.items[0].zh;
+}
+function mergedRunText(run){
+  return fmtZhRange(run.bk,run.ch,run.vStart,run.vEnd)+'『'+mergedRunBody(run)+'』';
+}
 function renderOutline(groups){
   lastOutlineGroups = groups;
   const style=document.getElementById('outlineStyle').value;
@@ -814,19 +920,30 @@ function renderOutline(groups){
     const indent=g.level==='big'?0:g.level==='mid'?1:2;
     const main=`<div class="outline-main" style="margin-left:${indent}rem">${esc(g.line)}</div>`;
     const miss=g.missing.length?`<div class="outline-missing">未找到：${esc(g.missing.join('、'))}</div>`:'';
-    if(style==='refs') return `<div class="outline-item">${main}<div class="outline-verses">${g.verses.map(v=>`<span class="outline-verse" onclick="showCtx('${v.bk}',${v.ch},${v.v})"><b>${fmtZh(v.bk,v.ch,v.v)}</b></span>`).join('')}</div>${miss}</div>`;
-    const verses=g.verses.map(v=>`<span class="outline-verse" onclick="showCtx('${v.bk}',${v.ch},${v.v})"><b>${fmtZh(v.bk,v.ch,v.v)}</b>${style==='compact'?' ': '　'}${esc(v.zh)}</span>`).join('');
-    return `<div class="outline-item">${main}<div class="outline-verses"><b>經文</b><br>${verses||'<span class="outline-missing">此點未解析出引經</span>'}</div>${miss}</div>`;
+    let body;
+    if(style==='merged'){
+      const runs=mergeConsecutiveVerses(g.verses);
+      body=runs.map(r=>`<span class="outline-verse" onclick="showCtx('${r.bk}',${r.ch},${r.vStart})"><b>${fmtZhRange(r.bk,r.ch,r.vStart,r.vEnd)}</b>${esc('『'+mergedRunBody(r)+'』')}</span>`).join('');
+    } else {
+      body=g.verses.map(v=>`<span class="outline-verse" onclick="showCtx('${v.bk}',${v.ch},${v.v})"><b>${fmtZh(v.bk,v.ch,v.v)}</b>${esc(v.zh)}</span>`).join('');
+    }
+    return `<div class="outline-item">${main}<div class="outline-verses">${body||'<span class="outline-missing">此點未解析出引經</span>'}</div>${miss}</div>`;
   }).join('');
   res.innerHTML=`<div class="outline-output">${html}</div>`;
   res.scrollTop=0;
-  buildOutlineCopy(groups);
+  buildOutlineCopy(groups, style);
 }
-function buildOutlineCopy(groups){
+function buildOutlineCopy(groups, style){
+  style = style || document.getElementById('outlineStyle').value;
   lastOutlineText=groups.map(g=>{
-    const body=g.verses.map(v=>`${fmtZh(v.bk,v.ch,v.v)}　${v.zh}`).join('\n');
+    let body;
+    if(style==='merged'){
+      body=mergeConsecutiveVerses(g.verses).map(mergedRunText).join('\n');
+    } else {
+      body=g.verses.map(v=>`${fmtZh(v.bk,v.ch,v.v)}　${v.zh}`).join('\n');
+    }
     const miss=g.missing.length?'\n未找到：'+g.missing.join('、'):'';
-    return `${g.line}\n* 經文\n${body}${miss}`;
+    return `${g.line}\n${body}${miss}`;
   }).join('\n');
 }
 function copyOutline(){
@@ -902,7 +1019,10 @@ function countV(){
 }
 document.addEventListener('DOMContentLoaded', ()=>{
   buildSidebar();
-  if ((localStorage.getItem('rcvTheme')||'night')==='day') { document.body.classList.add('day'); document.getElementById('themeBtn').textContent='夜間'; }
+  if ((localStorage.getItem('rcvTheme')||'night')==='day') { document.documentElement.classList.add('day'); document.getElementById('themeBtn').textContent='夜間'; }
+  let savedCollapsed = localStorage.getItem('rcvAsideCollapsed');
+  if (savedCollapsed === null) savedCollapsed = window.innerWidth <= 760 ? '1' : '0';
+  setAsideCollapsed(savedCollapsed === '1');
   document.getElementById('outlineStyle').addEventListener('change', ()=>{ if(document.getElementById('outlineInput').value.trim()) runOutline(); });
   document.getElementById('outlineInput').addEventListener('keydown', e=>{ if((e.ctrlKey||e.metaKey)&&e.key==='Enter') runOutline(); });
   document.getElementById('rc').textContent = '共 '+countV().toLocaleString()+' 節 · '+DB.abbrs.length+' 卷';
