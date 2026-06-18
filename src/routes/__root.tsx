@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Outlet, createRootRoute, useLocation, useNavigate } from '@tanstack/react-router'
 // import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 import { BookOpen, ClipboardList, Search, Settings } from 'lucide-react'
@@ -118,11 +118,16 @@ function RootComponent() {
     </>
   )
 
+  // Stable callback so CatalogPanel's memoized BookPicker / ChapterPicker
+  // children don't re-render on every root render — without this every prev/
+  // next chapter URL change cascades through the 66 Tooltip wrappers.
+  const closeDrawer = useCallback(() => setDrawerOpen(false), [])
+
   // Sidebar body, shared between desktop aside and mobile drawer. Its outer
   // width is set by the wrapper (aside on desktop, drawer on mobile).
   const sidebarBody =
     mode === 'lookup' ? (
-      <LookupPanel onNavigate={() => setDrawerOpen(false)} />
+      <LookupPanel onNavigate={closeDrawer} />
     ) : mode === 'compose' ? (
       <ComposePanel />
     ) : mode === 'settings' ? (
@@ -132,12 +137,12 @@ function RootComponent() {
         activeBookNo={activeBookNo}
         activeChapterNo={activeChapterNo}
         activeBook={activeBook}
-        onPick={() => setDrawerOpen(false)}
+        onPick={closeDrawer}
       />
     )
 
   const sidebarWidth =
-    mode === 'lookup' || mode === 'compose' ? 'md:w-[426px]' : 'md:w-[213px]'
+    mode === 'settings' ? 'md:w-[213px]' : 'md:w-[426px]'
   const sidebarFlexCol = mode === 'compose' || mode === 'settings'
 
   return (
@@ -189,7 +194,7 @@ function RootComponent() {
           setDrawerOpen(o)
         }}
       >
-        <DrawerContent className="bottom-16! h-[calc(100vh-4rem)] md:hidden">
+        <DrawerContent className="bottom-[calc(4rem-1px)]! h-[calc(100vh-4rem+1px)] md:hidden">
           <DrawerTitle className="sr-only">
             {mode === 'lookup'
               ? '查詢'

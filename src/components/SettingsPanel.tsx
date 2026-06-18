@@ -63,7 +63,7 @@ function SettingRow({
   onClick?: () => void
 }) {
   const cls = cn(
-    'gap-3 px-4 py-3',
+    'gap-3 px-4 py-4 md:py-3',
     stack ? 'flex flex-col items-stretch' : 'flex items-center justify-between',
   )
   if (onClick) {
