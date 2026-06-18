@@ -1,5 +1,13 @@
 const DIGITS = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九']
 
+/** Character class body for "1+ CN numeral" — without brackets so it can be
+ * spliced into other regex sources. */
+export const CN_NUMERAL_CHARS = '零一二三四五六七八九十百'
+/** Pre-built "1+ CN numeral" char class, ready to plug into a regex. */
+export const CN_NUMERAL_CLASS = `[${CN_NUMERAL_CHARS}]+`
+
+const CN_POSITIONAL_DIGITS = '零一二三四五六七八九'
+
 /** Convert 0-199 to traditional Chinese numerals (Bible-style: 一, 十, 十一, 二十, 一百一十九). */
 export function toChineseNumber(n: number): string {
   if (n < 0 || n > 199 || !Number.isInteger(n)) return String(n)
@@ -75,4 +83,20 @@ export function formatOutlineRange(range: string): string {
         .join('～'),
     )
     .join('，')
+}
+
+const CN_TO_NUM = new Map<string, number>()
+for (let i = 0; i <= 199; i++) CN_TO_NUM.set(toChineseNumber(i), i)
+
+/** Parse a CN or arabic numeral string to a number. Supports standard CN
+ * numerals (一/十/二十/一百一十九), positional CN digits (二三 = 23,
+ * 一一九 = 119), and pure arabic. Returns null when nothing matches. */
+export function parseNum(s: string): number | null {
+  if (/^\d+$/.test(s)) return Number(s)
+  const v = CN_TO_NUM.get(s)
+  if (v != null) return v
+  if (s.length > 0 && [...s].every((c) => CN_POSITIONAL_DIGITS.includes(c))) {
+    return Number([...s].map((c) => CN_POSITIONAL_DIGITS.indexOf(c)).join(''))
+  }
+  return null
 }

@@ -10,9 +10,13 @@ import { cn } from '@/lib/utils'
 import type { Verse } from '@/types/bible'
 
 // Shared text/padding rules so the visible Textarea above the highlight-aware
-// backdrop renders glyphs at exactly the same positions. text-base on mobile
-// avoids iOS Safari's focus-zoom (which triggers below 16px).
-const FIELD_CLS = 'rounded-md border px-2.5 py-2 font-serif text-base leading-relaxed md:text-sm'
+// backdrop renders glyphs at exactly the same positions. text-base on both
+// viewports — mobile needs ≥16px to avoid iOS Safari's focus-zoom and the
+// desktop benefits from the same comfortable reading size.
+const FIELD_CLS = 'px-2.5 py-2 font-serif text-base leading-relaxed'
+
+const HEADER_CLS =
+  'sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur md:h-9 md:px-3 md:text-xs'
 
 const PLACEHOLDER =
   '輸入經文出處，例如：\n約翰福音一章一節，三章十六節，十四章六節'
@@ -57,7 +61,7 @@ function renderBackdrop(
     }
     const ref = refs[refIndex++]
     const isActive =
-      ref != null && activeKey === refKey(ref.bookNo, ref.chapterNo, refHl(ref))
+      ref != null && activeKey === refKey(ref.bookNo, ref.chapter, refHl(ref))
     return isActive ? (
       <span key={i} className="rounded-sm bg-highlight">
         {seg.text}
@@ -92,11 +96,11 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     if (!data) return []
     const out: ResolvedVerse[] = []
     for (const ref of refs) {
-      const chapter = findChapter(data, ref.bookNo, ref.chapterNo)
+      const chapter = findChapter(data, ref.bookNo, ref.chapter)
       if (!chapter) continue
       for (const v of chapter.verses) {
         if (v.verse >= ref.verseStart && v.verse <= ref.verseEnd) {
-          out.push({ bookNo: ref.bookNo, chapterNo: ref.chapterNo, verse: v, ref })
+          out.push({ bookNo: ref.bookNo, chapterNo: ref.chapter, verse: v, ref })
         }
       }
     }
@@ -107,7 +111,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   const refFound = useMemo<boolean[]>(() => {
     if (!data) return refs.map(() => true)
     return refs.map((ref) => {
-      const chapter = findChapter(data, ref.bookNo, ref.chapterNo)
+      const chapter = findChapter(data, ref.bookNo, ref.chapter)
       return !!chapter && chapter.verses.some((v) => v.verse >= ref.verseStart && v.verse <= ref.verseEnd)
     })
   }, [refs, data])
@@ -125,7 +129,8 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
 
   return (
     <div className="flex flex-col md:h-full">
-      <div className="border-b border-border p-3">
+      <h2 className={HEADER_CLS}><span>查詢</span></h2>
+      <div className="border-b border-border">
         <div className="relative">
           {/* Backdrop: same text, failed tokens in red */}
           <div
@@ -133,7 +138,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
             aria-hidden
             className={cn(
               FIELD_CLS,
-              'pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-words border-transparent text-foreground',
+              'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words text-foreground',
             )}
           >
             {renderBackdrop(segments, statuses, refs, refFound, activeKey)}
@@ -141,16 +146,15 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
           <Textarea
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            onScroll={(e) => {
-              if (backdropRef.current) backdropRef.current.scrollTop = e.currentTarget.scrollTop
-            }}
             placeholder={PLACEHOLDER}
             spellCheck={false}
             className={cn(
-              // Override shadcn defaults so the metrics match the backdrop div
-              // exactly (same padding, same font/size/leading on all viewports).
-              'font-serif text-base leading-relaxed md:text-sm',
-              'relative block min-h-[120px] w-full resize-y break-words bg-transparent text-transparent caret-foreground',
+              // Same metrics as the backdrop div so glyphs line up exactly.
+              // field-sizing-content auto-grows the textarea to fit its value
+              // (Chrome 123+/Safari 18.4+), so we don't need a resize handle
+              // or a sync'd scroll position between this and the backdrop.
+              'font-serif text-base leading-relaxed',
+              'relative block min-h-[120px] w-full resize-none field-sizing-content break-words border-0 bg-transparent text-transparent caret-foreground focus-visible:ring-0',
             )}
           />
         </div>
@@ -164,7 +168,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
         ) : !data ? (
           <p className="text-sm text-muted-foreground">載入中…</p>
         ) : (
-          <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-2.5 font-serif text-sm leading-relaxed">
+          <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-2.5 font-serif text-base leading-relaxed">
             {resolved.map((r, i) => {
               const active =
                 activeBookNo === r.bookNo &&

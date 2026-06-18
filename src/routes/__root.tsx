@@ -145,7 +145,7 @@ function RootComponent() {
       <ReadingPreferences />
 
       {/* Desktop: left vertical rail */}
-      <nav className="hidden w-12 shrink-0 flex-col items-center gap-1 border-r border-border bg-card p-1.5 md:flex">
+      <nav className="hidden w-12 shrink-0 flex-col items-center gap-1 border-r border-border bg-card p-2 md:flex">
         {navButtons((m) => mode === m)}
       </nav>
 
