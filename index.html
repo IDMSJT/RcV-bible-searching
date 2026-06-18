@@ -825,25 +825,40 @@ function refTextForParse(s){
   t = t.replace(/([0-9一二三四五六七八九十百〇]+)[上下](?=[,，、；;。．\)）\s]|$)/g,'$1');
   return t;
 }
-function seedOmittedBook(text, bk){
+function seedOmittedBook(text, bk, ch){
   if(!bk) return text;
   const cp='一二三四五六七八九十百〇';
-  // Only seed a leading bare-numeral reference (e.g. "六19" at the very start
-  // of the text, before any actual book name has appeared). Once a real book
-  // name shows up later in the line, parseZh's own continuation logic already
-  // carries that book forward correctly — seeding every later bare segment
-  // with the previous-line's book would incorrectly override that.
-  const bookNameRe = new RegExp(`(?:${FP}|${AP}|${PP})`);
-  const firstBookIdx = text.search(bookNameRe);
+  // Only seed leading bare-reference patterns (before any actual book
+  // reference has appeared in the text). A "real" book reference must be
+  // followed by a chapter/verse numeral (verified via tryAnchor /
+  // tryChapterAnchor) — a bare substring search would false-positive on
+  // single-character abbreviations that coincide with ordinary words, e.g.
+  // "徒" (Acts) appearing inside "信徒" (believer).
+  let firstBookIdx = -1;
+  for (let i = 0; i < text.length; i++) {
+    if (tryAnchor(text, i) || tryChapterAnchor(text, i)) { firstBookIdx = i; break; }
+  }
   const head = firstBookIdx === -1 ? text : text.slice(0, firstBookIdx);
   const tail = firstBookIdx === -1 ? '' : text.slice(firstBookIdx);
-  const re=new RegExp('(^|[\\(（,，、；;\\s])(['+cp+']+\\s*\\d+(?:\\s*[-~至到]\\s*\\d+)?)(?=\\s*[,，、；;\\)）]|$)','g');
-  const newHead = head.replace(re, (m,p,ref)=>p+bk+ref);
+  // Pattern 1: Chinese-numeral chapter directly followed by Arabic verse,
+  // e.g. "六19" — seed with just the book (chapter comes from the numeral).
+  const reChCV=new RegExp('(^|[\\(（,，、；;\\s])(['+cp+']+\\s*\\d+(?:\\s*[-~至到]\\s*\\d+)?)(?=\\s*[,，、；;\\)）]|$)','g');
+  let newHead = head.replace(reChCV, (m,p,ref)=>p+bk+ref);
+  // Pattern 2: a pure bare verse / verse range, optionally followed by 節,
+  // with NO chapter numeral at all (e.g. "18節", "15～16節") — these only
+  // appear at the very start of the line in practice (outline points such as
+  // "三　...—18節。"), and need both book AND chapter seeded, since neither
+  // is present in the text itself.
+  if (ch) {
+    const reBareV=new RegExp('(^|[\\-—－~,，、；;\\s])(\\d+(?:\\s*[-~至到]\\s*\\d+)?)\\s*節(?=[,，、；;。．\\)）]|$)','g');
+    newHead = newHead.replace(reBareV, (m,p,ref)=>p+bk+toCn(ch)+ref+'節');
+  }
   return newHead + tail;
 }
 function parseOutlineRefs(line, state){
   const beforeBook = state.lastBook;
-  const prepared = seedOmittedBook(refTextForParse(line), beforeBook);
+  const beforeChapter = state.lastChapter;
+  const prepared = seedOmittedBook(refTextForParse(line), beforeBook, beforeChapter);
   // Try Chinese parser first
   let refs = parseZh(prepared);
   // Also try English parser for any English refs in the line
@@ -855,9 +870,10 @@ function parseOutlineRefs(line, state){
     if (!seen.has(k)) { refs.push(r); seen.add(k); }
   }
   const augmented=[];
-  let curBk = beforeBook;
-  for (const r of refs){ curBk = r.bk; augmented.push(r); }
+  let curBk = beforeBook, curCh = beforeChapter;
+  for (const r of refs){ curBk = r.bk; curCh = r.ch; augmented.push(r); }
   if (curBk) state.lastBook = curBk;
+  if (curCh) state.lastChapter = curCh;
   return augmented;
 }
 function uniqueRefs(refs){
