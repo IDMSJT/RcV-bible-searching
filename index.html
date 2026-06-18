@@ -341,6 +341,7 @@ const cPA = new RegExp(`(${FP}|${AP}|${PP})\\s*(?:第\\s*)?(${NUM})\\s*章\\s*�
 const cPB = new RegExp(`(${FP}|${AP}|${PP})\\s*(?:第\\s*)?(${NUM})\\s*[:|：]\\s*(${NUM})(?:\\s*${RS}\\s*(${NUM}))?`);
 // Continuation patterns
 const rCC  = new RegExp(`(${NUM})\\s*章\\s*第?\\s*(${NUM})\\s*節?(?:\\s*${RS}\\s*(${NUM})\\s*節?)?`);
+const rCVR = new RegExp(`(${CND})\\s*(?:至|到|[~\\uff5e\\u301c])\\s*(${CND})\\s*節`); // CN range+節
 const rCV  = new RegExp(`(${CND})\\s*節`);
 const rCC2 = new RegExp(`(${CND})\\s*(\\d+)(?:\\s*${RS}\\s*(\\d+))?`);
 const rACV = /(\d+)\s*[:|：]\s*(\d+)(?:\s*[~\uff5e\u2013\u2014\-至到]\s*(\d+))?/;
@@ -421,7 +422,13 @@ function parseZh(text) {
           const nc=+m[1],nv1=+m[2],nv2=m[3]?+m[3]:nv1;
           if(nc&&nv1){i=ap+m[0].length;curCh=nc;addV(out,curBk,curCh,nv1,nv2);continue;}
         }
-        // 3. CN verse + 節 (e.g. 十四節)
+        // 3a. CN verse RANGE + 節 (e.g. 十四至十六節, 九至二十三節)
+        m = rCVR.exec(s);
+        if (m && m.index === 0) {
+          const nv1=pn(m[1]),nv2=pn(m[2]);
+          if(nv1&&nv2){i=ap+m[0].length;addV(out,curBk,curCh,nv1,nv2);continue;}
+        }
+        // 3b. CN verse + 節 (e.g. 十四節)
         m = rCV.exec(s);
         if (m && m.index === 0) {
           const nv=pn(m[1]);
