@@ -64,6 +64,7 @@ textarea.rta::placeholder{color:var(--tx3)}
      background:none;border:none;color:var(--tx3);cursor:pointer;
      font-size:.9rem;display:none;padding:4px;line-height:1}
 .sel{background:var(--bg3);border:1px solid var(--bd2);border-radius:6px;color:var(--tx);font-size:.82rem;padding:7px 9px;font-family:inherit;outline:none}
+.outline-actions-row{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
 .outline-actions{display:flex;gap:6px;align-items:center;margin-top:7px;flex-wrap:wrap}
 .outline-output{font-size:.86rem;line-height:1.85;white-space:pre-wrap}
 .outline-item{background:var(--bg2);border:1px solid var(--bd);border-radius:6px;padding:10px 12px;margin-bottom:8px}
@@ -237,6 +238,11 @@ aside.collapsed .aside-hd{justify-content:center;padding:6px 4px}
   <div class="ref-row">
     <textarea class="rta" id="outlineInput" placeholder="貼上綱目內容，支援與經節查詢相同的所有格式&#10;例：壹 … 腓一19下～21上&#10;二 … 約十三27，太二八1～6&#10;三 … 創一26，John 1:1，羅八29："></textarea>
     <button class="go-btn" onclick="runOutline()">產生綱目</button>
+  </div>
+  <div class="outline-actions-row">
+    <button class="cbtn" onclick="document.getElementById('outlineInput').value='';document.getElementById('outlineInput').focus()">× 清除</button>
+    <button class="cbtn" onclick="navigator.clipboard.readText().then(t=>{document.getElementById('outlineInput').value=t}).catch(()=>toast('請手動貼上'))">⎘ 貼上</button>
+    <button class="cbtn" onclick="navigator.clipboard.readText().then(t=>{document.getElementById('outlineInput').value=t;runOutline();}).catch(()=>toast('請手動貼上'))">⎘ 貼上並產生</button>
   </div>
   <div class="outline-actions">
     <select class="sel" id="outlineStyle"><option value="cards">卡片式</option><option value="merged">同章合併</option></select>
@@ -845,7 +851,7 @@ function seedOmittedBook(text, bk, ch){
   const tail = firstBookIdx === -1 ? '' : text.slice(firstBookIdx);
   // Pattern 1: Chinese-numeral chapter directly followed by Arabic verse,
   // e.g. "六19" — seed with just the book (chapter comes from the numeral).
-  const reChCV=new RegExp('(^|[\\(（,，、；;\\s])(['+cp+']+\\s*\\d+(?:\\s*[-~至到]\\s*\\d+)?)(?=\\s*[,，、；;\\)）]|$)','g');
+  const reChCV=new RegExp('(^|[\\(（,，、；;~\\s])(['+cp+']+\\s*\\d+(?:\\s*[-~至到]\\s*\\d+)?)(?=\\s*[,，、；;：:\\)）。．]|$)','g');
   let newHead = head.replace(reChCV, (m,p,ref)=>p+bk+ref);
   // Pattern 2: a pure bare verse / verse range, optionally followed by 節,
   // with NO chapter numeral at all (e.g. "18節", "15～16節") — these only
@@ -853,7 +859,7 @@ function seedOmittedBook(text, bk, ch){
   // "三　...—18節。"), and need both book AND chapter seeded, since neither
   // is present in the text itself.
   if (ch) {
-    const reBareV=new RegExp('(^|[\\-—－~,，、；;\\s])(\\d+(?:\\s*[-~至到]\\s*\\d+)?)\\s*節(?=[,，、；;。．\\)）]|$)','g');
+    const reBareV=new RegExp('(^|[\\-—－~,，、；;\\s])(\\d+(?:\\s*[-~至到]\\s*\\d+)?)\\s*節(?=[,，、；;。．：:\\)）]|$)','g');
     newHead = newHead.replace(reBareV, (m,p,ref)=>p+bk+toCn(ch)+ref+'節');
   }
   return newHead + tail;
