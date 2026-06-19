@@ -9,6 +9,7 @@ import { ComposePanel } from '@/components/ComposePanel'
 import { SettingsPanel } from '@/components/SettingsPanel'
 import { ReadingPreferences } from '@/components/ReadingPreferences'
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
 
@@ -88,11 +89,10 @@ function RootComponent() {
   // size-5 on mobile (more thumb-friendly), size-4 on desktop where they sit in
   // the slim left rail.
   const navIcon = 'size-5 md:size-4'
-  // Desktop sidebar is always visible so the lit nav button matches `mode`.
-  // On mobile the drawer is the visible part, so the nav button only lights up
-  // when the drawer is actually open (a tap that closes the drawer therefore
-  // dims its own button immediately).
-  const navButtons = (isActive: (m: SidebarMode) => boolean) => (
+  // The first three buttons are identical on both viewports; settings differs
+  // — on desktop it opens a Popover anchored to the button, on mobile it stays
+  // a regular nav that swaps the drawer into settings mode.
+  const sharedNavButtons = (isActive: (m: SidebarMode) => boolean) => (
     <>
       <NavButton active={isActive('catalog')} label="閱讀" onClick={() => openMode('catalog')}>
         <BookOpen className={navIcon} />
@@ -107,16 +107,10 @@ function RootComponent() {
       >
         <ClipboardList className={navIcon} />
       </NavButton>
-      <NavButton
-        active={isActive('settings')}
-        label="設定"
-        onClick={() => openMode('settings')}
-        className="md:mt-auto"
-      >
-        <Settings className={navIcon} />
-      </NavButton>
     </>
   )
+
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   // Stable callback so CatalogPanel's memoized BookPicker / ChapterPicker
   // children don't re-render on every root render — without this every prev/
@@ -146,18 +140,34 @@ function RootComponent() {
   const sidebarFlexCol = mode === 'compose' || mode === 'settings'
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground md:flex-row">
+    <div className="flex h-screen flex-col overflow-hidden bg-card text-foreground md:flex-row">
       <ReadingPreferences />
 
       {/* Desktop: left vertical rail */}
-      <nav className="hidden w-12 shrink-0 flex-col items-center gap-1 border-r border-border bg-card p-2 md:flex">
-        {navButtons((m) => mode === m)}
+      <nav className="hidden w-12 shrink-0 flex-col items-center gap-1 border-r border-border bg-background p-2 md:flex">
+        {sharedNavButtons((m) => mode === m)}
+        <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <PopoverTrigger
+            render={
+              <NavButton active={settingsOpen} label="設定" className="mt-auto">
+                <Settings className={navIcon} />
+              </NavButton>
+            }
+          />
+          <PopoverContent
+            side="right"
+            align="end"
+            className="w-80 gap-0 overflow-hidden p-0"
+          >
+            <SettingsPanel />
+          </PopoverContent>
+        </Popover>
       </nav>
 
       {/* Desktop: inline sidebar; hidden below md */}
       <aside
         className={cn(
-          'hidden shrink-0 overflow-y-auto border-r border-border bg-card md:block',
+          'hidden shrink-0 overflow-y-auto border-r border-border bg-background md:block',
           sidebarFlexCol && 'md:flex md:flex-col',
           mode === 'lookup' && 'md:overflow-hidden',
           sidebarWidth,
@@ -178,9 +188,16 @@ function RootComponent() {
        * across the full width so taps are easy with a thumb. */}
       <nav
         data-bottom-nav
-        className="pointer-events-auto fixed inset-x-0 bottom-0 z-[60] flex h-16 items-stretch border-t border-border bg-card [&>button]:size-auto [&>button]:flex-1 [&>button]:h-full [&>button]:rounded-none md:hidden"
+        className="pointer-events-auto fixed inset-x-0 bottom-0 z-[60] flex h-16 items-stretch border-t border-border bg-background [&>button]:size-auto [&>button]:flex-1 [&>button]:h-full [&>button]:rounded-none md:hidden"
       >
-        {navButtons((m) => drawerOpen && mode === m)}
+        {sharedNavButtons((m) => drawerOpen && mode === m)}
+        <NavButton
+          active={drawerOpen && mode === 'settings'}
+          label="設定"
+          onClick={() => openMode('settings')}
+        >
+          <Settings className={navIcon} />
+        </NavButton>
       </nav>
 
       {/* Mobile: drawer holding the sidebar content */}
@@ -221,19 +238,21 @@ function NavButton({
   onClick,
   className,
   children,
+  ...rest
 }: {
   active: boolean
   label: string
-  onClick: () => void
+  onClick?: () => void
   className?: string
   children: React.ReactNode
-}) {
+} & Omit<React.ComponentPropsWithoutRef<'button'>, 'onClick' | 'className' | 'children'>) {
   return (
     <button
       type="button"
-      onClick={onClick}
       title={label}
       aria-label={label}
+      onClick={onClick}
+      {...rest}
       className={cn(
         'inline-flex flex-col items-center justify-center gap-1.5 rounded-md transition-colors md:size-9 md:gap-0',
         active

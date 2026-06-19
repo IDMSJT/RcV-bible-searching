@@ -57,7 +57,7 @@
  */
 @theme {
   /* Light (default) */
-  --color-background: oklch(0.962 0.014 84.6);   /* #f7f2e8 米黃紙 */
+  --color-background: oklch(0.975 0.014 84.6);   /* slightly lighter米黃 — sidebar chrome */
   --color-foreground: oklch(0.305 0.024 238.8);  /* #24313a 藍黑 */
 
   --color-card: oklch(0.987 0.013 82.4);         /* #fffaf1 */
@@ -97,7 +97,7 @@
 
 /* Dark theme — toggled by the `.dark` class on <html> (see settings). */
 .dark {
-  --color-background: oklch(0.209 0.025 249.1);  /* #0f1923 深藍灰 */
+  --color-background: oklch(0.230 0.025 249.1);  /* lighter chrome — sidebar */
   --color-foreground: oklch(0.899 0.030 80.7);   /* #e8dcc8 米色 */
 
   --color-card: oklch(0.250 0.028 244.8);        /* #16232e */

@@ -44,6 +44,7 @@ function renderBackdrop(
   refs: VerseRef[],
   refFound: boolean[],
   activeKey: string | null,
+  hoveredKey: string | null,
 ) {
   let tokenIndex = 0
   let refIndex = 0
@@ -60,9 +61,9 @@ function renderBackdrop(
       )
     }
     const ref = refs[refIndex++]
-    const isActive =
-      ref != null && activeKey === refKey(ref.bookNo, ref.chapter, refHl(ref))
-    return isActive ? (
+    const key = ref != null ? refKey(ref.bookNo, ref.chapter, refHl(ref)) : null
+    const lit = key != null && (key === activeKey || key === hoveredKey)
+    return lit ? (
       <span key={i} className="rounded-sm bg-highlight">
         {seg.text}
       </span>
@@ -116,6 +117,13 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     })
   }, [refs, data])
 
+  // Key of the result row currently under the mouse — so its source token in
+  // the input backdrop highlights along with the row's own lit state.
+  const hoveredRef = hovered != null ? resolved[hovered]?.ref : null
+  const hoveredKey = hoveredRef != null
+    ? refKey(hoveredRef.bookNo, hoveredRef.chapter, refHl(hoveredRef))
+    : null
+
   const openRef = (r: ResolvedVerse) => {
     navigate({
       to: '/$bookNo/$chapterNo',
@@ -141,7 +149,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
               'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words text-foreground',
             )}
           >
-            {renderBackdrop(segments, statuses, refs, refFound, activeKey)}
+            {renderBackdrop(segments, statuses, refs, refFound, activeKey, hoveredKey)}
           </div>
           <Textarea
             value={q}

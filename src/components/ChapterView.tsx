@@ -219,7 +219,7 @@ export function ChapterView({
 
   return (
     <>
-      <header className="sticky top-0 z-10 border-b border-border bg-card">
+      <header className="sticky top-0 z-10 border-b border-border bg-background">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-3 md:px-8">
           <div className="flex w-7 justify-start">{leftAction}</div>
           <h1 className="text-base font-medium tracking-tight">

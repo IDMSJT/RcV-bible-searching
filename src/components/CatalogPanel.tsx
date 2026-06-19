@@ -71,7 +71,7 @@ function DesktopCatalog({ activeBookNo, activeChapterNo, activeBook, onPick }: S
       {/* Absolutely-positioned divider so it doesn't subtract from either
         * pane's content width — a `border-r` on one pane would shrink its
         * content by 1px and offset its grid cells from the other side's. */}
-      <div className="pointer-events-none absolute inset-y-0 left-1/2 -ml-px w-px bg-border" />
+      <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 -ml-px w-px bg-border" />
     </div>
   )
 }
@@ -216,7 +216,7 @@ function MobileCatalog({ activeBookNo, activeChapterNo, activeBook, onPick }: Sh
         {/* Divider rides on the inner wrapper so it follows the translate —
           * sits exactly at the pane boundary, which is offscreen when one
           * pane fills the container and visible only mid-swipe. */}
-        <div className="pointer-events-none absolute inset-y-0 left-1/2 -ml-px w-px bg-border" />
+        <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 -ml-px w-px bg-border" />
       </div>
     </div>
   )
