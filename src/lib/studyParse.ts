@@ -17,13 +17,27 @@ const BOOK_NAME_RE = new RegExp(
   'g',
 )
 
+// `叁` is the formal/anti-fraud variant of `參`; some outlines mix the two.
+// Marker is followed by whitespace, ideographic space, OR a punctuation
+// separator (、.．) so "壹、" / "1." also parse.
+const MARKER_HEAD_CHARS = '壹貳參叁肆伍陸柒捌玖拾'
 const MARKER_RE = new RegExp(
-  `^([壹貳參肆伍陸柒捌玖拾]+|${CN_NUMERAL_CLASS}|\\d+|[A-Za-z])[　 ]+(.*)$`,
+  `^([${MARKER_HEAD_CHARS}]+|${CN_NUMERAL_CLASS}|\\d+|[A-Za-z])[　 、.．]+(.*)$`,
 )
 const WEEK_RE = /^【\s*週/
 
+// Normalise outline copy-paste: collapse the 啓/啟 character variants and
+// fullwidth parens that some sources use, so book-name matching and region
+// detection don't depend on which form the source happened to ship.
+function normalizeOutlineText(input: string): string {
+  return input
+    .replace(/啓/g, '啟')
+    .replace(/（/g, '(')
+    .replace(/）/g, ')')
+}
+
 function levelFromMarker(mk: string): number {
-  if (/^[壹貳參肆伍陸柒捌玖拾]+$/.test(mk)) return 1
+  if (new RegExp(`^[${MARKER_HEAD_CHARS}]+$`).test(mk)) return 1
   if (/^[一二三四五六七八九十百]+$/.test(mk)) return 2
   if (/^\d+$/.test(mk)) return 3
   if (/^[A-Za-z]$/.test(mk)) return 4
@@ -116,7 +130,7 @@ export type StudyLine =
 /** One entry per input line (empties kept) so an editor can align lines 1:1. */
 export function parseStudyLines(input: string): StudyLine[] {
   const ctx: ParseCtx = { book: null, chapter: null }
-  return input.split(/\r?\n/).map((raw): StudyLine => {
+  return normalizeOutlineText(input).split(/\r?\n/).map((raw): StudyLine => {
     const line = raw.trim()
     if (!line) return { kind: 'empty' }
     if (WEEK_RE.test(line)) return { kind: 'week' }

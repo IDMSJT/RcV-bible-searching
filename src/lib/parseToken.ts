@@ -3,7 +3,10 @@ import { CN_NUMERAL_CHARS, CN_NUMERAL_CLASS, parseNum } from './chinese'
 
 const CN = CN_NUMERAL_CLASS
 const NUM = `(?:\\d+|${CN})`
-const RANGE_CHARS = '\\-~～至到'
+// Also recognise em / en / fullwidth dashes as range separators so outline
+// text written with `—`, `–`, or `－` (common in copy-pasted docs) doesn't
+// fall through into a parse error.
+const RANGE_CHARS = '\\-~～至到—–－'
 
 export interface VerseRef {
   bookNo: number
