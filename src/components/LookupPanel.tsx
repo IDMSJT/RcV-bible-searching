@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from '@tanstack/react-router'
 import { parseRefs, segmentInput, type VerseRef } from '@/lib/parseRefs'
 import { useBible, findChapter } from '@/data/loadBible'
 import { BOOK_ABBREV } from '@/data/abbrev'
-import { chapterNumeral } from '@/lib/chinese'
 import { Textarea } from '@/components/ui/textarea'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
@@ -176,7 +175,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
         ) : !data ? (
           <p className="text-sm text-muted-foreground">載入中…</p>
         ) : (
-          <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-2.5 font-serif text-base leading-relaxed">
+          <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-2.5 font-serif text-sm leading-relaxed">
             {resolved.map((r, i) => {
               const active =
                 activeBookNo === r.bookNo &&
@@ -215,7 +214,7 @@ function ResultRow({
 }) {
   const { bookNo, chapterNo, verse } = resolved
   const abbrev = BOOK_ABBREV[bookNo] ?? ''
-  const label = `${abbrev}${chapterNumeral(chapterNo)}${verse.verse}`
+  const label = `${abbrev}${chapterNo}:${verse.verse}`
   const lit = active || hover
   const handlers = {
     onClick,

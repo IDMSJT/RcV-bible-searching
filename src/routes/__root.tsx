@@ -140,11 +140,11 @@ function RootComponent() {
   const sidebarFlexCol = mode === 'compose' || mode === 'settings'
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-card text-foreground md:flex-row">
+    <div className="flex h-screen flex-col overflow-hidden bg-card text-foreground md:flex-row print:block print:h-auto print:overflow-visible">
       <ReadingPreferences />
 
       {/* Desktop: left vertical rail */}
-      <nav className="hidden w-12 shrink-0 flex-col items-center gap-1 border-r border-border bg-background p-2 md:flex">
+      <nav className="hidden w-12 shrink-0 flex-col items-center gap-1 border-r border-border bg-background p-2 md:flex print:hidden">
         {sharedNavButtons((m) => mode === m)}
         <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
           <PopoverTrigger
@@ -167,7 +167,7 @@ function RootComponent() {
       {/* Desktop: inline sidebar; hidden below md */}
       <aside
         className={cn(
-          'hidden shrink-0 overflow-y-auto border-r border-border bg-background md:block',
+          'hidden shrink-0 overflow-y-auto border-r border-border bg-background md:block print:hidden',
           sidebarFlexCol && 'md:flex md:flex-col',
           mode === 'lookup' && 'md:overflow-hidden',
           sidebarWidth,
@@ -178,7 +178,7 @@ function RootComponent() {
 
       {/* Main */}
       <main
-        className="flex-1 overflow-y-auto pb-16 md:pb-0"
+        className="flex-1 overflow-y-auto pb-16 md:pb-0 print:overflow-visible print:pb-0"
         data-scroll-restoration-id="main"
       >
         <Outlet />
@@ -188,7 +188,7 @@ function RootComponent() {
        * across the full width so taps are easy with a thumb. */}
       <nav
         data-bottom-nav
-        className="pointer-events-auto fixed inset-x-0 bottom-0 z-[60] flex h-16 items-stretch border-t border-border bg-background [&>button]:size-auto [&>button]:flex-1 [&>button]:h-full [&>button]:rounded-none md:hidden"
+        className="pointer-events-auto fixed inset-x-0 bottom-0 z-[60] flex h-16 items-stretch border-t border-border bg-background [&>button]:size-auto [&>button]:flex-1 [&>button]:h-full [&>button]:rounded-none md:hidden print:hidden"
       >
         {sharedNavButtons((m) => drawerOpen && mode === m)}
         <NavButton

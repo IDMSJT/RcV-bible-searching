@@ -140,3 +140,18 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
+
+@media print {
+  /* Reset the layout shell so the article doesn't get clipped by the flex
+   * column / overflow-hidden of the on-screen app shell. */
+  html, body, #root {
+    height: auto !important;
+  }
+  body {
+    background: white;
+    color: black;
+  }
+  /* Avoid page break right after a heading or in the middle of a verse row. */
+  h1, h2 { break-after: avoid; }
+  .print-keep-together { break-inside: avoid; }
+}

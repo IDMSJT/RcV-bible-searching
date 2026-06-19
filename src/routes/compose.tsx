@@ -1,8 +1,8 @@
 import { Fragment, useMemo } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { Printer } from 'lucide-react'
 import { useBible, findChapter } from '@/data/loadBible'
 import { BOOK_ABBREV } from '@/data/abbrev'
-import { chapterNumeral } from '@/lib/chinese'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { parseStudyLines, type StudySegment, type VerseRef } from '@/lib/studyParse'
 import type { Bible } from '@/types/bible'
@@ -24,8 +24,15 @@ interface VerseRow {
 }
 
 function segmentText(text: string, seg: number): string {
-  const parts = text.split(/(?<=[。；])/).filter((s) => s.trim())
-  return parts.length === 2 ? (parts[seg] ?? text) : text
+  // Prefer the semantic clause separators 。/；; fall back to ！/! for verses
+  // whose 上/下 boundary is a shout ("起來！我們走吧。" only has ！ before the
+  // period). Only commit when the split yields exactly 2 parts — otherwise we
+  // can't reliably say which half the marker means, so return the whole verse.
+  const primary = text.split(/(?<=[。；])/).filter((s) => s.trim())
+  if (primary.length === 2) return primary[seg] ?? text
+  const fallback = text.split(/(?<=[！!])/).filter((s) => s.trim())
+  if (fallback.length === 2) return fallback[seg] ?? text
+  return text
 }
 
 function refResolves(bible: Bible, r: VerseRef): boolean {
@@ -80,15 +87,15 @@ function expandRef(bible: Bible, r: VerseRef): VerseRow[] {
 function verseLabel(row: VerseRow): string {
   const ab = BOOK_ABBREV[row.bookNo] ?? ''
   const s = row.seg === 0 ? '上' : row.seg === 1 ? '下' : ''
-  return `${ab}${chapterNumeral(row.chapter)}${row.verse}${s}`
+  return `${ab}${row.chapter}:${row.verse}${s}`
 }
 
 function rangeLabel(row: VerseRow): string {
   const ab = BOOK_ABBREV[row.bookNo] ?? ''
   const r = row.range!
   const end =
-    r.endChapter === row.chapter ? `${r.endVerse}` : `${chapterNumeral(r.endChapter)}${r.endVerse}`
-  return `${ab}${chapterNumeral(row.chapter)}${row.verse}～${end}`
+    r.endChapter === row.chapter ? `${r.endVerse}` : `${r.endChapter}:${r.endVerse}`
+  return `${ab}${row.chapter}:${row.verse}-${end}`
 }
 
 function isRefError(seg: StudySegment, bible: Bible | null): boolean {
@@ -103,7 +110,18 @@ function VerseList({ refs, bible }: { refs: VerseRef[]; bible: Bible }) {
   const rows = refs.flatMap((r) => expandRef(bible, r))
   if (rows.length === 0) return null
   return (
-    <div className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-sm leading-relaxed">
+    <div
+      className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-sm leading-relaxed"
+      style={{
+        // scaleX is the only width-compression that actually works on system
+        // fonts (font-stretch quietly no-ops without a wdth axis). The width
+        // bump cancels the visual shrink at layout level so the grid still
+        // fills its column instead of leaving a gap on the right.
+        width: 'calc(100% / 0.92)',
+        transform: 'scaleX(0.92)',
+        transformOrigin: 'left center',
+      }}
+    >
       {rows.map((row, j) => (
         <Fragment key={j}>
           <button
@@ -146,34 +164,96 @@ function ComposePage() {
     )
   }
 
+  // Collect every title line so we can render them as one centered <h1> with
+  // <br> between, instead of a stack of separate headings.
+  let firstTitleIdx = -1
+  const titleTexts: string[] = []
+  parsed.forEach((p, i) => {
+    if (p.kind === 'title') {
+      if (firstTitleIdx === -1) firstTitleIdx = i
+      titleTexts.push(p.text)
+    }
+  })
+
   return (
-    <article className="mx-auto max-w-3xl px-4 py-6 md:px-8 md:py-10">
-      <div className="flex flex-col font-serif leading-relaxed text-[length:var(--reading-fs,1rem)]">
+    <article className="relative mx-auto max-w-3xl px-4 py-6 md:px-8 md:py-10">
+      <button
+        type="button"
+        onClick={() => window.print()}
+        aria-label="列印"
+        title="列印"
+        className="absolute right-4 top-4 inline-flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:right-8 md:top-8 print:hidden"
+      >
+        <Printer className="size-4" />
+      </button>
+      <div className="flex flex-col font-serif leading-relaxed tracking-wide text-[length:var(--reading-fs,1rem)]">
         {lines.map((line, i) => {
           const p = parsed[i]
           if (!p || p.kind === 'empty') return null
+          if (p.kind === 'title') {
+            // Only render at the first title position; the rest fold in via <br>.
+            if (i !== firstTitleIdx) return null
+            return (
+              <h1 key={i} className="pt-5 text-center text-[22px] font-semibold text-balance first:pt-0">
+                {titleTexts.map((t, j) => (
+                  <Fragment key={j}>
+                    {j > 0 && <br />}
+                    {t}
+                  </Fragment>
+                ))}
+              </h1>
+            )
+          }
+          if (p.kind === 'reading') {
+            return (
+              <div key={i} className="pt-4 first:pt-0" style={{ paddingLeft: '2rem' }}>
+                <p>{p.text}</p>
+                {p.refs.length > 0 && bible && <VerseList refs={p.refs} bible={bible} />}
+              </div>
+            )
+          }
           if (p.kind === 'week') {
             return (
-              <h2 key={i} className="pt-5 text-center text-lg font-semibold first:pt-0">
+              <h2 key={i} className="pt-4 text-center text-sm font-semibold text-muted-foreground first:pt-0">
                 {line.trim()}
               </h2>
             )
           }
-          const indent = (Math.max(p.level, 1) - 1) * 1
+          const indent = Math.max(p.level, 1) - 1
+          // Pull the marker + its trailing separator off the first segment so
+          // we can render the marker in its own grid column. The MARKER_RE
+          // matched on parse guarantees this prefix shape, so we always have
+          // a clean split when p.marker is non-empty.
+          let bodySegments = p.segments
+          if (p.marker && bodySegments.length > 0) {
+            const first = bodySegments[0]
+            const restText = first.text.replace(/^[^　 、.．]+[　 、.．]+/, '')
+            bodySegments = [{ ...first, text: restText }, ...bodySegments.slice(1)]
+          }
+          const renderSegments = bodySegments.map((seg, k) =>
+            isRefError(seg, bible) ? (
+              <span key={k} className="rounded-sm bg-destructive/15 text-destructive">
+                {seg.text}
+              </span>
+            ) : (
+              <Fragment key={k}>{seg.text}</Fragment>
+            ),
+          )
           return (
             <div key={i} className="pt-3 first:pt-0" style={{ paddingLeft: `${indent}rem` }}>
-              <p>
-                {p.segments.map((seg, k) =>
-                  isRefError(seg, bible) ? (
-                    <span key={k} className="rounded-sm bg-destructive/15 text-destructive">
-                      {seg.text}
-                    </span>
-                  ) : (
-                    <Fragment key={k}>{seg.text}</Fragment>
-                  ),
-                )}
-              </p>
-              {p.refs.length > 0 && bible && <VerseList refs={p.refs} bible={bible} />}
+              {p.marker ? (
+                <div className="grid grid-cols-[2rem_1fr]">
+                  <p className="font-medium">{p.marker}</p>
+                  <p className="font-medium">{renderSegments}</p>
+                </div>
+              ) : (
+                <p className="font-medium">{renderSegments}</p>
+              )}
+              {p.refs.length > 0 && bible && (
+                <div style={{ paddingLeft: '2rem' }}>
+                  <VerseList refs={p.refs} bible={bible} />
+                </div>
+              )}
             </div>
           )
         })}

@@ -124,15 +124,47 @@ function segmentLine(line: string, ctx: ParseCtx): StudySegment[] {
 
 export type StudyLine =
   | { kind: 'empty' }
+  /** Lines above 讀經 — lesson heading, centered in the renderer. */
+  | { kind: 'title'; text: string }
+  /** The `讀經：…` line — keeps the original prose so it can render verbatim
+   * above the parsed verse list. */
+  | { kind: 'reading'; text: string; refs: VerseRef[] }
   | { kind: 'week' }
   | { kind: 'point'; level: number; marker: string; segments: StudySegment[]; refs: VerseRef[] }
+
+const READING_PREFIX_RE = /^讀經[:：]\s*/
 
 /** One entry per input line (empties kept) so an editor can align lines 1:1. */
 export function parseStudyLines(input: string): StudyLine[] {
   const ctx: ParseCtx = { book: null, chapter: null }
-  return normalizeOutlineText(input).split(/\r?\n/).map((raw): StudyLine => {
+  const lines = normalizeOutlineText(input).split(/\r?\n/)
+
+  // First pass: find the 讀經 line (if any) — non-empty lines above it become
+  // title chunks; everything below behaves like a normal outline.
+  let readingIdx = -1
+  for (let i = 0; i < lines.length; i++) {
+    if (READING_PREFIX_RE.test(lines[i].trim())) {
+      readingIdx = i
+      break
+    }
+  }
+
+  return lines.map((raw, idx): StudyLine => {
     const line = raw.trim()
     if (!line) return { kind: 'empty' }
+
+    // The 讀經 line itself: parse what follows the colon as a ref list, but
+    // keep the original line so the renderer can show it verbatim.
+    if (idx === readingIdx) {
+      const tail = line.replace(READING_PREFIX_RE, '')
+      return { kind: 'reading', text: line, refs: parseRefList(tail, ctx) }
+    }
+
+    // Anything before 讀經 is treated as title prose (centered, no refs).
+    if (readingIdx > 0 && idx < readingIdx) {
+      return { kind: 'title', text: line }
+    }
+
     if (WEEK_RE.test(line)) return { kind: 'week' }
     const m = line.match(MARKER_RE)
     const marker = m ? m[1] : ''
