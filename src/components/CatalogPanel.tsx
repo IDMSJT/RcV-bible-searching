@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
+import { ChevronLeft } from 'lucide-react'
 import { CANON, type CanonBook } from '@/data/canon'
 import { BOOK_ABBREV } from '@/data/abbrev'
 import {
@@ -84,6 +85,7 @@ function MobileCatalog({ activeBookNo, activeChapterNo, activeBook, onPick }: Sh
   // Stable so the memoized BookPicker doesn't re-render every time we
   // commit a new paneIdx (which would force its 66 Tooltips to rebuild).
   const handlePickBook = useCallback(() => setPaneIdx(1), [])
+  const handleBackToBooks = useCallback(() => setPaneIdx(0), [])
 
   // Apply the committed transform whenever the active pane changes. First
   // render is instant (drawer opens already on the right pane when a book is
@@ -210,6 +212,7 @@ function MobileCatalog({ activeBookNo, activeChapterNo, activeBook, onPick }: Sh
               book={activeBook}
               activeChapterNo={activeChapterNo}
               onPick={onPick}
+              onBack={handleBackToBooks}
             />
           )}
         </div>
@@ -252,16 +255,20 @@ const ChapterPicker = memo(function ChapterPicker({
   book,
   activeChapterNo,
   onPick,
+  onBack,
 }: {
   book: CanonBook
   activeChapterNo: number | null
   onPick?: () => void
+  /** When provided, the header renders a back arrow that jumps the user back
+   * to the book pane — mobile only, since desktop shows both panes at once. */
+  onBack?: () => void
 }) {
   const chapters = Array.from({ length: book.chapterCount }, (_, i) => i + 1)
   const rows = chunkRows(chapters)
   return (
     <>
-      <ChapterHeader book={book} onPick={onPick} />
+      <ChapterHeader book={book} onPick={onPick} onBack={onBack} />
       {rows.map((row, i) => (
         <ChapterRow
           key={i}
@@ -278,18 +285,32 @@ const ChapterPicker = memo(function ChapterPicker({
 function ChapterHeader({
   book,
   onPick,
+  onBack,
 }: {
   book: CanonBook
   onPick?: () => void
+  onBack?: () => void
 }) {
   return (
     <div className="sticky top-0 z-10 flex h-14 items-stretch justify-between border-b border-border bg-muted/80 text-sm font-semibold backdrop-blur md:h-9 md:text-xs">
-      <span className="inline-flex items-center px-4 md:px-3">{book.name}</span>
+      {onBack ? (
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="返回書卷選擇"
+          className="inline-flex items-center px-4 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <ChevronLeft className="size-4" />
+        </button>
+      ) : (
+        <span className="inline-flex items-center px-4">{book.name}</span>
+      )}
+      {onBack && <span className="inline-flex items-center">{book.name}</span>}
       <Link
         to="/$bookNo"
         params={{ bookNo: book.bookNo }}
         onClick={onPick}
-        className="inline-flex items-center px-4 font-normal text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:px-3"
+        className="inline-flex items-center px-4 font-normal text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       >
         綱目
       </Link>
@@ -326,7 +347,7 @@ function AccordionHeader({
         onClick={() => anchorRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' })}
         className={cn(
           stickyCls,
-          'z-10 flex h-14 w-full items-center justify-between border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur transition-colors hover:bg-muted md:h-9 md:px-3 md:text-xs',
+          'z-10 flex h-14 w-full items-center justify-between border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur transition-colors hover:bg-muted md:h-9 md:text-xs',
           topBorder && 'border-t',
         )}
       >

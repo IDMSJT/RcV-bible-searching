@@ -15,7 +15,7 @@ import type { Verse } from '@/types/bible'
 const FIELD_CLS = 'px-2.5 py-2 font-serif text-base leading-relaxed'
 
 const HEADER_CLS =
-  'sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur md:h-9 md:px-3 md:text-xs'
+  'sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur md:h-9 md:text-xs'
 
 const PLACEHOLDER =
   '輸入經文出處，例如：\n約翰福音一章一節，三章十六節，十四章六節'

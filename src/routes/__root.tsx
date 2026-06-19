@@ -27,6 +27,11 @@ function RootComponent() {
   const activeBook = activeBookNo ? BOOK_BY_NO.get(activeBookNo) ?? null : null
 
   const [mode, setMode] = useLocalStorage<SidebarMode>('rcv/sidebar-mode', 'catalog')
+  // Remember the last chapter URL the user was actually reading on; the 閱讀
+  // nav button uses this as the jump-target whenever we leave a non-chapter
+  // route (e.g. /compose) so clicking it always lands back in a verse view
+  // rather than just opening the catalog over nothing. Default to 太1:1.
+  const [lastChapter, setLastChapter] = useLocalStorage('rcv/last-chapter', '/40/1')
   // Mobile-only: the sidebar content lives inside a Drawer below md. On desktop
   // the aside is permanently visible and this flag is ignored.
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -54,8 +59,13 @@ function RootComponent() {
   // /compose navigation keep the drawer open (book picks let the chapter list
   // follow up; compose lives in the drawer).
   useEffect(() => {
-    if (/^\/\d+\/\d+/.test(pathname)) setDrawerOpen(false)
-  }, [pathname])
+    if (/^\/\d+\/\d+/.test(pathname)) {
+      setDrawerOpen(false)
+      // Track the last chapter URL while we're at it — feeds the 閱讀 nav
+      // button below.
+      setLastChapter(pathname)
+    }
+  }, [pathname, setLastChapter])
 
   // If the viewport crosses from mobile to desktop while the drawer is open
   // (rare but possible — rotate, resize), force it closed so we don't keep
@@ -92,9 +102,43 @@ function RootComponent() {
   // The first three buttons are identical on both viewports; settings differs
   // — on desktop it opens a Popover anchored to the button, on mobile it stays
   // a regular nav that swaps the drawer into settings mode.
-  const sharedNavButtons = (isActive: (m: SidebarMode) => boolean) => (
+  const goToLastChapter = () => {
+    // Already in a book route (chapter view or outline) — don't yank the user
+    // out of what they're reading. The catalog panel updates around them.
+    if (/^\/\d+/.test(pathname)) return
+    const m = lastChapter.match(/^\/(\d+)\/(\d+)/)
+    if (!m) return
+    navigate({
+      to: '/$bookNo/$chapterNo',
+      params: { bookNo: Number(m[1]), chapterNo: Number(m[2]) },
+      search: {},
+    })
+  }
+
+  // When the user is in the middle of reading a chapter and the drawer is up
+  // (showing settings / lookup / compose / catalog on top of the page), the
+  // 閱讀 button's job is simply "take me back to reading" — dismiss the
+  // drawer regardless of which mode it was. Otherwise fall through to the
+  // standard openMode flow so the off-chapter case (e.g. /compose → tap
+  // 閱讀) still navigates to the last chapter.
+  const onCatalogClick = () => {
+    if (/^\/\d+\/\d+/.test(pathname) && drawerOpen) {
+      setDrawerOpen(false)
+      return
+    }
+    openMode('catalog', goToLastChapter)
+  }
+
+  const sharedNavButtons = (
+    isActive: (m: SidebarMode) => boolean,
+    catalogLabel: string,
+  ) => (
     <>
-      <NavButton active={isActive('catalog')} label="閱讀" onClick={() => openMode('catalog')}>
+      <NavButton
+        active={isActive('catalog')}
+        label={catalogLabel}
+        onClick={onCatalogClick}
+      >
         <BookOpen className={navIcon} />
       </NavButton>
       <NavButton active={isActive('lookup')} label="查詢" onClick={() => openMode('lookup')}>
@@ -145,7 +189,7 @@ function RootComponent() {
 
       {/* Desktop: left vertical rail */}
       <nav className="hidden w-12 shrink-0 flex-col items-center gap-1 border-r border-border bg-background p-2 md:flex print:hidden">
-        {sharedNavButtons((m) => mode === m)}
+        {sharedNavButtons((m) => mode === m, '閱讀')}
         <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
           <PopoverTrigger
             render={
@@ -157,7 +201,8 @@ function RootComponent() {
           <PopoverContent
             side="right"
             align="end"
-            className="w-80 gap-0 overflow-hidden p-0"
+            sideOffset={6}
+            className="w-72 gap-0 overflow-hidden p-0"
           >
             <SettingsPanel />
           </PopoverContent>
@@ -190,11 +235,26 @@ function RootComponent() {
         data-bottom-nav
         className="pointer-events-auto fixed inset-x-0 bottom-0 z-[60] flex h-16 items-stretch border-t border-border bg-background [&>button]:size-auto [&>button]:flex-1 [&>button]:h-full [&>button]:rounded-none md:hidden print:hidden"
       >
-        {sharedNavButtons((m) => drawerOpen && mode === m)}
+        {sharedNavButtons(
+          (m) => drawerOpen && mode === m,
+          // Only call it 「目錄」 when the user is mid-read with the drawer
+          // dismissed — the label then hints that tapping reopens the chapter
+          // list. In every other state tapping ends up *navigating to* a
+          // chapter (back from /compose, switching out of lookup/compose/
+          // settings, etc.), so 「閱讀」 better describes what happens.
+          /^\/\d+\/\d+/.test(pathname) && !drawerOpen ? '目錄' : '閱讀',
+        )}
         <NavButton
           active={drawerOpen && mode === 'settings'}
           label="設定"
-          onClick={() => openMode('settings')}
+          // Tapping 設定 while it's already the open pane is a no-op (not a
+          // toggle-close like the other buttons) — easy to hit accidentally
+          // when fiddling with sliders / switches and the drawer disappearing
+          // would feel like a glitch.
+          onClick={() => {
+            if (drawerOpen && mode === 'settings') return
+            openMode('settings')
+          }}
         >
           <Settings className={navIcon} />
         </NavButton>
