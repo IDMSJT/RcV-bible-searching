@@ -74,8 +74,21 @@ const LAST_DASH_RE = new RegExp(`[${DASH_CLASS}](?=[^${DASH_CLASS}]*$)`)
 function emitRefs(refsPart: string, ctx: ParseCtx, segs: StudySegment[]): void {
   for (const tok of refsPart.split(/([，,])/)) {
     if (!tok) continue
-    if (tok === '，' || tok === ',') segs.push({ text: tok })
-    else segs.push({ text: tok, refs: parseRefList(tok, ctx) })
+    if (tok === '，' || tok === ',') {
+      segs.push({ text: tok })
+      continue
+    }
+    const refs = parseRefList(tok, ctx)
+    if (refs.length > 0) {
+      segs.push({ text: tok, refs })
+    } else {
+      // No refs extracted — treat as prose rather than flagging it red.
+      // The parser can't reliably tell "malformed ref" apart from "citation
+      // of another book" or other dash-trailed prose ("…生命讀經，一七頁"),
+      // so we err toward silent fall-through; a real ref failing to parse
+      // will just render as plain text, which is acceptable.
+      segs.push({ text: tok })
+    }
   }
 }
 
