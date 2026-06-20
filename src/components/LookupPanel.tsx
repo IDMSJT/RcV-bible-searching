@@ -12,7 +12,7 @@ import type { Verse } from '@/types/bible'
 // backdrop renders glyphs at exactly the same positions. text-base on both
 // viewports — mobile needs ≥16px to avoid iOS Safari's focus-zoom and the
 // desktop benefits from the same comfortable reading size.
-const FIELD_CLS = 'px-2.5 py-2 font-serif text-base leading-relaxed'
+const FIELD_CLS = 'p-4 font-serif text-base leading-relaxed'
 
 const HEADER_CLS =
   'sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur md:h-9 md:text-xs'
@@ -160,14 +160,18 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
               // field-sizing-content auto-grows the textarea to fit its value
               // (Chrome 123+/Safari 18.4+), so we don't need a resize handle
               // or a sync'd scroll position between this and the backdrop.
-              'font-serif text-base leading-relaxed',
+              // FIELD_CLS supplies the padding here too — shadcn's Textarea
+              // ships with `px-2.5 py-2` baked in, so without re-applying it
+              // the visible glyphs would sit at different x/y than the
+              // backdrop above and break the highlight alignment.
+              FIELD_CLS,
               'relative block min-h-[120px] w-full resize-none field-sizing-content break-words border-0 bg-transparent text-transparent caret-foreground focus-visible:ring-0',
             )}
           />
         </div>
       </div>
 
-      <div className="p-3 md:flex-1 md:overflow-y-auto">
+      <div className="p-4 md:flex-1 md:overflow-y-auto">
         {error ? (
           <p className="text-sm text-destructive">資料載入失敗：{error}</p>
         ) : q.trim() === '' ? (

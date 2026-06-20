@@ -61,18 +61,21 @@ function RootComponent() {
     return () => document.removeEventListener('pointerdown', onDown, { capture: true })
   }, [])
 
-  // Close the mobile drawer whenever the user navigates to a chapter view, so
-  // after picking a chapter the reading pane is unobstructed. Book-outline and
-  // /compose navigation keep the drawer open (book picks let the chapter list
-  // follow up; compose lives in the drawer).
+  // Close the mobile drawer when the user navigates to a chapter view from
+  // catalog — that's the "I picked something to read" path, so the reading
+  // pane should be unobstructed. Nav-driven chapter switches that aren't
+  // catalog (lookup/settings tapped from /compose, which forces a goToLast-
+  // Chapter to release the compose lock) keep the drawer open so the user
+  // sees the panel they actually asked for. Catalog book-picks and /compose
+  // navigation are unaffected because their pathnames don't match the
+  // chapter regex.
   useEffect(() => {
     if (/^\/\d+\/\d+/.test(pathname)) {
-      setDrawerOpen(false)
-      // Track the last chapter URL while we're at it — feeds the 閱讀 nav
-      // button below.
+      // Track the last chapter URL — feeds the 閱讀 nav button below.
       setLastChapter(pathname)
+      if (mode === 'catalog') setDrawerOpen(false)
     }
-  }, [pathname, setLastChapter])
+  }, [pathname, setLastChapter, mode])
 
   // Persist 'compose' as the active mode whenever we're on /compose so that
   // when the user clicks through to a verse the saved mode still makes sense
