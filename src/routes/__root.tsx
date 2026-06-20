@@ -277,11 +277,23 @@ function RootComponent() {
         className={cn(
           'hidden shrink-0 overflow-y-auto border-r border-border bg-background md:block print:hidden',
           sidebarFlexCol && 'md:flex md:flex-col',
-          mode === 'lookup' && 'md:overflow-hidden',
+          effectiveMode === 'lookup' && 'md:overflow-hidden',
           sidebarWidth,
         )}
       >
-        {sidebarBody}
+        {/* Keying on effectiveMode remounts the body when the sidebar swaps
+         * panels — tailwindcss-animate's `animate-in fade-in` then fades the
+         * fresh tree in. We accept the snap-out of the previous panel (no
+         * crossfade) in exchange for simplicity. */}
+        <div
+          key={effectiveMode}
+          className={cn(
+            'h-full animate-in fade-in duration-600',
+            sidebarFlexCol && 'flex flex-col',
+          )}
+        >
+          {sidebarBody}
+        </div>
       </aside>
 
       {/* Main */}
@@ -344,7 +356,13 @@ function RootComponent() {
                   ? '設定'
                   : '閱讀'}
           </DrawerTitle>
-          <div className={cn('h-full overflow-y-auto', sidebarFlexCol && 'flex flex-col')}>
+          <div
+            key={effectiveMode}
+            className={cn(
+              'h-full overflow-y-auto animate-in fade-in duration-600',
+              sidebarFlexCol && 'flex flex-col',
+            )}
+          >
             {sidebarBody}
           </div>
         </DrawerContent>
