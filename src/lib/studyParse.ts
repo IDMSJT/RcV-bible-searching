@@ -24,7 +24,10 @@ const MARKER_HEAD_CHARS = '壹貳參叁肆伍陸柒捌玖拾'
 const MARKER_RE = new RegExp(
   `^([${MARKER_HEAD_CHARS}]+|${CN_NUMERAL_CLASS}|\\d+|[A-Za-z])[　 、.．]+(.*)$`,
 )
-const WEEK_RE = /^【\s*週/
+// 【週一】 (bracketed) is the legacy form; 「週　一」 (the char then a full /
+// half-width space then the day character) is the newer copy-paste format.
+// Both should render as the same centered small heading.
+const WEEK_RE = /^(?:【\s*週|週[　\s]+[一二三四五六七日])/
 
 // Normalise outline copy-paste: collapse the 啓/啟 character variants and
 // fullwidth parens that some sources use, so book-name matching and region
@@ -71,10 +74,15 @@ const DASH_CLASS = '—─－\\-―'
 const REGION_RE = new RegExp(`([${DASH_CLASS}])([^（）()：:。」\\n]+)|（([^（）]*)）`, 'g')
 const LAST_DASH_RE = new RegExp(`[${DASH_CLASS}](?=[^${DASH_CLASS}]*$)`)
 
+// `與` joins refs the same way `，` does — context still flows ("詩四八2與五10"
+// → 詩48:2 + 詩5:10) but parser sees them as separate tokens. No canonical
+// book name contains 與, so listing it among the splitters is safe.
+const REF_SEPARATOR_RE = /([，,與])/
+
 function emitRefs(refsPart: string, ctx: ParseCtx, segs: StudySegment[]): void {
-  for (const tok of refsPart.split(/([，,])/)) {
+  for (const tok of refsPart.split(REF_SEPARATOR_RE)) {
     if (!tok) continue
-    if (tok === '，' || tok === ',') {
+    if (tok === '，' || tok === ',' || tok === '與') {
       segs.push({ text: tok })
       continue
     }

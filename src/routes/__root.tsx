@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Outlet, createRootRoute, useLocation, useNavigate } from '@tanstack/react-router'
 // import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 import { BookOpen, ClipboardList, Search, Settings } from 'lucide-react'
@@ -25,8 +25,15 @@ function RootComponent() {
   const activeBookNo = match ? Number(match[1]) : null
   const activeChapterNo = match && match[2] ? Number(match[2]) : null
   const activeBook = activeBookNo ? BOOK_BY_NO.get(activeBookNo) ?? null : null
+  // The /compose route is itself the outline document — we don't want a catalog
+  // / lookup / settings panel rendering on top of it. While we're on /compose
+  // the sidebar is locked to 'compose' regardless of the persisted mode; the
+  // other nav buttons therefore navigate the user off /compose first so the
+  // requested mode can actually surface (see goToLastChapter usages below).
+  const onCompose = pathname === '/compose'
 
   const [mode, setMode] = useLocalStorage<SidebarMode>('rcv/sidebar-mode', 'catalog')
+  const effectiveMode: SidebarMode = onCompose ? 'compose' : mode
   // Remember the last chapter URL the user was actually reading on; the 閱讀
   // nav button uses this as the jump-target whenever we leave a non-chapter
   // route (e.g. /compose) so clicking it always lands back in a verse view
@@ -67,6 +74,50 @@ function RootComponent() {
     }
   }, [pathname, setLastChapter])
 
+  // Persist 'compose' as the active mode whenever we're on /compose so that
+  // when the user clicks through to a verse the saved mode still makes sense
+  // (otherwise we'd inherit whatever mode happened to be active before they
+  // landed on /compose — lookup, settings, etc. — and the sidebar would
+  // suddenly snap to a panel the user wasn't expecting).
+  useEffect(() => {
+    if (onCompose) setMode('compose')
+  }, [onCompose, setMode])
+
+  // Per-pathname scroll restoration for the <main> element. TanStack Router's
+  // `scrollToTopSelectors` resets main → 0 on every navigation (push AND pop),
+  // so the browser's back-button doesn't bring you back to where you were —
+  // it always lands at the top. We mirror the scroll offset into sessionStorage
+  // on every scroll, then in a layout effect re-apply the saved value after the
+  // router's reset has run. sessionStorage is bounded to the current tab.
+  useLayoutEffect(() => {
+    const main = document.querySelector<HTMLElement>('[data-scroll-restoration-id="main"]')
+    if (!main) return
+    const key = `rcv/scroll${pathname}`
+    const saved = sessionStorage.getItem(key)
+    if (saved !== null) {
+      const y = Number(saved)
+      // Two rAFs: first frame lets the router's scroll-to-top fire; second
+      // frame overrides it with the saved position before paint.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          main.scrollTop = y
+        })
+      })
+    }
+    let raf = 0
+    const onScroll = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        sessionStorage.setItem(key, String(main.scrollTop))
+      })
+    }
+    main.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      main.removeEventListener('scroll', onScroll)
+      cancelAnimationFrame(raf)
+    }
+  }, [pathname])
+
   // If the viewport crosses from mobile to desktop while the drawer is open
   // (rare but possible — rotate, resize), force it closed so we don't keep
   // vaul mounted on a layout that doesn't show its content.
@@ -80,8 +131,10 @@ function RootComponent() {
 
   const openMode = (m: SidebarMode, onNav?: () => void) => {
     // Tapping the lit nav button while its drawer is already open closes it
-    // (the nav button acts as a toggle for the current mode).
-    if (m === mode && drawerOpen) {
+    // (the nav button acts as a toggle for the current mode). Compare against
+    // effectiveMode so the toggle still fires correctly on /compose, where the
+    // displayed mode is the forced 'compose' rather than the persisted one.
+    if (m === effectiveMode && drawerOpen) {
       setDrawerOpen(false)
       return
     }
@@ -141,7 +194,14 @@ function RootComponent() {
       >
         <BookOpen className={navIcon} />
       </NavButton>
-      <NavButton active={isActive('lookup')} label="查詢" onClick={() => openMode('lookup')}>
+      <NavButton
+        active={isActive('lookup')}
+        label="查詢"
+        // On /compose the sidebar is forced to 'compose'; without a nav-away
+        // the lookup tap would silently set the mode but the panel would stay
+        // hidden behind the lock.
+        onClick={() => openMode('lookup', onCompose ? goToLastChapter : undefined)}
+      >
         <Search className={navIcon} />
       </NavButton>
       <NavButton
@@ -164,11 +224,11 @@ function RootComponent() {
   // Sidebar body, shared between desktop aside and mobile drawer. Its outer
   // width is set by the wrapper (aside on desktop, drawer on mobile).
   const sidebarBody =
-    mode === 'lookup' ? (
+    effectiveMode === 'lookup' ? (
       <LookupPanel onNavigate={closeDrawer} />
-    ) : mode === 'compose' ? (
+    ) : effectiveMode === 'compose' ? (
       <ComposePanel />
-    ) : mode === 'settings' ? (
+    ) : effectiveMode === 'settings' ? (
       <SettingsPanel />
     ) : (
       <CatalogPanel
@@ -180,8 +240,8 @@ function RootComponent() {
     )
 
   const sidebarWidth =
-    mode === 'settings' ? 'md:w-[213px]' : 'md:w-[426px]'
-  const sidebarFlexCol = mode === 'compose' || mode === 'settings'
+    effectiveMode === 'settings' ? 'md:w-[213px]' : 'md:w-[426px]'
+  const sidebarFlexCol = effectiveMode === 'compose' || effectiveMode === 'settings'
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-card text-foreground md:flex-row print:block print:h-auto print:overflow-visible">
@@ -189,7 +249,7 @@ function RootComponent() {
 
       {/* Desktop: left vertical rail */}
       <nav className="hidden w-12 shrink-0 flex-col items-center gap-1 border-r border-border bg-background p-2 md:flex print:hidden">
-        {sharedNavButtons((m) => mode === m, '閱讀')}
+        {sharedNavButtons((m) => effectiveMode === m, '閱讀')}
         <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
           <PopoverTrigger
             render={
@@ -236,7 +296,7 @@ function RootComponent() {
         className="pointer-events-auto fixed inset-x-0 bottom-0 z-[60] flex h-16 items-stretch border-t border-border bg-background [&>button]:size-auto [&>button]:flex-1 [&>button]:h-full [&>button]:rounded-none md:hidden print:hidden"
       >
         {sharedNavButtons(
-          (m) => drawerOpen && mode === m,
+          (m) => drawerOpen && effectiveMode === m,
           // Only call it 「目錄」 when the user is mid-read with the drawer
           // dismissed — the label then hints that tapping reopens the chapter
           // list. In every other state tapping ends up *navigating to* a
@@ -245,15 +305,15 @@ function RootComponent() {
           /^\/\d+\/\d+/.test(pathname) && !drawerOpen ? '目錄' : '閱讀',
         )}
         <NavButton
-          active={drawerOpen && mode === 'settings'}
+          active={drawerOpen && effectiveMode === 'settings'}
           label="設定"
           // Tapping 設定 while it's already the open pane is a no-op (not a
           // toggle-close like the other buttons) — easy to hit accidentally
           // when fiddling with sliders / switches and the drawer disappearing
           // would feel like a glitch.
           onClick={() => {
-            if (drawerOpen && mode === 'settings') return
-            openMode('settings')
+            if (drawerOpen && effectiveMode === 'settings') return
+            openMode('settings', onCompose ? goToLastChapter : undefined)
           }}
         >
           <Settings className={navIcon} />
@@ -273,11 +333,11 @@ function RootComponent() {
       >
         <DrawerContent className="bottom-[calc(4rem-1px)]! h-[calc(100vh-4rem+1px)] md:hidden">
           <DrawerTitle className="sr-only">
-            {mode === 'lookup'
+            {effectiveMode === 'lookup'
               ? '查詢'
-              : mode === 'compose'
+              : effectiveMode === 'compose'
                 ? '綱要'
-                : mode === 'settings'
+                : effectiveMode === 'settings'
                   ? '設定'
                   : '閱讀'}
           </DrawerTitle>
