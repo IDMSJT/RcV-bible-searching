@@ -6,11 +6,26 @@ const HEADER_CLS =
 // State lives here so typing in the textarea doesn't re-render the root.
 // /compose reads the same key via useLocalStorage and stays in sync via the
 // hook's same-tab subscriber.
-export function ComposePanel() {
+export function ComposePanel({ onDone }: { onDone?: () => void } = {}) {
   const [input, setInput] = useLocalStorage('rcv/compose-input', '')
   return (
     <>
-      <h2 className={HEADER_CLS}><span>綱要</span></h2>
+      <h2 className={HEADER_CLS}>
+        <span>綱要</span>
+        {/* Mobile-only dismiss button — the drawer covers the rendered
+         * article, so once the user is done editing they need a one-tap
+         * way to collapse it. Hidden on desktop where the aside is
+         * permanent and there's nothing to dismiss. */}
+        {onDone && (
+          <button
+            type="button"
+            onClick={onDone}
+            className="text-sm font-medium text-primary md:hidden"
+          >
+            完成
+          </button>
+        )}
+      </h2>
       <textarea
         value={input}
         onChange={(e) => setInput(e.target.value)}

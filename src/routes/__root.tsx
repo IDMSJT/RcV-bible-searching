@@ -19,6 +19,18 @@ export const Route = createRootRoute({
 
 type SidebarMode = 'catalog' | 'lookup' | 'compose' | 'settings'
 
+// Vaul snap points keyed by mode. Catalog / lookup / compose only have a
+// single snap at full. Settings is short content (slider, theme toggle) so
+// it opens at 0.7 and can be pulled to full if the user wants room.
+const DRAWER_SNAPS_FULL: (number | string)[] = [1]
+const DRAWER_SNAPS_SETTINGS: (number | string)[] = [0.7, 1]
+function snapsFor(mode: SidebarMode): (number | string)[] {
+  return mode === 'settings' ? DRAWER_SNAPS_SETTINGS : DRAWER_SNAPS_FULL
+}
+function initialSnapFor(mode: SidebarMode): number {
+  return mode === 'settings' ? 0.7 : 1
+}
+
 function RootComponent() {
   const { pathname } = useLocation()
   const match = pathname.match(/^\/(\d+)(?:\/(\d+))?/)
@@ -42,6 +54,7 @@ function RootComponent() {
   // Mobile-only: the sidebar content lives inside a Drawer below md. On desktop
   // the aside is permanently visible and this flag is ignored.
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [drawerSnap, setDrawerSnap] = useState<number | string | null>(1)
   const navigate = useNavigate()
 
   // Vaul's `onOpenChange` is just `(open: boolean) => void` — it doesn't tell
@@ -61,21 +74,22 @@ function RootComponent() {
     return () => document.removeEventListener('pointerdown', onDown, { capture: true })
   }, [])
 
-  // Close the mobile drawer when the user navigates to a chapter view from
-  // catalog — that's the "I picked something to read" path, so the reading
-  // pane should be unobstructed. Nav-driven chapter switches that aren't
-  // catalog (lookup/settings tapped from /compose, which forces a goToLast-
-  // Chapter to release the compose lock) keep the drawer open so the user
-  // sees the panel they actually asked for. Catalog book-picks and /compose
-  // navigation are unaffected because their pathnames don't match the
-  // chapter regex.
+  // Track the last chapter URL the user navigated to — feeds the 閱讀 nav
+  // button. The drawer-close-on-chapter-nav step that used to live here was
+  // redundant (CatalogPanel.onPick and LookupPanel.onNavigate already call
+  // closeDrawer themselves) and re-ran on every mode change because `mode`
+  // had to be in the deps, which caused a second tap on the catalog nav
+  // from lookup to silently close the drawer back down. Leave drawer state
+  // alone here; explicit callbacks own it.
   useEffect(() => {
-    if (/^\/\d+\/\d+/.test(pathname)) {
-      // Track the last chapter URL — feeds the 閱讀 nav button below.
-      setLastChapter(pathname)
-      if (mode === 'catalog') setDrawerOpen(false)
-    }
-  }, [pathname, setLastChapter, mode])
+    if (/^\/\d+\/\d+/.test(pathname)) setLastChapter(pathname)
+  }, [pathname, setLastChapter])
+
+  // Reset the drawer snap whenever the displayed panel changes — settings
+  // opens at half, everything else at full. Vaul animates between snaps.
+  useEffect(() => {
+    setDrawerSnap(initialSnapFor(effectiveMode))
+  }, [effectiveMode])
 
   // Persist 'compose' as the active mode whenever we're on /compose so that
   // when the user clicks through to a verse the saved mode still makes sense
@@ -96,16 +110,24 @@ function RootComponent() {
     const main = document.querySelector<HTMLElement>('[data-scroll-restoration-id="main"]')
     if (!main) return
     const key = `rcv/scroll${pathname}`
-    const saved = sessionStorage.getItem(key)
-    if (saved !== null) {
-      const y = Number(saved)
-      // Two rAFs: first frame lets the router's scroll-to-top fire; second
-      // frame overrides it with the saved position before paint.
-      requestAnimationFrame(() => {
+    // If the URL is asking us to focus a specific verse (?hl=…) or outline
+    // heading (?oh=…), let ChapterView's own scrollIntoView win and skip
+    // restoration — the user clearly wants to land on the verse, not back
+    // at wherever they left the page.
+    const sp = new URLSearchParams(window.location.search)
+    const skipRestore = sp.has('hl') || sp.has('oh')
+    if (!skipRestore) {
+      const saved = sessionStorage.getItem(key)
+      if (saved !== null) {
+        const y = Number(saved)
+        // Two rAFs: first frame lets the router's scroll-to-top fire; second
+        // frame overrides it with the saved position before paint.
         requestAnimationFrame(() => {
-          main.scrollTop = y
+          requestAnimationFrame(() => {
+            main.scrollTop = y
+          })
         })
-      })
+      }
     }
     let raf = 0
     const onScroll = () => {
@@ -230,7 +252,7 @@ function RootComponent() {
     effectiveMode === 'lookup' ? (
       <LookupPanel onNavigate={closeDrawer} />
     ) : effectiveMode === 'compose' ? (
-      <ComposePanel />
+      <ComposePanel onDone={closeDrawer} />
     ) : effectiveMode === 'settings' ? (
       <SettingsPanel />
     ) : (
@@ -281,16 +303,13 @@ function RootComponent() {
           sidebarWidth,
         )}
       >
-        {/* Keying on effectiveMode remounts the body when the sidebar swaps
-         * panels — tailwindcss-animate's `animate-in fade-in` then fades the
-         * fresh tree in. We accept the snap-out of the previous panel (no
-         * crossfade) in exchange for simplicity. */}
+        {/* Desktop aside swaps panels instantly — the mobile drawer is where
+         * the fade lives (see DrawerContent below). On the wide layout the
+         * sidebar is always visible and the user is usually clicking from
+         * one panel directly into another, so a fade reads as a delay. */}
         <div
           key={effectiveMode}
-          className={cn(
-            'h-full animate-in fade-in duration-600',
-            sidebarFlexCol && 'flex flex-col',
-          )}
+          className={cn('h-full', sidebarFlexCol && 'flex flex-col')}
         >
           {sidebarBody}
         </div>
@@ -345,6 +364,9 @@ function RootComponent() {
           }
           setDrawerOpen(o)
         }}
+        snapPoints={snapsFor(effectiveMode)}
+        activeSnapPoint={drawerSnap}
+        setActiveSnapPoint={setDrawerSnap}
       >
         <DrawerContent className="bottom-[calc(4rem-1px)]! h-[calc(100vh-4rem+1px)] md:hidden">
           <DrawerTitle className="sr-only">

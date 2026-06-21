@@ -21,13 +21,6 @@ export function SettingsPanel() {
     <>
       <h2 className={HEADER_CLS}><span>設定</span></h2>
       <div className="flex flex-col divide-y divide-border">
-        <SettingRow label="主題" stack>
-          <div className="flex gap-1 rounded-lg bg-muted p-0.5">
-            <ThemeButton active={theme === 'light'} onClick={() => setTheme('light')} icon={Sun} label="淺色" />
-            <ThemeButton active={theme === 'dark'} onClick={() => setTheme('dark')} icon={Moon} label="深色" />
-            <ThemeButton active={theme === 'system'} onClick={() => setTheme('system')} icon={Monitor} label="系統" />
-          </div>
-        </SettingRow>
         <SettingRow label="顯示綱目" onClick={() => setShowOutline(!showOutline)}>
           <Switch on={showOutline} />
         </SettingRow>
@@ -43,6 +36,13 @@ export function SettingsPanel() {
             onValueChange={(v) => setFontSize(Array.isArray(v) ? v[0] : v)}
             className="my-1.5"
           />
+        </SettingRow>
+        <SettingRow label="主題" stack>
+          <div className="flex gap-1 rounded-lg bg-muted p-0.5">
+            <ThemeButton active={theme === 'light'} onClick={() => setTheme('light')} icon={Sun} label="淺色" />
+            <ThemeButton active={theme === 'dark'} onClick={() => setTheme('dark')} icon={Moon} label="深色" />
+            <ThemeButton active={theme === 'system'} onClick={() => setTheme('system')} icon={Monitor} label="系統" />
+          </div>
         </SettingRow>
       </div>
     </>

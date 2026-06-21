@@ -310,7 +310,7 @@ function ChapterHeader({
         to="/$bookNo"
         params={{ bookNo: book.bookNo }}
         onClick={onPick}
-        className="inline-flex items-center px-4 font-normal text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className="inline-flex items-center px-4 font-medium text-primary transition-colors hover:bg-muted"
       >
         綱目
       </Link>
