@@ -1,6 +1,5 @@
 import { Fragment, useMemo } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Printer } from 'lucide-react'
 import { useBible, findChapter } from '@/data/loadBible'
 import { BOOK_ABBREV } from '@/data/abbrev'
 import { useLocalStorage } from '@/lib/useLocalStorage'
@@ -177,14 +176,15 @@ function ComposePage() {
 
   return (
     <article className="relative mx-auto max-w-3xl px-4 py-6 md:px-8 md:py-10">
+      {/* Floating dismiss-equivalent — pinned to viewport bottom-right so it's
+       * always reachable while scrolling. The mobile offset (bottom-20) clears
+       * the bottom nav bar; desktop drops it to bottom-4. */}
       <button
         type="button"
         onClick={() => window.print()}
-        aria-label="列印"
-        title="列印"
-        className="absolute right-4 top-4 inline-flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:right-8 md:top-8 print:hidden"
+        className="fixed bottom-20 right-5 z-40 inline-flex items-center rounded-full bg-primary px-7 py-3.5 text-base font-medium text-primary-foreground shadow-lg transition-colors hover:bg-primary/90 md:bottom-4 md:right-4 md:px-5 md:py-2.5 md:text-sm print:hidden"
       >
-        <Printer className="size-4" />
+        列印
       </button>
       <div className="flex flex-col font-serif leading-relaxed tracking-wide text-[length:var(--reading-fs,1rem)]">
         {lines.map((line, i) => {

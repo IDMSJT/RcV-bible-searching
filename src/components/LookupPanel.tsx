@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useRef, useState } from 'react'
 import { useNavigate, useLocation } from '@tanstack/react-router'
-import { parseRefs, segmentInput, type VerseRef } from '@/lib/parseRefs'
+import { parseRefs, type Segment, type VerseRef } from '@/lib/parseRefs'
 import { useBible, findChapter } from '@/data/loadBible'
 import { BOOK_ABBREV } from '@/data/abbrev'
 import { Textarea } from '@/components/ui/textarea'
@@ -38,30 +38,38 @@ function refKey(bookNo: number, chapterNo: number, hl: string): string {
 }
 
 function renderBackdrop(
-  segments: { text: string; token: boolean }[],
-  statuses: boolean[],
-  refs: VerseRef[],
+  segments: Segment[],
   refFound: boolean[],
   activeKey: string | null,
   hoveredKey: string | null,
 ) {
-  let tokenIndex = 0
+  // Segments are emitted in input order; ref segments carry the resolved
+  // VerseRefs while everything else (prose, separators) renders plain. We
+  // walk a flat `refFound` cursor that's keyed to the same VerseRef order
+  // as the results list, so a segment with multiple refs (a 創一1、5 token
+  // that yields two refs) consumes that many slots.
   let refIndex = 0
   return segments.map((seg, i) => {
-    if (!seg.token) return <Fragment key={i}>{seg.text}</Fragment>
-    const ok = statuses[tokenIndex++] ?? true
-    // Failed to parse, OR parsed but the chapter/verse doesn't exist.
-    if (!ok || refFound[refIndex] === false) {
-      if (ok) refIndex++
+    if (!seg.refs || seg.refs.length === 0) {
+      return <Fragment key={i}>{seg.text}</Fragment>
+    }
+    const startIdx = refIndex
+    refIndex += seg.refs.length
+    let allResolved = true
+    let lit = false
+    for (let j = 0; j < seg.refs.length; j++) {
+      if (refFound[startIdx + j] === false) allResolved = false
+      const ref = seg.refs[j]
+      const key = refKey(ref.bookNo, ref.chapter, refHl(ref))
+      if (key === activeKey || key === hoveredKey) lit = true
+    }
+    if (!allResolved) {
       return (
         <span key={i} className="rounded-sm bg-destructive/15 text-destructive">
           {seg.text}
         </span>
       )
     }
-    const ref = refs[refIndex++]
-    const key = ref != null ? refKey(ref.bookNo, ref.chapter, refHl(ref)) : null
-    const lit = key != null && (key === activeKey || key === hoveredKey)
     return lit ? (
       <span key={i} className="rounded-sm bg-highlight">
         {seg.text}
@@ -87,8 +95,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
       ? refKey(activeBookNo, activeChapterNo, activeHl)
       : null
 
-  const { refs, statuses } = useMemo(() => parseRefs(q), [q])
-  const segments = useMemo(() => segmentInput(q), [q])
+  const { refs, segments } = useMemo(() => parseRefs(q), [q])
   const backdropRef = useRef<HTMLDivElement>(null)
   const [hovered, setHovered] = useState<number | null>(null)
 
@@ -148,7 +155,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
               'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words text-foreground',
             )}
           >
-            {renderBackdrop(segments, statuses, refs, refFound, activeKey, hoveredKey)}
+            {renderBackdrop(segments, refFound, activeKey, hoveredKey)}
           </div>
           <Textarea
             value={q}

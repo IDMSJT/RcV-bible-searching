@@ -9,29 +9,29 @@ const HEADER_CLS =
 export function ComposePanel({ onDone }: { onDone?: () => void } = {}) {
   const [input, setInput] = useLocalStorage('rcv/compose-input', '')
   return (
-    <>
-      <h2 className={HEADER_CLS}>
-        <span>綱要</span>
-        {/* Mobile-only dismiss button — the drawer covers the rendered
-         * article, so once the user is done editing they need a one-tap
-         * way to collapse it. Hidden on desktop where the aside is
-         * permanent and there's nothing to dismiss. */}
-        {onDone && (
-          <button
-            type="button"
-            onClick={onDone}
-            className="text-sm font-medium text-primary md:hidden"
-          >
-            完成
-          </button>
-        )}
-      </h2>
+    // `relative` so the mobile dismiss FAB below can pin to the bottom-right
+    // corner of the panel. The parent wrapper already supplies `h-full
+    // flex-col`, so we don't need to repeat them here.
+    <div className="relative flex h-full flex-col">
+      <h2 className={HEADER_CLS}><span>綱要</span></h2>
       <textarea
         value={input}
         onChange={(e) => setInput(e.target.value)}
         placeholder="貼上綱要，右邊會列出每個點下面的經文…"
         className="flex-1 resize-none bg-transparent p-4 font-serif text-base leading-relaxed outline-none placeholder:text-muted-foreground md:text-sm"
       />
-    </>
+      {/* Mobile-only floating dismiss button — the drawer overlays the rendered
+       * article, so once the user is done editing they need a one-tap way to
+       * collapse it. Hidden on desktop where the aside is permanent. */}
+      {onDone && (
+        <button
+          type="button"
+          onClick={onDone}
+          className="absolute bottom-5 right-5 inline-flex items-center rounded-full bg-primary px-7 py-3.5 text-base font-medium text-primary-foreground shadow-lg transition-colors hover:bg-primary/90 md:hidden"
+        >
+          完成
+        </button>
+      )}
+    </div>
   )
 }

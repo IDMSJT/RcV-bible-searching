@@ -70,8 +70,10 @@ function scanBook(text: string, ctx: ParseCtx): void {
 }
 
 // A reference region: refs after a dash, OR refs inside a (…) group.
+// `normalizeOutlineText` collapses 全形（）→ 半形(); the regex needs to match
+// the half-width form because that's what the scanner actually sees.
 const DASH_CLASS = '—─－\\-―'
-const REGION_RE = new RegExp(`([${DASH_CLASS}])([^（）()：:。」\\n]+)|（([^（）]*)）`, 'g')
+const REGION_RE = new RegExp(`([${DASH_CLASS}])([^()：:。」\\n]+)|\\(([^()]*)\\)`, 'g')
 const LAST_DASH_RE = new RegExp(`[${DASH_CLASS}](?=[^${DASH_CLASS}]*$)`)
 
 // `與` joins refs the same way `，` does — context still flows ("詩四八2與五10"
