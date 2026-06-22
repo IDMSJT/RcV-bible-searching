@@ -205,11 +205,18 @@ function RootComponent() {
   const onCatalogClick = () => {
     if (drawerOpen) {
       setDrawerOpen(false)
-      if (onCompose) goToLastChapter()
+      if (onCompose) {
+        goToLastChapter()
+        // Saved mode is forced to 'compose' while on /compose; flip it now so
+        // the nav highlight (and the next drawer-open) lands on catalog, not
+        // the panel we just left.
+        setMode('catalog')
+      }
       return
     }
     if (onCompose) {
       goToLastChapter()
+      setMode('catalog')
       return
     }
     openMode('catalog')
@@ -225,7 +232,7 @@ function RootComponent() {
         label={catalogLabel}
         onClick={onCatalogClick}
       >
-        <BookOpen className={navIcon} />
+        <BookOpen className={navIcon} strokeWidth={1.8} />
       </NavButton>
       <NavButton
         active={isActive('lookup')}
@@ -239,14 +246,14 @@ function RootComponent() {
           openMode('lookup', onCompose ? goToLastChapter : undefined)
         }}
       >
-        <Search className={navIcon} />
+        <Search className={navIcon} strokeWidth={1.8} />
       </NavButton>
       <NavButton
         active={isActive('compose')}
         label="綱要"
         onClick={() => openMode('compose', () => navigate({ to: '/compose' }))}
       >
-        <ClipboardList className={navIcon} />
+        <ClipboardList className={navIcon} strokeWidth={1.8} />
       </NavButton>
     </>
   )
@@ -291,7 +298,7 @@ function RootComponent() {
           <PopoverTrigger
             render={
               <NavButton active={settingsOpen} label="設定" className="mt-auto">
-                <Settings className={navIcon} />
+                <Settings className={navIcon} strokeWidth={1.8} />
               </NavButton>
             }
           />
@@ -366,7 +373,7 @@ function RootComponent() {
             openMode('settings', onCompose ? goToLastChapter : undefined)
           }}
         >
-          <Settings className={navIcon} />
+          <Settings className={navIcon} strokeWidth={1.8} />
         </NavButton>
       </nav>
 
@@ -383,6 +390,10 @@ function RootComponent() {
         snapPoints={snapsFor(effectiveMode)}
         activeSnapPoint={drawerSnap}
         setActiveSnapPoint={setDrawerSnap}
+        // Vaul's default input-focus repositioning tugs the drawer up to keep
+        // the focused field above the keyboard, but on iOS it leaves the
+        // drawer stuck at the keyboard-time height after dismiss.
+        repositionInputs={false}
       >
         <DrawerContent className="bottom-[calc(4rem-1px)]! h-[calc(100vh-4rem+1px)] md:hidden">
           <DrawerTitle className="sr-only">
