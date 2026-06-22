@@ -27,6 +27,14 @@ export function SettingsPanel() {
         <SettingRow label="顯示英文" onClick={() => setShowEnglish(!showEnglish)}>
           <Switch on={showEnglish} />
         </SettingRow>
+        {/* Not implemented yet — render disabled so the user sees them planned
+         * but can't toggle into a broken state. */}
+        <SettingRow label="顯示註釋" disabled>
+          <Switch on={false} disabled />
+        </SettingRow>
+        <SettingRow label="顯示串珠" disabled>
+          <Switch on={false} disabled />
+        </SettingRow>
         <SettingRow label={`字體大小　${fontSize}px`} stack>
           <Slider
             min={13}
@@ -54,6 +62,7 @@ function SettingRow({
   children,
   stack,
   onClick,
+  disabled,
 }: {
   label: string
   children: React.ReactNode
@@ -61,14 +70,26 @@ function SettingRow({
   stack?: boolean
   /** When set, the whole row is the click target (for boolean switches). */
   onClick?: () => void
+  /** Renders the row as a non-interactive, muted placeholder — used for
+   * settings that are listed but not implemented yet. */
+  disabled?: boolean
 }) {
   const cls = cn(
     'gap-3 px-4 py-4 md:py-3',
     stack ? 'flex flex-col items-stretch' : 'flex items-center justify-between',
   )
-  if (onClick) {
+  if (onClick || disabled) {
     return (
-      <button type="button" onClick={onClick} className={cn(cls, 'w-full text-left transition-colors hover:bg-muted/40')}>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        className={cn(
+          cls,
+          'w-full text-left transition-colors',
+          disabled ? 'cursor-not-allowed opacity-50' : 'hover:bg-muted/40',
+        )}
+      >
         <span className="text-sm text-foreground">{label}</span>
         {children}
       </button>
@@ -113,11 +134,12 @@ function ThemeButton({
 
 /** Presentational switch indicator — the surrounding SettingRow handles clicks
  * so the entire row is the toggle target (good for thumbs on mobile). */
-function Switch({ on }: { on: boolean }) {
+function Switch({ on, disabled }: { on: boolean; disabled?: boolean }) {
   return (
     <span
       role="switch"
       aria-checked={on}
+      aria-disabled={disabled}
       className={cn(
         'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors',
         on ? 'bg-primary' : 'bg-muted-foreground/30',

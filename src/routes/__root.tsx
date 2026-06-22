@@ -91,14 +91,15 @@ function RootComponent() {
     setDrawerSnap(initialSnapFor(effectiveMode))
   }, [effectiveMode])
 
-  // Persist 'compose' as the active mode whenever we're on /compose so that
-  // when the user clicks through to a verse the saved mode still makes sense
-  // (otherwise we'd inherit whatever mode happened to be active before they
-  // landed on /compose — lookup, settings, etc. — and the sidebar would
-  // suddenly snap to a panel the user wasn't expecting).
+  // Saved mode is tightly coupled to the route: 'compose' iff we're on
+  // /compose, everything else gets demoted to 'catalog' so the sidebar
+  // doesn't keep showing the compose panel after the user navigates away.
+  // The fallback is catalog rather than the last non-compose mode because
+  // there's no record of what was active before /compose anyway.
   useEffect(() => {
     if (onCompose) setMode('compose')
-  }, [onCompose, setMode])
+    else if (mode === 'compose') setMode('catalog')
+  }, [onCompose, mode, setMode])
 
   // Per-pathname scroll restoration for the <main> element. TanStack Router's
   // `scrollToTopSelectors` resets main → 0 on every navigation (push AND pop),
@@ -205,18 +206,11 @@ function RootComponent() {
   const onCatalogClick = () => {
     if (drawerOpen) {
       setDrawerOpen(false)
-      if (onCompose) {
-        goToLastChapter()
-        // Saved mode is forced to 'compose' while on /compose; flip it now so
-        // the nav highlight (and the next drawer-open) lands on catalog, not
-        // the panel we just left.
-        setMode('catalog')
-      }
+      if (onCompose) goToLastChapter()
       return
     }
     if (onCompose) {
       goToLastChapter()
-      setMode('catalog')
       return
     }
     openMode('catalog')
@@ -305,7 +299,7 @@ function RootComponent() {
           <PopoverContent
             side="right"
             align="end"
-            sideOffset={6}
+            sideOffset={14}
             className="w-72 gap-0 overflow-hidden p-0"
           >
             <SettingsPanel />
