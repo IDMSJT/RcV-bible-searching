@@ -174,9 +174,9 @@ function RootComponent() {
     }
   }
 
-  // size-5 on mobile (more thumb-friendly), size-4 on desktop where they sit in
-  // the slim left rail.
-  const navIcon = 'size-5 md:size-4'
+  // Same icon size on both viewports — desktop now stacks icon + label
+  // Slack-style in a wider rail, so the icon doesn't need to shrink.
+  const navIcon = 'size-5'
   // The first three buttons are identical on both viewports; settings differs
   // — on desktop it opens a Popover anchored to the button, on mobile it stays
   // a regular nav that swaps the drawer into settings mode.
@@ -236,7 +236,7 @@ function RootComponent() {
       </NavButton>
       <NavButton
         active={isActive('lookup')}
-        label="查詢"
+        label="經節"
         // Tapping the lit lookup tab is a no-op (matches settings) — easy to
         // hit by accident, and the drawer disappearing mid-search would feel
         // like a glitch. On /compose the sidebar is forced to 'compose', so
@@ -292,7 +292,7 @@ function RootComponent() {
       <ReadingPreferences />
 
       {/* Desktop: left vertical rail */}
-      <nav className="hidden w-12 shrink-0 flex-col items-center gap-1 border-r border-border bg-background p-2 md:flex print:hidden">
+      <nav className="hidden w-16 shrink-0 flex-col items-center border-r border-border bg-background p-2 md:flex print:hidden">
         {sharedNavButtons((m) => effectiveMode === m, '閱讀')}
         <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
           <PopoverTrigger
@@ -398,7 +398,7 @@ function RootComponent() {
         <DrawerContent className="bottom-[calc(4rem-1px)]! h-[calc(100vh-4rem+1px)] md:hidden">
           <DrawerTitle className="sr-only">
             {effectiveMode === 'lookup'
-              ? '查詢'
+              ? '經節'
               : effectiveMode === 'compose'
                 ? '綱要'
                 : effectiveMode === 'settings'
@@ -444,15 +444,31 @@ function NavButton({
       onClick={onClick}
       {...rest}
       className={cn(
-        'inline-flex flex-col items-center justify-center gap-1.5 rounded-md transition-colors md:size-9 md:gap-0',
+        // Mobile keeps the full-button highlight (bg covers the whole tab).
+        // Desktop drops the outer bg via md:* so the inner icon chip below
+        // carries the highlight instead — yielding a Slack-style square pill
+        // around the icon and a plain text label underneath.
+        'group inline-flex flex-col items-center justify-center gap-1.5 rounded-md transition-colors md:py-2',
         active
           ? 'bg-secondary text-secondary-foreground'
           : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+        'md:bg-transparent md:hover:bg-transparent',
         className,
       )}
     >
-      {children}
-      <span className="text-xs leading-none md:hidden">{label}</span>
+      <span
+        className={cn(
+          'inline-flex items-center justify-center transition-colors',
+          // Desktop-only: square icon chip with its own hover / active bg.
+          'md:size-9 md:rounded-md',
+          active
+            ? 'md:bg-secondary md:text-secondary-foreground'
+            : 'md:group-hover:bg-muted md:group-hover:text-foreground',
+        )}
+      >
+        {children}
+      </span>
+      <span className="text-[11px] font-medium leading-none">{label}</span>
     </button>
   )
 }

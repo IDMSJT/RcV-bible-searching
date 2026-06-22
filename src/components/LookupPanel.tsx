@@ -9,10 +9,10 @@ import { cn } from '@/lib/utils'
 import type { Verse } from '@/types/bible'
 
 // Shared text/padding rules so the visible Textarea above the highlight-aware
-// backdrop renders glyphs at exactly the same positions. text-base on both
-// viewports — mobile needs ≥16px to avoid iOS Safari's focus-zoom and the
-// desktop benefits from the same comfortable reading size.
-const FIELD_CLS = 'p-4 font-serif text-base leading-relaxed'
+// backdrop renders glyphs at exactly the same positions. text-base on mobile
+// (iOS Safari's focus-zoom only kicks in below 16px), md:text-sm on desktop
+// to match the rest of the sidebar panels.
+const FIELD_CLS = 'p-4 font-serif text-base leading-relaxed md:text-sm'
 
 const HEADER_CLS =
   'sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur md:h-9 md:text-xs'
@@ -143,7 +143,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
 
   return (
     <div className="flex flex-col md:h-full">
-      <h2 className={HEADER_CLS}><span>查詢</span></h2>
+      <h2 className={HEADER_CLS}><span>經節</span></h2>
       <div className="border-b border-border">
         <div className="relative">
           {/* Backdrop: same text, failed tokens in red */}

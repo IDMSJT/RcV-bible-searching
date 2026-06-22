@@ -1,3 +1,4 @@
+import { useIsMobile } from '@/lib/useIsMobile'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 
 const HEADER_CLS =
@@ -8,6 +9,7 @@ const HEADER_CLS =
 // hook's same-tab subscriber.
 export function ComposePanel({ onDone }: { onDone?: () => void } = {}) {
   const [input, setInput] = useLocalStorage('rcv/compose-input', '')
+  const isMobile = useIsMobile()
   return (
     // `relative` so the mobile dismiss FAB below can pin to the bottom-right
     // corner of the panel. The parent wrapper already supplies `h-full
@@ -17,7 +19,11 @@ export function ComposePanel({ onDone }: { onDone?: () => void } = {}) {
       <textarea
         value={input}
         onChange={(e) => setInput(e.target.value)}
-        placeholder="貼上綱要，右邊會列出每個點下面的經文…"
+        placeholder={
+          isMobile
+            ? '貼上綱要，下面會列出每個點的經文…'
+            : '貼上綱要，右邊會列出每個點下面的經文…'
+        }
         className="flex-1 resize-none bg-transparent p-4 font-serif text-base leading-relaxed outline-none placeholder:text-muted-foreground md:text-sm"
       />
       {/* Mobile-only floating dismiss button — the drawer overlays the rendered

@@ -156,8 +156,13 @@ function ComposePage() {
   if (input.trim() === '') {
     return (
       <article className="mx-auto max-w-3xl px-4 py-6 md:px-8 md:py-10">
-        <p className="text-sm text-muted-foreground">
-          在左邊側邊欄貼上綱要，這裡就會列出每個點下面的經文。
+        <p className="text-base text-muted-foreground md:text-sm">
+          <span className="md:hidden">
+            點下方的綱要、貼上你的綱要，這裡會列出每個點下面的經文。
+          </span>
+          <span className="hidden md:inline">
+            在左邊側邊欄貼上綱要，這裡就會列出每個點下面的經文。
+          </span>
         </p>
       </article>
     )
