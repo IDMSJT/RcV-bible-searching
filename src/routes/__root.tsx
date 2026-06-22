@@ -195,20 +195,20 @@ function RootComponent() {
   }
 
   // Catalog / 閱讀 tap semantics:
-  //   - Drawer up: dismiss it. If we're off a chapter route (outline /
-  //     compose), also navigate to last chapter so 閱讀 actually puts the user
-  //     somewhere readable.
-  //   - Drawer down, off chapter: just navigate — no drawer to open since the
-  //     chapter view itself is the read target.
-  //   - Drawer down, on chapter: open the catalog panel.
+  //   - Drawer up: dismiss it. From /compose specifically, also navigate to
+  //     last chapter so the user lands on something readable.
+  //   - Drawer down on /compose: navigate to last chapter (no drawer to open
+  //     — pressing 閱讀 here is essentially "leave compose").
+  //   - Drawer down on a book route (outline or chapter): open the catalog
+  //     drawer. The outline route behaves like a chapter route from the
+  //     nav's perspective.
   const onCatalogClick = () => {
-    const onChapter = /^\/\d+\/\d+/.test(pathname)
     if (drawerOpen) {
       setDrawerOpen(false)
-      if (!onChapter) goToLastChapter()
+      if (onCompose) goToLastChapter()
       return
     }
-    if (!onChapter) {
+    if (onCompose) {
       goToLastChapter()
       return
     }
@@ -348,12 +348,11 @@ function RootComponent() {
           // route context, not drawer visibility. Other tabs only light up
           // while the drawer is actually showing them.
           (m) => effectiveMode === m && (m === 'compose' || drawerOpen),
-          // Only call it 「目錄」 when the user is mid-read with the drawer
-          // dismissed — the label then hints that tapping reopens the chapter
-          // list. In every other state tapping ends up *navigating to* a
-          // chapter (back from /compose, switching out of lookup/compose/
-          // settings, etc.), so 「閱讀」 better describes what happens.
-          /^\/\d+\/\d+/.test(pathname) && !drawerOpen ? '目錄' : '閱讀',
+          // 「目錄」 when on a book route (outline or chapter) with the drawer
+          // dismissed — tapping there opens the catalog. Everywhere else
+          // (/compose, root) tapping navigates to a chapter, so 「閱讀」
+          // describes the result more accurately.
+          /^\/\d+/.test(pathname) && !drawerOpen ? '目錄' : '閱讀',
         )}
         <NavButton
           active={drawerOpen && effectiveMode === 'settings'}
