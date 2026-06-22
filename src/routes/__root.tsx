@@ -181,9 +181,10 @@ function RootComponent() {
   // — on desktop it opens a Popover anchored to the button, on mobile it stays
   // a regular nav that swaps the drawer into settings mode.
   const goToLastChapter = () => {
-    // Already in a book route (chapter view or outline) — don't yank the user
-    // out of what they're reading. The catalog panel updates around them.
-    if (/^\/\d+/.test(pathname)) return
+    // Only the chapter view is "what they're reading" — outline (/$bookNo) and
+    // /compose are meta routes, so 閱讀 should still navigate the user into an
+    // actual chapter from there.
+    if (/^\/\d+\/\d+/.test(pathname)) return
     const m = lastChapter.match(/^\/(\d+)\/(\d+)/)
     if (!m) return
     navigate({
@@ -193,18 +194,25 @@ function RootComponent() {
     })
   }
 
-  // When the user is in the middle of reading a chapter and the drawer is up
-  // (showing settings / lookup / compose / catalog on top of the page), the
-  // 閱讀 button's job is simply "take me back to reading" — dismiss the
-  // drawer regardless of which mode it was. Otherwise fall through to the
-  // standard openMode flow so the off-chapter case (e.g. /compose → tap
-  // 閱讀) still navigates to the last chapter.
+  // Catalog / 閱讀 tap semantics:
+  //   - Drawer up: dismiss it. If we're off a chapter route (outline /
+  //     compose), also navigate to last chapter so 閱讀 actually puts the user
+  //     somewhere readable.
+  //   - Drawer down, off chapter: just navigate — no drawer to open since the
+  //     chapter view itself is the read target.
+  //   - Drawer down, on chapter: open the catalog panel.
   const onCatalogClick = () => {
-    if (/^\/\d+\/\d+/.test(pathname) && drawerOpen) {
+    const onChapter = /^\/\d+\/\d+/.test(pathname)
+    if (drawerOpen) {
       setDrawerOpen(false)
+      if (!onChapter) goToLastChapter()
       return
     }
-    openMode('catalog', goToLastChapter)
+    if (!onChapter) {
+      goToLastChapter()
+      return
+    }
+    openMode('catalog')
   }
 
   const sharedNavButtons = (
@@ -222,10 +230,14 @@ function RootComponent() {
       <NavButton
         active={isActive('lookup')}
         label="查詢"
-        // On /compose the sidebar is forced to 'compose'; without a nav-away
-        // the lookup tap would silently set the mode but the panel would stay
-        // hidden behind the lock.
-        onClick={() => openMode('lookup', onCompose ? goToLastChapter : undefined)}
+        // Tapping the lit lookup tab is a no-op (matches settings) — easy to
+        // hit by accident, and the drawer disappearing mid-search would feel
+        // like a glitch. On /compose the sidebar is forced to 'compose', so
+        // we navigate-away first to release the lock.
+        onClick={() => {
+          if (drawerOpen && effectiveMode === 'lookup') return
+          openMode('lookup', onCompose ? goToLastChapter : undefined)
+        }}
       >
         <Search className={navIcon} />
       </NavButton>
@@ -330,7 +342,12 @@ function RootComponent() {
         className="pointer-events-auto fixed inset-x-0 bottom-0 z-[60] flex h-16 items-stretch border-t border-border bg-background [&>button]:size-auto [&>button]:flex-1 [&>button]:h-full [&>button]:rounded-none md:hidden print:hidden"
       >
         {sharedNavButtons(
-          (m) => drawerOpen && effectiveMode === m,
+          // Compose stays lit whenever the saved mode is 'compose' (i.e. we're
+          // on /compose, or compose was the last panel opened) — the article
+          // itself is the compose surface, so the indicator should reflect
+          // route context, not drawer visibility. Other tabs only light up
+          // while the drawer is actually showing them.
+          (m) => effectiveMode === m && (m === 'compose' || drawerOpen),
           // Only call it 「目錄」 when the user is mid-read with the drawer
           // dismissed — the label then hints that tapping reopens the chapter
           // list. In every other state tapping ends up *navigating to* a
