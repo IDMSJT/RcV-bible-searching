@@ -176,6 +176,38 @@ def parse_chapter(html: str, chapter: int) -> dict[int, dict]:
     return out
 
 
+# YouVersion renders a few adjacent verses merged under one combined verse
+# number — e.g. Ephesians 6:2-3 live in a single <span data-usfm="EPH.6.2+
+# EPH.6.3">, whose dotted usfm our per-verse parser can't slot, so both verses
+# go missing. The Recovery Version merges them the same way, so we patch the
+# pair back in by hand. This is the ONLY such gap in the whole canon (verified
+# against the annotated edition). The verse-2 text is the merged body the
+# footnote offsets are measured against, so its sup markers line up; verse 3 is
+# the edition's own "（2、3節合併）" placeholder.
+VERSE_PATCHES: dict[tuple[int, int], dict[int, str]] = {
+    (49, 6): {
+        2: "“要孝敬父母，使你亨通，在世長壽。”這是第一條帶應許的誡命。",
+        3: "（2、3節合併）",
+    },
+}
+
+
+def apply_verse_patches(books: list[dict]) -> int:
+    n = 0
+    for b in books:
+        for c in b["chapters"]:
+            patch = VERSE_PATCHES.get((b["bookNo"], c["chapterNo"]))
+            if not patch:
+                continue
+            have = {v["verse"] for v in c["verses"]}
+            for vno, text in patch.items():
+                if vno not in have:
+                    c["verses"].append({"verse": vno, "text": text})
+                    n += 1
+            c["verses"].sort(key=lambda v: v["verse"])
+    return n
+
+
 def main() -> int:
     from scrape_verse_recoveryversion import fetch_menu
 
@@ -206,6 +238,10 @@ def main() -> int:
             print(f"  {usfm}.{ch}: {len(verses)} verses, {n_seg} 切段, {n_mark} 標記",
                   file=sys.stderr)
         books.append({"bookNo": book_no, "name": BOOK_NAMES[book_no - 1], "chapters": chapters})
+
+    n_patched = apply_verse_patches(books)
+    if n_patched:
+        print(f"  補回合併節 (VERSE_PATCHES): {n_patched}", file=sys.stderr)
 
     data = {"name": "聖經恢復本", "lang": "zh-TW",
             "source": "https://www.bible.com/zh-TW/bible/4230/ (YouVersion v4230)", "books": books}

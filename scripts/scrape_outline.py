@@ -1,4 +1,9 @@
-"""Build outline.json from cached chapter HTML (no network).
+"""⚠️ 已過時 (DEPRECATED) — 不再產出現役資料。
+
+現役 `public/outline.json` 由 `scrape_outline_newsite.py` 產出。這支是舊站版本,
+只寫到 `output/outline_old.json`,保留作比對 / 歷史參考。
+
+Build outline.json from cached chapter HTML (no network).
 
 Anchoring strategy: outline headings appear in document order immediately
 before the verse they head, so each heading anchors to the NEXT verse row

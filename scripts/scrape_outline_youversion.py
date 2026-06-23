@@ -1,4 +1,9 @@
-"""Build the outline (綱目) from the bible.com (YouVersion v4230) edition, using
+"""⚠️ 已過時 (DEPRECATED) — 實驗性,未採用。
+
+現役 `public/outline.json` 由 `scrape_outline_newsite.py` 產出。這支只寫到
+`output/outline_youversion.json`,當初是評估 bible.com 綱目來源用的,沒有採用。
+
+Build the outline (綱目) from the bible.com (YouVersion v4230) edition, using
 the cached chapter HTML in cache_yv/ (no network — run scrape_verse_youversion.py
 first to populate the cache).
 

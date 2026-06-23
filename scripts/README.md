@@ -1,28 +1,31 @@
 # scripts — 經文與綱目資料管線
 
-聖經恢復本資料來自三個官方網站,經爬取、比對、整併後產生 `public/verse.json`
-與 `public/outline.json`。需要 `.venv`(見 `requirements.txt`)。腳本檔名以**來源網站**命名。
+聖經恢復本資料經爬取、比對後產生 `public/verse.json` 與 `public/outline.json`。
+需要 `.venv`(見 `requirements.txt`)。腳本檔名以**來源網站**命名。
+
+> **現役管線**:`public/verse.json` 由 `scrape_verse_youversion.py` 產出,
+> `public/outline.json` 由 `scrape_outline_newsite.py` 產出。其餘 verse/outline
+> 腳本若標 **⚠️ 已過時** 即非現役(早期評估 / 比對用),別拿來覆蓋 public/。
 
 ## 經文爬蟲(每個檔對應一個來源網站)
 
 | 腳本 | 來源網站 | 產出 | 備註 |
 |---|---|---|---|
-| `scrape_verse_recoveryversion.py` | recoveryversion.com.tw | `output/verse_old.json` | text + 切段 segments + 註釋位置 notes |
-| `scrape_verse_twgbr.py` | line.twgbr.org | (供 merge 直接讀) | 較新版修訂的 text,含方引號「」 |
-| `scrape_verse_youversion.py` | bible.com v4230 (YouVersion) | `output/verse_youversion.json` | 純經文(註釋不正確,略過);需 headless Chrome |
-| `merge_verse.py` | 上述前兩者 | `public/verse.json` | 整併成最好的版本 |
+| `scrape_verse_youversion.py` | bible.com v4230 (YouVersion) | **`public/verse.json`(現役)** | 純經文 + 切段 + pn/png/add 標記;需 headless Chrome。`VERSE_PATCHES` 補回合併節(弗六2-3) |
+| `scrape_verse_recoveryversion.py` | recoveryversion.com.tw | `output/verse_old.json` | 仍被引用:`fetch_menu`(各書章數)供現役爬蟲使用 |
+| `scrape_verse_twgbr.py` | line.twgbr.org | (供 merge / newsite outline 讀) | 仍被 `scrape_outline_newsite.py` import |
+| `merge_verse.py` | recoveryversion + twgbr | ~~`public/verse.json`~~ | **⚠️ 已過時** — 被 youversion 取代 |
 
-整併原則:
-- **用字遣詞**用新版(最新修訂)、**方引號「」**用新版。
-- **異體字**保留舊版較好的(裡/牠/衛…),用逐字對位回填,只有真改寫才變動。
-- **註釋 notes / 切段 segments** 沿用舊版;字數變動處標 `noteShift` 待修。
+註釋(footnotes)另由 `scrape_annotations.py` → `extract_annotations.py` 從 EPUB
+產出 `public/annotations.json`;英文經文由 `build_verse_en.py` 產 `public/verse_en.json`。
 
 ## 綱目腳本
 
 | 腳本 | 作用 | 產出 |
 |---|---|---|
-| `scrape_outline.py` | 從舊站 cache 解析綱目(舊版) | `output/outline_old.json` |
-| `scrape_outline_newsite.py` | 從新站解析綱目(目前採用) | `public/outline.json` |
+| `scrape_outline_newsite.py` | 從新站解析綱目(**現役**) | `public/outline.json` |
+| `scrape_outline.py` | 舊站版本 | `output/outline_old.json` ⚠️ 已過時 |
+| `scrape_outline_youversion.py` | bible.com 綱目(評估用,未採用) | `output/outline_youversion.json` ⚠️ 已過時 |
 
 ## 比對 / 診斷工具
 

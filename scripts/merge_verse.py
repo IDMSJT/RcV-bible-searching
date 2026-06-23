@@ -1,4 +1,10 @@
-"""Merge the old and new editions into the best verse.json (→ public/verse.json).
+"""⚠️ 已過時 (DEPRECATED) — 不再產出現役資料。
+
+`public/verse.json` 現在改由 `scrape_verse_youversion.py`(bible.com YouVersion
+v4230)產出;成品的 `source` 欄位即為 YouVersion。這支 twgbr+舊站整併流程已被
+取代,僅保留作歷史參考 / 比對工具的相依。不要再用它覆蓋 public/verse.json。
+
+Merge the old and new editions into the best verse.json (→ public/verse.json).
 
 Combines:
   - new-site text (scrape_verse_twgbr) for the latest wording and the 「」 quotes,
