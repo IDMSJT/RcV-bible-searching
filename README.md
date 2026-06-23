@@ -32,14 +32,6 @@ pnpm lint
 - Tailwind CSS 4 + shadcn (Base UI)
 - 經文/綱目資料以 JSON 形式放在 `public/`,首訪時 fetch 一次,瀏覽器快取
 
-## 資料來源
-
-- 經文:[bible.com YouVersion v4230](https://www.bible.com/zh-TW/bible/4230) — 聖經恢復本(Living Stream Ministry / 台灣福音書房)
-- 綱目:同上來源,從章節 HTML 內嵌的 `s1-s4` 標題反向推 6 層
-- 人名/地名/補字標記:同上來源,從 `pn` / `png` / `add` class 萃取
-
-爬蟲與資料管線在 `scripts/`(Python + BeautifulSoup),產物 `public/verse.json`(5 MB / gzip 1.4 MB)、`public/outline.json`(380 KB / gzip 73 KB)。
-
 ## 授權
 
 恢復本聖經內文版權屬 Living Stream Ministry / 台灣福音書房;本專案僅作個人研讀工具用途。
