@@ -66,3 +66,30 @@ export interface Outline {
   lang: string
   books: BookOutline[]
 }
+
+/** A footnote attached to a verse: number, the char offset where the
+ * superscript should sit in the verse text, and the note body. */
+export interface Annotation {
+  n: number
+  offset: number
+  text: string
+}
+
+export interface AnnotationVerse {
+  verse: number
+  notes: Annotation[]
+}
+
+export interface AnnotationChapter {
+  chapterNo: number
+  verses: AnnotationVerse[]
+}
+
+export interface AnnotationBook {
+  bookNo: number
+  chapters: AnnotationChapter[]
+}
+
+export interface AnnotationData {
+  books: AnnotationBook[]
+}

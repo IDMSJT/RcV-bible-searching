@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 type Theme = 'light' | 'dark' | 'system'
 
 const HEADER_CLS =
-  'sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur md:h-9 md:text-xs'
+  'sticky top-0 z-10 flex h-14 items-center justify-center border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur md:h-9 md:justify-between md:text-xs'
 
 // All settings state lives here. The values themselves are picked up by other
 // consumers (ChapterView, ReadingPreferences, …) via useLocalStorage on the
@@ -15,6 +15,7 @@ export function SettingsPanel() {
   const [theme, setTheme] = useLocalStorage<Theme>('rcv/theme', 'system')
   const [showOutline, setShowOutline] = useLocalStorage('rcv/show-outline', true)
   const [showEnglish, setShowEnglish] = useLocalStorage('rcv/show-english', false)
+  const [showNotes, setShowNotes] = useLocalStorage('rcv/show-notes', true)
   const [fontSize, setFontSize] = useLocalStorage('rcv/font-size', 16)
 
   return (
@@ -27,11 +28,12 @@ export function SettingsPanel() {
         <SettingRow label="顯示英文" onClick={() => setShowEnglish(!showEnglish)}>
           <Switch on={showEnglish} />
         </SettingRow>
-        {/* Not implemented yet — render disabled so the user sees them planned
-         * but can't toggle into a broken state. */}
-        <SettingRow label="顯示註釋" disabled>
-          <Switch on={false} disabled />
+        <SettingRow label="顯示註釋" onClick={() => setShowNotes(!showNotes)}>
+          <Switch on={showNotes} />
         </SettingRow>
+        {/* Cross-references live inside annotations in our EPUB source, so a
+         * standalone 串珠 toggle would need a different data set. Keep it
+         * planned but disabled. */}
         <SettingRow label="顯示串珠" disabled>
           <Switch on={false} disabled />
         </SettingRow>

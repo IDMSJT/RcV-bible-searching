@@ -5,6 +5,9 @@ import { ChapterView } from '@/components/ChapterView'
 import { cn } from '@/lib/utils'
 
 interface ChapterSearch {
+  /** Comma-separated highlight list. Each item is either a verse range
+   * (「13」, 「13-15」) or a note reference (「13:1」 = verse 13 note 1). Note
+   * refs both auto-expand and tint the body, verse refs just tint the verse. */
   hl?: string
   /** Outline-heading anchor to highlight: "verse" or "verse.segment". */
   oh?: string
@@ -64,13 +67,25 @@ function ArrowLink({ target, children }: { target: NavTarget; children: React.Re
   )
 }
 
-function parseHighlight(hl: string | undefined): { start?: number; end?: number } {
-  if (!hl) return {}
-  const m = hl.match(/^(\d+)(?:-(\d+))?$/)
-  if (!m) return {}
-  const start = Number(m[1])
-  const end = m[2] ? Number(m[2]) : start
-  return { start, end }
+export type HlItem =
+  | { kind: 'verse'; start: number; end: number }
+  | { kind: 'note'; verse: number; n: number }
+
+function parseHighlight(hl: string | undefined): HlItem[] {
+  if (!hl) return []
+  return hl.split(',').flatMap((raw): HlItem[] => {
+    const seg = raw.trim()
+    // 「verse:n」 — note reference (auto-expand + tint that note body).
+    const noteM = seg.match(/^(\d+):(\d+)$/)
+    if (noteM) return [{ kind: 'note', verse: Number(noteM[1]), n: Number(noteM[2]) }]
+    // 「verse」 or 「verse-verse」 — verse range.
+    const verseM = seg.match(/^(\d+)(?:-(\d+))?$/)
+    if (verseM) {
+      const start = Number(verseM[1])
+      return [{ kind: 'verse', start, end: verseM[2] ? Number(verseM[2]) : start }]
+    }
+    return []
+  })
 }
 
 function parseHeadingAnchor(oh: string | undefined): { verse: number; segment: number } | undefined {
@@ -99,15 +114,14 @@ function ChapterPage() {
       : BOOK_BY_NO.has(bookNo + 1)
         ? { kind: 'outline', bookNo: bookNo + 1 }
         : null
-  const { start, end } = parseHighlight(hl)
+  const highlights = parseHighlight(hl)
   const headingAnchor = parseHeadingAnchor(oh)
 
   return (
     <ChapterView
       bookNo={bookNo}
       chapterNo={chapterNo}
-      highlightStart={start}
-      highlightEnd={end}
+      highlights={highlights}
       headingAnchor={headingAnchor}
       leftAction={
         <ArrowLink target={prev}>

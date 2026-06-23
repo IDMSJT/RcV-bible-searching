@@ -6,6 +6,7 @@ import { parseRefs, type Segment, type VerseRef } from '@/lib/parseRefs'
 import { useBible, useBibleEn, findChapter } from '@/data/loadBible'
 import { BOOK_ABBREV } from '@/data/abbrev'
 import { BOOK_ABBREV_EN } from '@/data/abbrevEn'
+import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
 import { useIsMobile } from '@/lib/useIsMobile'
@@ -20,7 +21,7 @@ import type { Verse } from '@/types/bible'
 const FIELD_CLS = 'p-4 font-serif text-base leading-relaxed md:text-sm'
 
 const HEADER_CLS =
-  'sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur md:h-9 md:text-xs'
+  'sticky top-0 z-10 flex h-14 items-center justify-center border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur md:h-9 md:justify-between md:text-xs'
 
 const PLACEHOLDER =
   '輸入經文出處，例如：\n約翰福音一章一節，三章十六節，十四章六節'
@@ -44,6 +45,18 @@ function refHl(ref: VerseRef): string {
 
 function refKey(bookNo: number, chapterNo: number, hl: string): string {
   return `${bookNo}/${chapterNo}/${hl}`
+}
+
+/** Format a single resolved verse as a quotable line for copy. Returns an
+ * empty string when the requested format needs English but the verse has none,
+ * so callers can `.filter(Boolean)` and not emit blank lines. */
+function formatCopyText(r: ResolvedVerse, format: 'zh' | 'en' | 'both'): string {
+  const zhLabel = `${BOOK_ABBREV[r.bookNo] ?? ''}${r.chapterNo}:${r.verse.verse}`
+  const enLabel = `${BOOK_ABBREV_EN[r.bookNo] ?? ''} ${r.chapterNo}:${r.verse.verse}`
+  if (format === 'zh') return `${zhLabel}『${r.verse.text}』`
+  if (format === 'en') return r.enText ? `${enLabel} "${r.enText}"` : ''
+  const zh = `${zhLabel}『${r.verse.text}』`
+  return r.enText ? `${zh}\n${enLabel} "${r.enText}"` : zh
 }
 
 function renderBackdrop(
@@ -89,8 +102,13 @@ function renderBackdrop(
   })
 }
 
+type LookupTab = 'ref' | 'kw'
+const KW_RESULT_CAP = 500
+
 export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
+  const [tab, setTab] = useLocalStorage<LookupTab>('rcv/lookup-tab', 'ref')
   const [q, setQ] = useLocalStorage('rcv/lookup-q', '')
+  const [kw, setKw] = useLocalStorage('rcv/lookup-kw', '')
   const { data, error } = useBible()
   const [showEnglish] = useLocalStorage('rcv/show-english', false)
   const { data: bibleEn } = useBibleEn(showEnglish)
@@ -112,10 +130,11 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   const [hovered, setHovered] = useState<number | null>(null)
 
   // Keep the highlight backdrop scrolled in lock-step with the textarea.
-  // With `field-sizing-content` gone (fixed height), long input scrolls inside
-  // the textarea — without this sync the red / hover tokens drift away from
-  // the actual glyphs the user is reading.
+  // Re-runs when the active tab changes — the textarea / backdrop only mount
+  // for the ref tab, so the listener has to attach to the freshly-mounted
+  // pair when we switch back to it.
   useEffect(() => {
+    if (tab !== 'ref') return
     const ta = textareaRef.current
     const bd = backdropRef.current
     if (!ta || !bd) return
@@ -126,9 +145,9 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     sync() // catch any initial offset
     ta.addEventListener('scroll', sync, { passive: true })
     return () => ta.removeEventListener('scroll', sync)
-  }, [])
+  }, [tab])
 
-  const resolved = useMemo<ResolvedVerse[]>(() => {
+  const resolvedRefs = useMemo<ResolvedVerse[]>(() => {
     if (!data) return []
     const out: ResolvedVerse[] = []
     for (const ref of refs) {
@@ -146,6 +165,51 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     }
     return out
   }, [refs, data, bibleEn, showEnglish])
+
+  // Keyword-search results. Same shape as ref results so the renderer / copy
+  // machinery don't care which tab is active. Caps at KW_RESULT_CAP so a
+  // 1-char query doesn't dump every verse into the DOM at once.
+  const resolvedKw = useMemo<ResolvedVerse[]>(() => {
+    const query = kw.trim()
+    if (!data || !query) return []
+    const tokens = query.toLowerCase().split(/\s+/).filter(Boolean)
+    if (!tokens.length) return []
+    const out: ResolvedVerse[] = []
+    outer: for (const book of data.books) {
+      for (const chapter of book.chapters) {
+        const enChapter = showEnglish ? findChapter(bibleEn, book.bookNo, chapter.chapterNo) : null
+        for (const v of chapter.verses) {
+          const haystackZh = v.text
+          const haystackEn = enChapter?.verses.find((x) => x.verse === v.verse)?.text ?? ''
+          // Each token must appear in either zh or en — gives a forgiving
+          // mixed-language search without needing a language toggle.
+          const matched = tokens.every(
+            (t) => haystackZh.includes(t) || haystackEn.toLowerCase().includes(t),
+          )
+          if (!matched) continue
+          out.push({
+            bookNo: book.bookNo,
+            chapterNo: chapter.chapterNo,
+            verse: v,
+            enText: haystackEn || undefined,
+            ref: {
+              bookNo: book.bookNo,
+              chapter: chapter.chapterNo,
+              endChapter: chapter.chapterNo,
+              verseStart: v.verse,
+              verseEnd: v.verse,
+              seg: null,
+              source: '',
+            },
+          })
+          if (out.length >= KW_RESULT_CAP) break outer
+        }
+      }
+    }
+    return out
+  }, [kw, data, bibleEn, showEnglish])
+
+  const resolved = tab === 'ref' ? resolvedRefs : resolvedKw
 
   // Per-ref: did it resolve to at least one real verse? (parsed but not found → error)
   const refFound = useMemo<boolean[]>(() => {
@@ -174,63 +238,80 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     onNavigate?.()
   }
 
+  const emptyInput = tab === 'ref' ? q.trim() === '' : kw.trim() === ''
+  const emptyHint =
+    tab === 'ref'
+      ? '輸入經文出處以查詢'
+      : '輸入關鍵字搜尋（中英文皆可，以空白分隔多個詞）'
+
   return (
     <div className="flex flex-col md:h-full">
-      <h2 className={HEADER_CLS}><span>經節</span></h2>
-      {/* Sticky on mobile so the textarea stays reachable while scrolling the
+      {/* Tabs stretch full header height (items-stretch) and have no outer
+       * padding so the hover/active bg fills cleanly to the edges — mirrors
+       * the 綱目 link style on the chapter header. */}
+      <h2 className={cn(HEADER_CLS, 'items-stretch px-0')}>
+        <TabBtn active={tab === 'ref'} onClick={() => setTab('ref')}>經節</TabBtn>
+        <TabBtn active={tab === 'kw'} onClick={() => setTab('kw')}>關鍵字</TabBtn>
+      </h2>
+      {/* Sticky on mobile so the input stays reachable while scrolling the
        * results below it. Desktop's aside already keeps the input visible by
        * scrolling the results in their own pane, so the sticky is a no-op
        * there. */}
       <div className="sticky top-14 z-10 border-b border-border bg-background md:static">
-        <div className="relative">
-          {/* Backdrop: same text, failed tokens in red */}
-          <div
-            ref={backdropRef}
-            aria-hidden
-            className={cn(
-              FIELD_CLS,
-              // overflow-auto (not -hidden) so our scroll-sync effect's
-              // programmatic `scrollTop` actually moves the rendered tokens;
-              // pointer-events-none keeps the textarea behind it the real
-              // input target. Scrollbar gutter hidden because the textarea
-              // already owns the visible scrollbar.
-              'pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-words text-foreground [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-            )}
-          >
-            {renderBackdrop(segments, refFound, activeKey, hoveredKey)}
+        {tab === 'ref' ? (
+          <div className="relative">
+            {/* Backdrop: same text, failed tokens in red */}
+            <div
+              ref={backdropRef}
+              aria-hidden
+              className={cn(
+                FIELD_CLS,
+                'pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-words text-foreground [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+              )}
+            >
+              {renderBackdrop(segments, refFound, activeKey, hoveredKey)}
+            </div>
+            <Textarea
+              ref={textareaRef}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={PLACEHOLDER}
+              spellCheck={false}
+              className={cn(
+                FIELD_CLS,
+                'relative block h-[120px] w-full resize-none break-words border-0 bg-transparent text-transparent caret-foreground shadow-none focus-visible:ring-0 [field-sizing:fixed]',
+              )}
+            />
           </div>
-          <Textarea
-            ref={textareaRef}
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder={PLACEHOLDER}
-            spellCheck={false}
-            className={cn(
-              // Same metrics as the backdrop div so glyphs line up exactly.
-              // Fixed height — the textarea scrolls internally rather than
-              // pushing the results list down as the user pastes more refs.
-              // FIELD_CLS supplies the padding too: shadcn's Textarea ships
-              // with `px-2.5 py-2` baked in, so without re-applying it the
-              // visible glyphs would sit at different x/y than the backdrop
-              // and break the highlight alignment.
-              FIELD_CLS,
-              // [field-sizing:fixed] overrides shadcn Textarea's baked-in
-              // `field-sizing-content`, otherwise the textarea would keep
-              // growing to fit its value and never reach the scroll state
-              // we're trying to sync the backdrop to.
-              'relative block h-[120px] w-full resize-none break-words border-0 bg-transparent text-transparent caret-foreground focus-visible:ring-0 [field-sizing:fixed]',
-            )}
-          />
-        </div>
+        ) : (
+          // Mirror the ref textarea's frame exactly so flipping tabs keeps
+          // the input region in the same place — same height, same FIELD_CLS,
+          // same border-less / shadow-less / fixed-sizing treatment.
+          <div className="relative">
+            <Textarea
+              value={kw}
+              onChange={(e) => setKw(e.target.value)}
+              placeholder="搜尋關鍵字…（中英文皆可、空白分隔多詞）"
+              spellCheck={false}
+              className={cn(
+                FIELD_CLS,
+                'relative block h-[120px] w-full resize-none break-words border-0 bg-transparent shadow-none focus-visible:ring-0 [field-sizing:fixed]',
+              )}
+            />
+          </div>
+        )}
+        <CopyAllBar resolved={resolved} />
       </div>
 
       <div className="p-4 md:flex-1 md:overflow-y-auto">
         {error ? (
           <p className="text-sm text-destructive">資料載入失敗：{error}</p>
-        ) : q.trim() === '' ? (
-          <p className="text-sm text-muted-foreground">輸入經文出處以查詢</p>
+        ) : emptyInput ? (
+          <p className="text-sm text-muted-foreground">{emptyHint}</p>
         ) : !data ? (
           <p className="text-sm text-muted-foreground">載入中…</p>
+        ) : resolved.length === 0 ? (
+          <p className="text-sm text-muted-foreground">找不到符合的經節</p>
         ) : (
           <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-2.5 font-serif text-[length:var(--reading-fs,1rem)] leading-normal md:text-[length:calc(var(--reading-fs,1rem)*0.9375)]">
             {resolved.map((r, i) => {
@@ -272,23 +353,16 @@ function ResultRow({
   const isMobile = useIsMobile()
   const [menuOpen, setMenuOpen] = useState(false)
   const rowRef = useRef<HTMLDivElement>(null)
-  const hoverTimerRef = useRef<number | null>(null)
   const pressTimerRef = useRef<number | null>(null)
   const longPressedRef = useRef(false)
 
-  const clearHoverTimer = useCallback(() => {
-    if (hoverTimerRef.current != null) {
-      window.clearTimeout(hoverTimerRef.current)
-      hoverTimerRef.current = null
-    }
-  }, [])
   const clearPressTimer = useCallback(() => {
     if (pressTimerRef.current != null) {
       window.clearTimeout(pressTimerRef.current)
       pressTimerRef.current = null
     }
   }, [])
-  useEffect(() => () => { clearHoverTimer(); clearPressTimer() }, [clearHoverTimer, clearPressTimer])
+  useEffect(() => () => clearPressTimer(), [clearPressTimer])
 
   const { bookNo, chapterNo, verse, enText } = resolved
   const abbrev = BOOK_ABBREV[bookNo] ?? ''
@@ -305,21 +379,15 @@ function ResultRow({
       }
       onClick()
     },
-    onMouseEnter: () => {
-      onHover(true)
+    // Desktop right-click opens the copy menu. preventDefault suppresses the
+    // browser's own context menu so it doesn't show on top of ours.
+    onContextMenu: (e: React.MouseEvent) => {
       if (isMobile) return
-      clearHoverTimer()
-      hoverTimerRef.current = window.setTimeout(() => setMenuOpen(true), 500)
+      e.preventDefault()
+      setMenuOpen(true)
     },
-    onMouseLeave: () => {
-      onHover(false)
-      if (isMobile) return
-      clearHoverTimer()
-      // Slight delay so the user can move the cursor onto the popover
-      // without it closing under them. The popover content adds its own
-      // mouseenter handler below to cancel this if they make it.
-      hoverTimerRef.current = window.setTimeout(() => setMenuOpen(false), 250)
-    },
+    onMouseEnter: () => onHover(true),
+    onMouseLeave: () => onHover(false),
     onPointerDown: () => {
       if (!isMobile) return
       longPressedRef.current = false
@@ -334,12 +402,6 @@ function ResultRow({
     onPointerCancel: clearPressTimer,
     // Cancel the long-press if the user starts scrolling rather than holding.
     onPointerMove: clearPressTimer,
-  }
-
-  const onPopupEnter = () => clearHoverTimer()
-  const onPopupLeave = () => {
-    clearHoverTimer()
-    hoverTimerRef.current = window.setTimeout(() => setMenuOpen(false), 200)
   }
 
   return (
@@ -394,8 +456,6 @@ function ResultRow({
             align="start"
             sideOffset={8}
             className="w-44 gap-1 rounded-xl p-1.5"
-            onMouseEnter={onPopupEnter}
-            onMouseLeave={onPopupLeave}
           >
             <CopyMenu resolved={resolved} onDone={() => setMenuOpen(false)} />
           </PopoverContent>
@@ -409,18 +469,10 @@ function ResultRow({
  * citation falls back to the Chinese abbreviation when 顯示英文 is off (no
  * `enText` available) by simply hiding the en / both options. */
 function CopyMenu({ resolved, onDone }: { resolved: ResolvedVerse; onDone: () => void }) {
-  const { bookNo, chapterNo, verse, enText } = resolved
-  const zhLabel = `${BOOK_ABBREV[bookNo] ?? ''}${chapterNo}:${verse.verse}`
-  const enLabel = `${BOOK_ABBREV_EN[bookNo] ?? ''} ${chapterNo}:${verse.verse}`
+  const { enText } = resolved
 
   const copy = async (format: 'zh' | 'en' | 'both') => {
-    let text = ''
-    if (format === 'zh') text = `${zhLabel}『${verse.text}』`
-    else if (format === 'en' && enText) text = `${enLabel} "${enText}"`
-    else if (format === 'both') {
-      const zh = `${zhLabel}『${verse.text}』`
-      text = enText ? `${zh}\n${enLabel} "${enText}"` : zh
-    }
+    const text = formatCopyText(resolved, format)
     if (!text) return
     try { await navigator.clipboard.writeText(text) } catch { /* clipboard denied */ }
     onDone()
@@ -453,5 +505,99 @@ function CopyMenu({ resolved, onDone }: { resolved: ResolvedVerse; onDone: () =>
         </>
       )}
     </div>
+  )
+}
+
+/** Bulk copy bar — sits just below the input and copies every resolved verse
+ * at once. Empty list / no English greys out the relevant buttons. */
+function CopyAllBar({ resolved }: { resolved: ResolvedVerse[] }) {
+  const isMobile = useIsMobile()
+  const empty = resolved.length === 0
+  const noEn = empty || !resolved.some((r) => r.enText)
+
+  const copyAll = async (format: 'zh' | 'en' | 'both') => {
+    const lines = resolved.map((r) => formatCopyText(r, format)).filter(Boolean)
+    if (!lines.length) return
+    const sep = format === 'both' ? '\n\n' : '\n'
+    try { await navigator.clipboard.writeText(lines.join(sep)) } catch { /* denied */ }
+  }
+
+  // Mobile: tall (48px) ghost buttons in a segmented row with hairline
+  // dividers between them. We render explicit <span> dividers because
+  // Tailwind's `divide-x` fights with the Button base class's transparent
+  // border. Desktop keeps the original secondary-xs pill layout, untouched.
+  if (isMobile) {
+    return (
+      <div className="flex items-stretch border-t border-border">
+        <Button
+          variant="ghost"
+          onClick={() => copyAll('zh')}
+          disabled={empty}
+          className="h-12 rounded-none px-6 text-sm"
+        >
+          複製中文
+        </Button>
+        <span aria-hidden className="w-px self-stretch bg-border" />
+        <Button
+          variant="ghost"
+          onClick={() => copyAll('en')}
+          disabled={noEn}
+          className="h-12 rounded-none px-6 text-sm"
+        >
+          複製英文
+        </Button>
+        <span aria-hidden className="w-px self-stretch bg-border" />
+        <Button
+          variant="ghost"
+          onClick={() => copyAll('both')}
+          disabled={noEn}
+          className="h-12 rounded-none px-6 text-sm"
+        >
+          複製中英文
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 border-t border-border p-2">
+      <Button variant="secondary" size="xs" onClick={() => copyAll('zh')} disabled={empty}>
+        複製中文
+      </Button>
+      <Button variant="secondary" size="xs" onClick={() => copyAll('en')} disabled={noEn}>
+        複製英文
+      </Button>
+      <Button variant="secondary" size="xs" onClick={() => copyAll('both')} disabled={noEn}>
+        複製中英文
+      </Button>
+    </div>
+  )
+}
+
+function TabBtn({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        // Full-height rectangle (parent uses items-stretch) with px-4 inside
+        // so the hover bg reaches the top / bottom of the header strip — same
+        // treatment as the 綱目 link on the chapter header.
+        'inline-flex items-center px-4 transition-colors',
+        active
+          ? 'bg-secondary text-secondary-foreground'
+          : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+      )}
+    >
+      {children}
+    </button>
   )
 }

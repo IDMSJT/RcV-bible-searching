@@ -101,6 +101,26 @@ function RootComponent() {
     else if (mode === 'compose') setMode('catalog')
   }, [onCompose, mode, setMode])
 
+  // Drop ephemeral reading state on a hard refresh. sessionStorage normally
+  // survives same-tab reload, but the user wants refresh to feel like a
+  // fresh load — so on initial mount, if the document was reloaded, clear
+  // both the per-pathname scroll positions and the per-chapter notes-open
+  // sets. In-app navigation (back / forward / Link clicks) is unaffected.
+  useEffect(() => {
+    const nav = performance.getEntriesByType('navigation')[0] as
+      | PerformanceNavigationTiming
+      | undefined
+    if (nav?.type !== 'reload') return
+    const keys: string[] = []
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i)
+      if (k && (k.startsWith('rcv/scroll') || k.startsWith('rcv/notes-open'))) {
+        keys.push(k)
+      }
+    }
+    keys.forEach((k) => sessionStorage.removeItem(k))
+  }, [])
+
   // Per-pathname scroll restoration for the <main> element. TanStack Router's
   // `scrollToTopSelectors` resets main → 0 on every navigation (push AND pop),
   // so the browser's back-button doesn't bring you back to where you were —
@@ -230,7 +250,7 @@ function RootComponent() {
       </NavButton>
       <NavButton
         active={isActive('lookup')}
-        label="經節"
+        label="搜尋"
         // Tapping the lit lookup tab is a no-op (matches settings) — easy to
         // hit by accident, and the drawer disappearing mid-search would feel
         // like a glitch. On /compose the sidebar is forced to 'compose', so
@@ -442,7 +462,7 @@ function NavButton({
         // Desktop drops the outer bg via md:* so the inner icon chip below
         // carries the highlight instead — yielding a Slack-style square pill
         // around the icon and a plain text label underneath.
-        'group inline-flex flex-col items-center justify-center gap-1.5 rounded-md transition-colors md:py-2',
+        'group inline-flex flex-col items-center justify-center gap-1.5 rounded-md transition-colors md:p-2',
         active
           ? 'bg-secondary text-secondary-foreground'
           : 'text-muted-foreground hover:bg-muted hover:text-foreground',

@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react'
-import type { Bible, Chapter, Outline, OutlineEntry } from '../types/bible'
+import type {
+  AnnotationChapter,
+  AnnotationData,
+  Bible,
+  Chapter,
+  Outline,
+  OutlineEntry,
+} from '../types/bible'
 
 function makeJsonLoader<T>(file: string) {
   let cached: T | null = null
@@ -36,6 +43,7 @@ function makeJsonLoader<T>(file: string) {
 export const useBible = makeJsonLoader<Bible>('verse.json')
 export const useBibleEn = makeJsonLoader<Bible>('verse_en.json')
 export const useOutline = makeJsonLoader<Outline>('outline.json')
+export const useAnnotations = makeJsonLoader<AnnotationData>('annotations.json')
 
 export function findChapter(
   bible: Bible | null,
@@ -44,6 +52,19 @@ export function findChapter(
 ): Chapter | null {
   if (!bible) return null
   const book = bible.books.find((b) => b.bookNo === bookNo)
+  if (!book) return null
+  return book.chapters.find((c) => c.chapterNo === chapterNo) ?? null
+}
+
+/** Annotation chapter for a given book + chapter (null when not loaded yet or
+ * the chapter has no notes recorded). */
+export function findAnnotationChapter(
+  data: AnnotationData | null,
+  bookNo: number,
+  chapterNo: number,
+): AnnotationChapter | null {
+  if (!data) return null
+  const book = data.books.find((b) => b.bookNo === bookNo)
   if (!book) return null
   return book.chapters.find((c) => c.chapterNo === chapterNo) ?? null
 }
