@@ -1,7 +1,29 @@
 import { Fragment, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { parseRefs } from '@/lib/parseRefs'
+import { parseRefs, type VerseRef } from '@/lib/parseRefs'
 import type { Annotation, Mark } from '@/types/bible'
+
+// The `?hl=` value for one ref:
+//   - cross-chapter range    → 「chA:vA-chB:vB」 (ChapterView clips per chapter)
+//   - direct note (二1注3)   → 「verse:note」 (note-only, no verse tint)
+//   - connected note (與註1) → 「verse,verse:note」 (verse tinted + note)
+//   - no note                → the verse / verse-range
+function hlForRef(ref: VerseRef): string {
+  // A cross-chapter range can't carry a note (the 注N grammar only attaches to
+  // a single verse), so this case is mutually exclusive with the note ones.
+  if (ref.endChapter !== ref.chapter) {
+    return `${ref.chapter}:${ref.verseStart}-${ref.endChapter}:${ref.verseEnd}`
+  }
+  const range =
+    ref.verseStart === ref.verseEnd
+      ? String(ref.verseStart)
+      : `${ref.verseStart}-${ref.verseEnd}`
+  if (ref.note == null) return range
+  if (ref.noteDirect && ref.verseStart === ref.verseEnd) {
+    return `${ref.verseStart}:${ref.note}`
+  }
+  return `${range},${ref.verseStart}:${ref.note}`
+}
 
 // 人名 / 地名 單底線、補字 點底線（音譯 tl 不標）；線用淡色
 const MARK_CLASS: Record<string, string> = {
@@ -130,18 +152,13 @@ export function renderNoteText(
     if (!seg.refs || seg.refs.length === 0) {
       return <Fragment key={i}>{seg.text}</Fragment>
     }
-    // The parser may attach a `.note` to a ref when its source carried a
-    // 「注N」 suffix; the matching note body opens automatically in the
-    // destination chapter via ?hl=verse,verse:N.
-    const ref = seg.refs[0]
-    const verseRange =
-      ref.verseStart === ref.verseEnd
-        ? String(ref.verseStart)
-        : `${ref.verseStart}-${ref.verseEnd}`
-    const hl =
-      ref.note != null
-        ? `${verseRange},${ref.verseStart}:${ref.note}`
-        : verseRange
+    // A segment can carry more than one ref — a footnote chain like
+    // 「二1注3與注4」 yields one ref per note (all same book/chapter/verse).
+    // Combine every ref's hl so the single link opens the destination chapter
+    // with all of them tinted / expanded, instead of just the first note.
+    const refs = seg.refs
+    const ref = refs[0]
+    const hl = refs.map(hlForRef).join(',')
     return (
       <Link
         key={i}

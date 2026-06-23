@@ -197,14 +197,19 @@ function VerseList({
 function VerseRowItem({ row }: { row: VerseRow }) {
   const navigate = useNavigate()
   // URL hl form mirrors the LookupPanel:
-  //   direct  → 「verse:n」      (only the note tinted+expanded)
-  //   linked  → 「verse,verse:n」 (verse and note both)
-  //   plain   → 「verse」
-  const hl = row.noteOnly && row.noteToShow
-    ? `${row.verse}:${row.noteToShow.n}`
-    : row.noteToShow
-      ? `${row.verse},${row.verse}:${row.noteToShow.n}`
-      : String(row.verse)
+  //   collapsed range → 「v-v」 (same chapter) or 「chA:vA-chB:vB」 (cross-chapter)
+  //   direct note     → 「verse:n」      (only the note tinted+expanded)
+  //   connected note  → 「verse,verse:n」 (verse and note both)
+  //   plain verse     → 「verse」
+  const hl = row.range
+    ? row.range.endChapter !== row.chapter
+      ? `${row.chapter}:${row.verse}-${row.range.endChapter}:${row.range.endVerse}`
+      : `${row.verse}-${row.range.endVerse}`
+    : row.noteOnly && row.noteToShow
+      ? `${row.verse}:${row.noteToShow.n}`
+      : row.noteToShow
+        ? `${row.verse},${row.verse}:${row.noteToShow.n}`
+        : String(row.verse)
   return (
     <Fragment>
       <button

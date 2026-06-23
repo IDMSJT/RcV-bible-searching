@@ -105,42 +105,69 @@ export function parseToken(token: string, ctx: ParseCtx): ParseTokenResult {
     rest = rest.slice(m[1].length)
   }
 
-  rest = rest.replace(/節$/, '')
-
-  // 2b. Optional trailing footnote suffix. Strip before verse-list parsing so
-  // the verse spec regex sees a clean tail; the captured `n` re-attaches to
-  // the last emitted ref below. The empty/non-empty connector capture decides
-  // whether the note replaces the verse target (direct: 啟二一23註1) or
-  // augments it (connected: 啟二一23與註1).
-  let trailingNote: number | undefined
-  let trailingNoteDirect = false
-  const tm = rest.match(/([\s、，,與和及]*)([注註])\s*(\d+)\s*$/)
-  if (tm && tm.index! > 0) {
-    trailingNote = Number(tm[3])
-    trailingNoteDirect = tm[1] === ''
-    rest = rest.slice(0, tm.index!)
-  }
-
   if (book == null) return { ok: false, refs: [], reason: '缺少書名' }
   if (chapter == null) return { ok: false, refs: [], reason: '缺少章' }
 
-  // 3. Verse list — split on 、, each spec gets its own VerseRef.
+  // 3. Verse list — split on 、, each spec gets its own VerseRef. The footnote
+  // chain is parsed PER-SPEC, not once at the end, so each verse in the list
+  // can carry its own notes: 「二1注3、2注1」 → v1注3 AND v2注1. (A single
+  // global strip would only catch the trailing 注1 and corrupt the rest.)
   const refs: VerseRef[] = []
   // `curChapter` tracks the start chapter of the NEXT vspec — a cross-chapter
   // range advances it so a later 、-spec without its own chapter continues from
   // the new chapter (二9～三2、5 → 第二章 9 節 to 第三章 2 節，then 第三章 5 節).
   let curChapter = chapter
   for (let vspec of rest.split('、')) {
-    vspec = vspec.trim().replace(/節$/, '')
+    vspec = vspec.trim()
     if (!vspec) continue
+    // Was the verse explicitly marked with 節? Captured before we strip it,
+    // because it gates whether a *CN-numeral* verse is allowed (see below).
+    const hadJie = vspec.includes('節')
+    vspec = vspec.replace(/節$/, '')
+    if (!vspec) continue
+
+    // Peel this spec's trailing 「[連接符]注N」 chain. The first note's
+    // connector decides the target: empty (二1注3) → direct (note IS the
+    // target); non-empty (二1與注3) → connected (verse AND note). Extra notes
+    // are additional note-only targets on the same verse.
+    const noteChain: { n: number; direct: boolean }[] = []
+    const cm = vspec.match(/((?:[\s、，,與和及]*[注註]\s*\d+)+)\s*$/)
+    if (cm) {
+      const itemRe = /([\s、，,與和及]*)[注註]\s*(\d+)/g
+      let im: RegExpExecArray | null
+      while ((im = itemRe.exec(cm[1])) !== null) {
+        noteChain.push({ n: Number(im[2]), direct: im[1] === '' })
+      }
+      vspec = vspec.slice(0, cm.index!).trim().replace(/節$/, '')
+    }
+
+    // A spec that is ONLY notes (no verse number left after the strip) —
+    // 「二1注3、注4」 → the 「注4」 spec inherits the previous spec's verse, so
+    // 注4 is read as another note on verse 1. Drop it if there's no prior ref.
+    if (!vspec) {
+      const prev = refs[refs.length - 1]
+      if (prev) {
+        for (const note of noteChain) {
+          refs.push({ ...prev, note: note.n, noteDirect: true })
+        }
+      }
+      continue
+    }
+
     const vm = vspec.match(VERSE_SPEC_RE)
     if (!vm) continue
+    // In this corpus verse numbers are arabic; a CN numeral that reached here
+    // as a "verse" is almost always a prose count (三章七封書信 → 七封 = "seven
+    // [epistles]", NOT verse 7). Only trust a CN verse when 節 marked it
+    // (三章七節). Chapters still accept CN freely — this guards verses only.
+    const verseIsCN = !/\d/.test(vm[1])
+    if (verseIsCN && !hadJie) continue
     const vStart = parseNum(vm[1])
     if (vStart == null) continue
     const isRange = vm[4] != null
     const endChapter = vm[3] ? (parseNum(vm[3]) ?? curChapter) : curChapter
     const vEnd = isRange ? (parseNum(vm[4]) ?? vStart) : vStart
-    refs.push({
+    const base: VerseRef = {
       bookNo: book,
       chapter: curChapter,
       endChapter,
@@ -148,17 +175,21 @@ export function parseToken(token: string, ctx: ParseCtx): ParseTokenResult {
       verseEnd: vEnd,
       seg: isRange ? null : vm[2] === '上' ? 0 : vm[2] === '下' ? 1 : null,
       source: vspec,
-    })
+    }
+    if (noteChain.length > 0) {
+      base.note = noteChain[0].n
+      base.noteDirect = noteChain[0].direct
+    }
+    refs.push(base)
+    // Each extra note clones the verse as its own note-only ref so the caller
+    // renders one row per footnote.
+    for (let k = 1; k < noteChain.length; k++) {
+      refs.push({ ...base, note: noteChain[k].n, noteDirect: true })
+    }
     curChapter = endChapter
   }
 
   if (refs.length === 0) return { ok: false, refs: [], reason: '無有效節' }
-
-  if (trailingNote != null) {
-    const last = refs[refs.length - 1]
-    last.note = trailingNote
-    last.noteDirect = trailingNoteDirect
-  }
 
   ctx.book = book
   ctx.chapter = curChapter

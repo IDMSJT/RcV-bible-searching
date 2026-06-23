@@ -9,6 +9,7 @@ import {
   useAnnotations,
   findChapter,
   findAnnotationChapter,
+  eachVerseInRange,
 } from '@/data/loadBible'
 import { BOOK_ABBREV } from '@/data/abbrev'
 import { BOOK_ABBREV_EN } from '@/data/abbrevEn'
@@ -56,6 +57,11 @@ interface ResolvedVerse {
 }
 
 function refHl(ref: VerseRef): string {
+  // Cross-chapter range → 「chA:vA-chB:vB」. ChapterView clips it to the
+  // chapter being viewed. Mutually exclusive with the note forms.
+  if (ref.endChapter !== ref.chapter) {
+    return `${ref.chapter}:${ref.verseStart}-${ref.endChapter}:${ref.verseEnd}`
+  }
   // Direct 注N (noteDirect) → the note alone is the target, so the URL only
   // expands+tints that note. No verse range.
   if (ref.note != null && ref.noteDirect && ref.verseStart === ref.verseEnd) {
@@ -241,18 +247,24 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     if (!data) return []
     const out: ResolvedVerse[] = []
     for (const ref of refs) {
-      const chapter = findChapter(data, ref.bookNo, ref.chapter)
-      if (!chapter) continue
-      // Pull the matching English chapter once per ref — findChapter is O(n)
-      // over books, so caching it here keeps the per-verse loop cheap.
-      const enChapter = showEnglish ? findChapter(bibleEn, ref.bookNo, ref.chapter) : null
-      // Only resolve a note when the ref carries one AND it's a single-verse
-      // ref — 「太一21注3」 makes sense, 「太一21-23注3」 doesn't (which verse?).
-      const wantsNote = ref.note != null && ref.verseStart === ref.verseEnd
+      // A note only attaches to a single verse in one chapter — a range or a
+      // cross-chapter span can't say which verse the 「注N」 belongs to.
+      const wantsNote =
+        ref.note != null && ref.verseStart === ref.verseEnd && ref.chapter === ref.endChapter
       const annChapter = wantsNote ? findAnnotationChapter(annotations, ref.bookNo, ref.chapter) : null
-      for (const v of chapter.verses) {
-        if (v.verse < ref.verseStart || v.verse > ref.verseEnd) continue
-        const isAttachedVerse = wantsNote && v.verse === ref.verseStart
+
+      // Walk every verse the ref covers — spans chapters for a cross-chapter
+      // range. English / annotation lookups key off each verse's REAL chapter
+      // (vCh), not the ref's start chapter.
+      for (const { chapterNo: vCh, verse: v } of eachVerseInRange(
+        data,
+        ref.bookNo,
+        ref.chapter,
+        ref.endChapter,
+        ref.verseStart,
+        ref.verseEnd,
+      )) {
+        const isAttachedVerse = wantsNote && vCh === ref.chapter && v.verse === ref.verseStart
         const noteToShow = isAttachedVerse
           ? annChapter?.verses.find((x) => x.verse === v.verse)?.notes.find((n) => n.n === ref.note)
           : undefined
@@ -261,33 +273,21 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
         // verse. Drop it entirely when the note doesn't exist (typo / OOR N).
         if (isAttachedVerse && ref.noteDirect) {
           if (!noteToShow) continue
-          out.push({
-            bookNo: ref.bookNo,
-            chapterNo: ref.chapter,
-            verse: v,
-            noteToShow,
-            noteOnly: true,
-            ref,
-          })
+          out.push({ bookNo: ref.bookNo, chapterNo: vCh, verse: v, noteToShow, noteOnly: true, ref })
           continue
         }
 
         // Otherwise emit the verse row.
-        const enText = enChapter?.verses.find((x) => x.verse === v.verse)?.text
-        out.push({ bookNo: ref.bookNo, chapterNo: ref.chapter, verse: v, enText, ref })
+        const enText = showEnglish
+          ? findChapter(bibleEn, ref.bookNo, vCh)?.verses.find((x) => x.verse === v.verse)?.text
+          : undefined
+        out.push({ bookNo: ref.bookNo, chapterNo: vCh, verse: v, enText, ref })
 
         // Connected 注N (啟二一23與註1) → ALSO add a separate note-only row
         // right after the verse, so the user sees both targets as distinct
         // results.
         if (isAttachedVerse && !ref.noteDirect && noteToShow) {
-          out.push({
-            bookNo: ref.bookNo,
-            chapterNo: ref.chapter,
-            verse: v,
-            noteToShow,
-            noteOnly: true,
-            ref,
-          })
+          out.push({ bookNo: ref.bookNo, chapterNo: vCh, verse: v, noteToShow, noteOnly: true, ref })
         }
       }
     }
@@ -342,9 +342,23 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   // Per-ref: did it resolve to at least one real verse? (parsed but not found → error)
   const refFound = useMemo<boolean[]>(() => {
     if (!data) return refs.map(() => true)
+    // Resolved iff at least one real verse falls in the (possibly
+    // cross-chapter) span — mirror the result-row expansion so a valid
+    // 十一27～十二37 doesn't render red just because its end verse exceeds
+    // the start chapter.
     return refs.map((ref) => {
-      const chapter = findChapter(data, ref.bookNo, ref.chapter)
-      return !!chapter && chapter.verses.some((v) => v.verse >= ref.verseStart && v.verse <= ref.verseEnd)
+      for (const _ of eachVerseInRange(
+        data,
+        ref.bookNo,
+        ref.chapter,
+        ref.endChapter,
+        ref.verseStart,
+        ref.verseEnd,
+      )) {
+        void _
+        return true
+      }
+      return false
     })
   }, [refs, data])
 

@@ -6,6 +6,7 @@ import type {
   Chapter,
   Outline,
   OutlineEntry,
+  Verse,
 } from '../types/bible'
 
 function makeJsonLoader<T>(file: string) {
@@ -54,6 +55,33 @@ export function findChapter(
   const book = bible.books.find((b) => b.bookNo === bookNo)
   if (!book) return null
   return book.chapters.find((c) => c.chapterNo === chapterNo) ?? null
+}
+
+/** Walk every verse a ref touches, spanning chapters when startCh ≠ endCh.
+ * Each yielded item carries its real chapter so callers can label / look up
+ * per-chapter data (English, annotations) against the right chapter rather
+ * than assuming the ref's start chapter. Skips verse 0 (詩篇 superscriptions)
+ * unless it's explicitly the range start. */
+export function* eachVerseInRange(
+  bible: Bible | null,
+  bookNo: number,
+  startCh: number,
+  endCh: number,
+  verseStart: number,
+  verseEnd: number,
+): Generator<{ chapterNo: number; verse: Verse }> {
+  if (!bible) return
+  for (let c = startCh; c <= endCh; c++) {
+    const ch = findChapter(bible, bookNo, c)
+    if (!ch) continue
+    const from = c === startCh ? verseStart : 1
+    const to = c === endCh ? verseEnd : Infinity
+    for (const v of ch.verses) {
+      if (v.verse < from || v.verse > to) continue
+      if (v.verse === 0 && from > 0) continue
+      yield { chapterNo: c, verse: v }
+    }
+  }
 }
 
 /** Annotation chapter for a given book + chapter (null when not loaded yet or

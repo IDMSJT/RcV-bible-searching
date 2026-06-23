@@ -113,6 +113,49 @@ describe('parseToken — 注N / 註N suffix', () => {
   it('注 (simplified glyph) works the same as 註', () => {
     expect(run('太一21注3').refs).toEqual(['40:1:21註3'])
   })
+
+  it('chain of notes on one verse (direct first) → one note-only ref each', () => {
+    // 二1注3與注4 = verse 1 note 3 + note 4, both note-only.
+    const ctx: ParseCtx = { book: 43, chapter: 1 }
+    expect(parseToken('二1注3與注4', ctx).refs.map(sig)).toEqual([
+      '43:2:1註3',
+      '43:2:1註4',
+    ])
+  })
+
+  it('參 prefix + chain of notes', () => {
+    const ctx: ParseCtx = { book: 43, chapter: 1 }
+    expect(parseToken('參二1注3與注4', ctx).refs.map(sig)).toEqual([
+      '43:2:1註3',
+      '43:2:1註4',
+    ])
+  })
+
+  it('connected first note + extra note → verse+note then note-only', () => {
+    // 啟二一23與註1與註2 → verse 23 with note 1 (connected) + note 2 (note-only).
+    expect(run('啟二一23與註1與註2').refs).toEqual([
+      '66:21:23與註1',
+      '66:21:23註2',
+    ])
+  })
+
+  it('chain joined by 、 also works', () => {
+    const ctx: ParseCtx = { book: 43, chapter: 1 }
+    expect(parseToken('二1注3、注4', ctx).refs.map(sig)).toEqual([
+      '43:2:1註3',
+      '43:2:1註4',
+    ])
+  })
+
+  it('per-verse notes across a 、 list (二1注3、2注1)', () => {
+    // Each 、-spec carries its OWN note — 注3 on verse 1, 注1 on verse 2.
+    // A single trailing-only strip would drop 注3 and corrupt verse 1.
+    const ctx: ParseCtx = { book: 66, chapter: 1 }
+    expect(parseToken('二1注3、2注1', ctx).refs.map(sig)).toEqual([
+      '66:2:1註3',
+      '66:2:2註1',
+    ])
+  })
 })
 
 describe('parseToken — context inheritance / mutation', () => {

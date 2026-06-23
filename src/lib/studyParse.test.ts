@@ -131,4 +131,11 @@ describe('parseStudyLines — 與(?![注註]) splitter', () => {
     if (p.kind !== 'point') throw new Error('typecheck')
     expect(refSigs(p.refs)).toEqual(['66:21:23註1'])
   })
+
+  it('per-verse notes across a 、 list (啟二1注3、2注1)', () => {
+    // Compose must match the lookup panel: 注3 on Rev 2:1, 注1 on Rev 2:2.
+    const [p] = parseStudyLines('叁、x—啟二1注3、2注1')
+    if (p.kind !== 'point') throw new Error('typecheck')
+    expect(refSigs(p.refs)).toEqual(['66:2:1註3', '66:2:2註1'])
+  })
 })

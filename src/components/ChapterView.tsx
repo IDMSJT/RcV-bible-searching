@@ -11,6 +11,7 @@ import {
 import { BOOK_BY_NO } from '@/data/canon'
 import { chapterUnit, formatOutlineRange, displayMarker } from '@/lib/chinese'
 import { renderMarkedText, sliceMarks, NoteList } from '@/lib/renderVerse'
+import type { HlItem } from '@/lib/highlight'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
 import type { Annotation, Mark, OutlineEntry } from '@/types/bible'
@@ -72,10 +73,6 @@ type Row =
       key: string
     }
 
-export type HlItem =
-  | { kind: 'verse'; start: number; end: number }
-  | { kind: 'note'; verse: number; n: number }
-
 export function ChapterView({
   bookNo,
   chapterNo,
@@ -107,10 +104,27 @@ export function ChapterView({
   // Pre-compute highlight lookup sets / ranges from the hl URL list, used
   // both to tint verses & notes and to seed the expanded-notes set so a
   // direct link like 「?hl=13,13:1」 lands with the body already open.
-  const verseRanges = useMemo(
-    () => highlights.filter((h): h is { kind: 'verse'; start: number; end: number } => h.kind === 'verse'),
-    [highlights],
-  )
+  // Verse-tint ranges for THIS chapter. Plain 'verse' items pass through;
+  // 'crange' (cross-chapter) items are clipped to the slice that falls inside
+  // the chapter being viewed — start chapter highlights startV→end, middle
+  // chapters highlight the whole thing, end chapter highlights 1→endV.
+  // Infinity as the upper bound just means "to the last verse" (the consumer
+  // only does `v.verse <= end`).
+  const verseRanges = useMemo(() => {
+    const out: { start: number; end: number }[] = []
+    for (const h of highlights) {
+      if (h.kind === 'verse') {
+        out.push({ start: h.start, end: h.end })
+      } else if (h.kind === 'crange') {
+        if (chapterNo < h.startCh || chapterNo > h.endCh) continue
+        out.push({
+          start: chapterNo === h.startCh ? h.startV : 1,
+          end: chapterNo === h.endCh ? h.endV : Infinity,
+        })
+      }
+    }
+    return out
+  }, [highlights, chapterNo])
   const noteHighlights = useMemo(() => {
     const s = new Set<string>()
     for (const h of highlights) {

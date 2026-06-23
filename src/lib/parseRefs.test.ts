@@ -90,6 +90,16 @@ describe('parseRefs — false positives that must stay prose', () => {
     expect(parseRefs('五位婦女', { book: 40, chapter: 1 }).refs.map(sig)).toEqual([])
   })
 
+  it('三章七封書信 — CN 「七」 is a prose count (七封), not verse 7', () => {
+    // 「三章」 is a real chapter, but 「七」 here begins 「七封書信」 (seven
+    // epistles). A CN verse with no 節 marker must not link.
+    expect(parseRefs('二、三章七封書信所記的', { book: 66, chapter: 1 }).refs).toEqual([])
+  })
+
+  it('CN verse still links when 節 marks it (三章七節)', () => {
+    expect(parseRefs('三章七節', { book: 66, chapter: 1 }).refs.map(sig)).toEqual(['66:3:7'])
+  })
+
   it('continuation does NOT match the 3 in 「20注3」 as verse 3', () => {
     // Parser now consumes 20注3 as one ref with note=3 (direct). The point
     // is the trailing 3 doesn't become a separate verse.
@@ -118,6 +128,14 @@ describe('parseRefs — 注N / 註N footnote pointer', () => {
   it('attaches to the LAST ref in a multi-verse token', () => {
     // 太一21、22註3 → both verses parse; note goes on verse 22.
     expect(sigs('太一21、22註3')).toEqual(['40:1:21', '40:1:22註3'])
+  })
+
+  it('chain of notes on one verse stays in one segment (二1注3與注4)', () => {
+    // The 與注4 must NOT be dropped — both notes on verse 1.
+    expect(parseRefs('參二1注3與注4', { book: 43, chapter: 1 }).refs.map(sig)).toEqual([
+      '43:2:1註3',
+      '43:2:1註4',
+    ])
   })
 })
 
