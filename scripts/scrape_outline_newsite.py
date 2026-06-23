@@ -1,4 +1,10 @@
-"""Build outline.json from the line.twgbr.org edition.
+"""⚠️ 已過時 (DEPRECATED) — 不再產出現役資料。
+
+現役 `public/outline.json` 改由 `scrape_outline_youversion.py`(bible.com
+YouVersion v4230)產出;成品的 source 欄位即為 YouVersion。這支寫的是
+line.twgbr.org 版(source = line.twgbr.org),已被取代,別拿來覆蓋 public/。
+
+Build outline.json from the line.twgbr.org edition.
 
 Outline headings are <div class="O0">..<div class="O5"> (6 levels), interleaved
 with verse <p>s. Heading text is "marker.title　range" (or a parenthesised

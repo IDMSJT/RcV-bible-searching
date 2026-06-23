@@ -1,7 +1,8 @@
 """⚠️ 已過時 (DEPRECATED) — 不再產出現役資料。
 
-現役 `public/outline.json` 由 `scrape_outline_newsite.py` 產出。這支是舊站版本,
-只寫到 `output/outline_old.json`,保留作比對 / 歷史參考。
+現役 `public/outline.json` 由 `scrape_outline_youversion.py`(bible.com YouVersion
+v4230)產出。這支是 recoveryversion.com.tw 舊站版本,只寫到 `output/outline_old.json`,
+保留作比對 / 歷史參考。
 
 Build outline.json from cached chapter HTML (no network).
 

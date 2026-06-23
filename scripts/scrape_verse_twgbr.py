@@ -1,4 +1,10 @@
-"""Scrape the Recovery Version Bible verse text from line.twgbr.org (newer edition).
+"""⚠️ 已過時 (DEPRECATED) — 不再供現役管線使用。
+
+現役經文/綱目都改用 bible.com YouVersion(`scrape_verse_youversion.py` /
+`scrape_outline_youversion.py`)。這支只剩已過時的 `merge_verse.py` /
+`scrape_outline_newsite.py` 和比對工具會 import,沒有現役腳本用到。
+
+Scrape the Recovery Version Bible verse text from line.twgbr.org (newer edition).
 
 The site serves one HTML page per book (01.html .. 66.html). Chapters are marked
 by <h3 id="C{n}…">, verses by <sup>N</sup> inside the verse paragraphs. Notes:

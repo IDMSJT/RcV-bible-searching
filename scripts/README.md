@@ -3,17 +3,18 @@
 聖經恢復本資料經爬取、比對後產生 `public/verse.json` 與 `public/outline.json`。
 需要 `.venv`(見 `requirements.txt`)。腳本檔名以**來源網站**命名。
 
-> **現役管線**：`public/verse.json` 由 `scrape_verse_youversion.py` 產出,
-> `public/outline.json` 由 `scrape_outline_newsite.py` 產出。其餘 verse/outline
-> 腳本若標 **⚠️ 已過時** 即非現役(早期評估 / 比對用),別拿來覆蓋 public/。
+> **現役管線**：`public/verse.json` 由 `scrape_verse_youversion.py`、
+> `public/outline.json` 由 `scrape_outline_youversion.py` 產出(兩者來源皆為
+> bible.com YouVersion v4230)。其餘 verse/outline 腳本若標 **⚠️ 已過時** 即非現役
+> (line.twgbr.org / 舊站版本),別拿來覆蓋 public/。
 
 ## 經文爬蟲(每個檔對應一個來源網站)
 
 | 腳本 | 來源網站 | 產出 | 備註 |
 |---|---|---|---|
 | `scrape_verse_youversion.py` | bible.com v4230 (YouVersion) | **`public/verse.json`(現役)** | 純經文 + 切段 + pn/png/add 標記；需 headless Chrome。`VERSE_PATCHES` 補回合併節(弗六2-3) |
-| `scrape_verse_recoveryversion.py` | recoveryversion.com.tw | `output/verse_old.json` | 仍被引用：`fetch_menu`(各書章數)供現役爬蟲使用 |
-| `scrape_verse_twgbr.py` | line.twgbr.org | (供 merge / newsite outline 讀) | 仍被 `scrape_outline_newsite.py` import |
+| `scrape_verse_recoveryversion.py` | recoveryversion.com.tw | `output/verse_old.json` | verse-scrape 已過時,但 `fetch_menu`(讀站方 `memu.js` → 各書章數/節數)仍供現役爬蟲使用 |
+| `scrape_verse_twgbr.py` | line.twgbr.org | (僅過時腳本 / 比對工具讀) | **⚠️ 已過時** — 無現役腳本 import |
 | `merge_verse.py` | recoveryversion + twgbr | ~~`public/verse.json`~~ | **⚠️ 已過時** — 被 youversion 取代 |
 
 註釋(footnotes)另由 `scrape_annotations.py` → `extract_annotations.py` 從 EPUB
@@ -23,9 +24,9 @@
 
 | 腳本 | 作用 | 產出 |
 |---|---|---|
-| `scrape_outline_newsite.py` | 從新站解析綱目(**現役**) | `public/outline.json` |
-| `scrape_outline.py` | 舊站版本 | `output/outline_old.json` ⚠️ 已過時 |
-| `scrape_outline_youversion.py` | bible.com 綱目(評估用,未採用) | `output/outline_youversion.json` ⚠️ 已過時 |
+| `scrape_outline_youversion.py` | 從 bible.com YouVersion v4230 解析綱目(**現役**) | `public/outline.json`(以 `--out` 指定) |
+| `scrape_outline_newsite.py` | line.twgbr.org 版 | `public/outline.json` 之預設輸出但已停用 ⚠️ 已過時 |
+| `scrape_outline.py` | recoveryversion.com.tw 舊站版本 | `output/outline_old.json` ⚠️ 已過時 |
 
 ## 比對 / 診斷工具
 
