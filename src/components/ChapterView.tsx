@@ -190,11 +190,16 @@ export function ChapterView({
     allNoteKeys.size > 0 &&
     expandedNotes.size >= allNoteKeys.size &&
     Array.from(allNoteKeys).every((k) => expandedNotes.has(k))
+  // Toggle every note in the chapter open or closed at once. The UI entry
+  // point is currently hidden (we want to redesign it) but the behaviour is
+  // wired up so a future control can drop it in. The `void` keeps tsc from
+  // flagging the callback as unused while no caller references it.
   const toggleAll = useCallback(() => {
     const next = allExpanded ? new Set<string>() : new Set(allNoteKeys)
     setExpandedNotes(next)
     writeStorage(notesKey, next)
   }, [allExpanded, allNoteKeys, notesKey, writeStorage])
+  void toggleAll
   const book = BOOK_BY_NO.get(bookNo)
   const scrollRef = useRef<HTMLElement | null>(null)
   const assignScroll = useCallback((el: HTMLElement | null) => {
@@ -313,17 +318,9 @@ export function ChapterView({
       </header>
 
       <article className="mx-auto max-w-3xl px-4 py-6 md:px-8 md:py-10">
-        {allNoteKeys.size > 0 && (
-          <div className="mb-4 flex justify-end">
-            <button
-              type="button"
-              onClick={toggleAll}
-              className="text-xs text-muted-foreground transition-colors hover:text-foreground"
-            >
-              {allExpanded ? '收起所有註釋' : '展開所有註釋'}
-            </button>
-          </div>
-        )}
+        {/* TODO: 展開/收起所有註釋 — toggleAll + allExpanded are wired up
+         * and ready (see useMemo above); UI is hidden until we decide on a
+         * better entry point than a top-right text button. */}
         {chapter ? (
         <div className="grid grid-cols-[minmax(1.3125rem,auto)_1fr] gap-x-2 gap-y-2.5 font-serif text-[length:var(--reading-fs,1rem)]">
           {rows.map((r) =>

@@ -28,7 +28,7 @@ import type { Annotation, Verse } from '@/types/bible'
 const FIELD_CLS = 'p-4 font-serif text-base leading-relaxed md:text-sm'
 
 const HEADER_CLS =
-  'sticky top-0 z-10 flex h-14 items-center justify-center border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur md:h-9 md:justify-between md:text-xs'
+  'sticky top-0 z-10 flex h-14 items-center justify-center border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur md:h-9 md:justify-start md:text-xs'
 
 const PLACEHOLDER =
   '輸入經文出處，例如：\n約翰福音一章一節，三章十六節，十四章六節'
@@ -167,7 +167,24 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   const { refs, segments } = useMemo(() => parseRefs(q), [q])
   const backdropRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const kwTextareaRef = useRef<HTMLTextAreaElement>(null)
   const [hovered, setHovered] = useState<number | null>(null)
+  const isMobile = useIsMobile()
+
+  // On the mobile drawer, auto-focus the active tab's textarea when its
+  // input is empty so the soft keyboard opens immediately — saves a tap when
+  // the user pulls up the panel intending to type. Skipped on desktop where
+  // explicit focus is the user's call. iOS Safari may still refuse to open
+  // the keyboard if the focus call doesn't happen during a user gesture;
+  // the cursor lands in the field regardless.
+  useEffect(() => {
+    if (!isMobile) return
+    const value = tab === 'ref' ? q : kw
+    if (value !== '') return
+    const ta = tab === 'ref' ? textareaRef.current : kwTextareaRef.current
+    ta?.focus()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile, tab])
 
   // Keep the highlight backdrop scrolled in lock-step with the textarea.
   // Re-runs when the active tab changes — the textarea / backdrop only mount
@@ -327,7 +344,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
       {/* Tabs stretch full header height (items-stretch) and have no outer
        * padding so the hover/active bg fills cleanly to the edges — mirrors
        * the 綱目 link style on the chapter header. */}
-      <h2 className={cn(HEADER_CLS, 'items-stretch px-0')}>
+      <h2 className={cn(HEADER_CLS, 'items-stretch px-0 md:px-1.5')}>
         <TabBtn active={tab === 'ref'} onClick={() => setTab('ref')}>經節</TabBtn>
         <TabBtn active={tab === 'kw'} onClick={() => setTab('kw')}>關鍵字</TabBtn>
       </h2>
@@ -367,6 +384,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
           // same border-less / shadow-less / fixed-sizing treatment.
           <div className="relative">
             <Textarea
+              ref={kwTextareaRef}
               value={kw}
               onChange={(e) => setKw(e.target.value)}
               placeholder="搜尋關鍵字…（中英文皆可、空白分隔多詞）"
@@ -636,7 +654,7 @@ function CopyAllBar({ resolved }: { resolved: ResolvedVerse[] }) {
           variant="ghost"
           onClick={() => copyAll('zh')}
           disabled={empty}
-          className="h-12 rounded-none px-6 text-sm"
+          className="h-11 rounded-none px-4 text-sm"
         >
           複製中文
         </Button>
@@ -645,7 +663,7 @@ function CopyAllBar({ resolved }: { resolved: ResolvedVerse[] }) {
           variant="ghost"
           onClick={() => copyAll('en')}
           disabled={noEn}
-          className="h-12 rounded-none px-6 text-sm"
+          className="h-11 rounded-none px-4 text-sm"
         >
           複製英文
         </Button>
@@ -654,7 +672,7 @@ function CopyAllBar({ resolved }: { resolved: ResolvedVerse[] }) {
           variant="ghost"
           onClick={() => copyAll('both')}
           disabled={noEn}
-          className="h-12 rounded-none px-6 text-sm"
+          className="h-11 rounded-none px-4 text-sm"
         >
           複製中英文
         </Button>
@@ -691,10 +709,12 @@ function TabBtn({
       type="button"
       onClick={onClick}
       className={cn(
-        // Full-height rectangle (parent uses items-stretch) with px-4 inside
+        // Full-height rectangle (parent uses items-stretch) with px inside
         // so the hover bg reaches the top / bottom of the header strip — same
-        // treatment as the 綱目 link on the chapter header.
-        'inline-flex items-center px-4 transition-colors',
+        // treatment as the 綱目 link on the chapter header. Desktop tightens
+        // to px-2.5 so adjacent tabs sit close together instead of the
+        // mobile-spaced 1rem-each-side that reads as a wide gap on md+.
+        'inline-flex items-center px-4 transition-colors md:px-2.5',
         active
           ? 'bg-secondary text-secondary-foreground'
           : 'text-muted-foreground hover:bg-muted hover:text-foreground',
