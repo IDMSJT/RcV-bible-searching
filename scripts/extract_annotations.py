@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Optional
 
@@ -33,6 +34,51 @@ warnings.filterwarnings('ignore', category=XMLParsedAsHTMLWarning)
 
 ROOT = Path(__file__).resolve().parent.parent
 EPUB_TEXT = ROOT / 'scripts/sources/rcv_epub_extracted/OEBPS/Text'
+
+
+# --- YV text + offset remapping --------------------------------------------
+# Marker offsets are measured against the EPUB verse body. The app, however,
+# displays the YV (`public/verse.json`) text. For ~99.8% of verses the two are
+# char-for-char aligned (only variant-glyph swaps, same length), so an EPUB
+# offset is also the correct YV offset. For the ~25 verses where the editions
+# reword (insert/delete chars), a raw EPUB offset lands a few chars off. We fix
+# that by char-aligning the two strings (difflib) and translating each offset
+# into YV coordinates, so annotations.json ships YV-space offsets the app can
+# use as-is.
+_YV_CACHE: Optional[dict] = None
+
+
+def _yv_text(book_no: int, chapter_no: int, verse_no: int) -> Optional[str]:
+    global _YV_CACHE
+    if _YV_CACHE is None:
+        _YV_CACHE = {}
+        path = ROOT / 'public' / 'verse.json'
+        if path.exists():
+            data = json.loads(path.read_text(encoding='utf-8'))
+            for b in data['books']:
+                for c in b['chapters']:
+                    for v in c['verses']:
+                        _YV_CACHE[(b['bookNo'], c['chapterNo'], v['verse'])] = v['text']
+    return _YV_CACHE.get((book_no, chapter_no, verse_no))
+
+
+def remap_offset(epub_body: str, yv_text: str, offset: int) -> int:
+    """Translate a marker offset from EPUB-body coordinates to yv_text
+    coordinates via char alignment. Identity when the two strings match (the
+    common case); relocates the marker across reworded spans otherwise."""
+    if epub_body == yv_text:
+        return offset
+    for tag, i1, i2, j1, j2 in SequenceMatcher(None, epub_body, yv_text, autojunk=False).get_opcodes():
+        if i1 <= offset <= i2:
+            if tag == 'equal' or (tag == 'replace' and (i2 - i1) == (j2 - j1)):
+                return j1 + (offset - i1)
+            # length-changing block — clamp to the block's YV span
+            if offset == i1:
+                return j1
+            if offset == i2:
+                return j2
+            return min(j1 + (offset - i1), j2)
+    return offset
 
 # Map our 1..66 bookNo back to the EPUB book code for B/N file lookups.
 BOOK_NO_TO_CODE = {
@@ -139,7 +185,10 @@ def parse_verse_markers(p):
     # Strip whitespace at both ends; markers are already in raw-text
     # coordinates, so shift left by however much we stripped from the front.
     skip = raw_len - len(raw.lstrip())
-    return [{'n': m['n'], 'offset': max(0, m['offset'] - skip)} for m in markers]
+    shifted = [{'n': m['n'], 'offset': max(0, m['offset'] - skip)} for m in markers]
+    # `body` is the same stripped text the offsets are measured against, so the
+    # caller can align it with the YV verse to remap offsets.
+    return shifted, raw.strip()
 
 
 def extract_chapter(book_no: int, chapter_no: int):
@@ -156,7 +205,7 @@ def extract_chapter(book_no: int, chapter_no: int):
         if not m:
             continue
         verse_no = int(m.group(1))
-        markers = parse_verse_markers(p)
+        markers, epub_body = parse_verse_markers(p)
 
         # The note file is linked via the verse's leading <a href>. If a
         # verse has no notes, the link is replaced by a <strong>.
@@ -179,6 +228,14 @@ def extract_chapter(book_no: int, chapter_no: int):
             if offset is None:
                 continue  # note without an in-text marker — drop it
             notes.append({'n': body['n'], 'offset': offset, 'text': body['text']})
+
+        # Translate EPUB offsets into YV coordinates so the app (which renders
+        # YV text) places the sup markers correctly even where the editions
+        # reword. No-op for the ~99.8% of char-aligned verses.
+        yv = _yv_text(book_no, chapter_no, verse_no)
+        if yv is not None and notes:
+            for note in notes:
+                note['offset'] = remap_offset(epub_body, yv, note['offset'])
 
         if notes:
             verses.append({'verse': verse_no, 'notes': notes})
