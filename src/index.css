@@ -1,0 +1,157 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* ── shadcn (Base UI) custom variants — map data attributes to Tailwind ── */
+@custom-variant data-open {
+  &:where([data-state="open"]),
+  &:where([data-open]:not([data-open="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-closed {
+  &:where([data-state="closed"]),
+  &:where([data-closed]:not([data-closed="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-selected {
+  &:where([data-selected="true"]) {
+    @slot;
+  }
+}
+
+@custom-variant data-disabled {
+  &:where([data-disabled="true"]),
+  &:where([data-disabled]:not([data-disabled="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-active {
+  &:where([data-state="active"]),
+  &:where([data-active]:not([data-active="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@custom-variant data-horizontal {
+  &:where([data-orientation="horizontal"]) {
+    @slot;
+  }
+}
+
+@custom-variant data-vertical {
+  &:where([data-orientation="vertical"]) {
+    @slot;
+  }
+}
+
+/* ── Theme tokens — RcV palette (米色書頁+金 / 深藍灰+金) ──
+ * Adopted from the friend's HTML prototype, converted to OkLCh so colour
+ * interpolation, opacity stacking and dark↔light swaps stay perceptually even
+ * (the Tailwind v4 default). Original hex in comments for reference.
+ */
+@theme {
+  /* Light (default) */
+  --color-background: oklch(0.975 0.014 84.6);   /* slightly lighter米黃 — sidebar chrome */
+  --color-foreground: oklch(0.305 0.024 238.8);  /* #24313a 藍黑 */
+
+  --color-card: oklch(0.987 0.013 82.4);         /* #fffaf1 */
+  --color-card-foreground: oklch(0.305 0.024 238.8);
+
+  --color-popover: oklch(0.987 0.013 82.4);
+  --color-popover-foreground: oklch(0.305 0.024 238.8);
+
+  --color-primary: oklch(0.598 0.110 85.7);      /* #9d7a22 深金 */
+  --color-primary-foreground: oklch(0.987 0.013 82.4);
+
+  --color-secondary: oklch(0.931 0.022 80.7);    /* #f0e7d8 */
+  --color-secondary-foreground: oklch(0.305 0.024 238.8);
+
+  --color-muted: oklch(0.931 0.022 80.7);
+  --color-muted-foreground: oklch(0.515 0.020 153.2); /* #5f6b62 灰綠 */
+
+  --color-accent: oklch(0.879 0.069 90.9);       /* #e8d6a3 軟金 */
+  --color-accent-foreground: oklch(0.503 0.095 84.9); /* #7d5f14 暗金 */
+
+  --color-destructive: oklch(0.577 0.245 27.325);
+  --color-destructive-foreground: oklch(0.985 0 0);
+
+  --color-border: oklch(0.884 0.028 78.2);       /* #e3d7c5 */
+  --color-input: oklch(0.884 0.028 78.2);
+  --color-ring: oklch(0.598 0.110 85.7);
+
+  /* Verse / outline jump highlight — soft gold tint (replaces yellow-400/25). */
+  --color-highlight: oklch(0.82 0.16 87 / 0.35);
+
+  --radius: 0.5rem;
+
+  --font-sans: 'Inter', 'Noto Sans TC', system-ui, sans-serif;
+  --font-serif: 'Inter', 'Noto Sans TC', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'JetBrains Mono', Consolas, monospace;
+}
+
+/* Dark theme — toggled by the `.dark` class on <html> (see settings). */
+.dark {
+  --color-background: oklch(0.230 0.025 249.1);  /* lighter chrome — sidebar */
+  --color-foreground: oklch(0.899 0.030 80.7);   /* #e8dcc8 米色 */
+
+  --color-card: oklch(0.250 0.028 244.8);        /* #16232e */
+  --color-card-foreground: oklch(0.899 0.030 80.7);
+
+  --color-popover: oklch(0.250 0.028 244.8);
+  --color-popover-foreground: oklch(0.899 0.030 80.7);
+
+  --color-primary: oklch(0.743 0.117 89.5);      /* #c9a84c 金 */
+  --color-primary-foreground: oklch(0.209 0.025 249.1);
+
+  --color-secondary: oklch(0.295 0.036 249.2);   /* #1e2e3e */
+  --color-secondary-foreground: oklch(0.899 0.030 80.7);
+
+  --color-muted: oklch(0.295 0.036 249.2);
+  --color-muted-foreground: oklch(0.721 0.029 145.3); /* #9aaa9a 灰綠 */
+
+  --color-accent: oklch(0.391 0.072 78.5);       /* #5a4010 暗金 */
+  --color-accent-foreground: oklch(0.818 0.112 89.4); /* #e0c06a 亮金 */
+
+  --color-destructive: oklch(0.704 0.191 22.216);
+  --color-destructive-foreground: oklch(0.985 0 0);
+
+  --color-border: oklch(0.322 0.036 249.0);      /* #253545 */
+  --color-input: oklch(0.322 0.036 249.0);
+  --color-ring: oklch(0.743 0.117 89.5);
+
+  /* Slightly less alpha against the darker bg so it still reads clearly. */
+  --color-highlight: oklch(0.78 0.15 87 / 0.30);
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@media print {
+  /* Reset the layout shell so the article doesn't get clipped by the flex
+   * column / overflow-hidden of the on-screen app shell. */
+  html, body, #root {
+    height: auto !important;
+  }
+  body {
+    background: white;
+    color: black;
+  }
+  /* Avoid page break right after a heading or in the middle of a verse row. */
+  h1, h2 { break-after: avoid; }
+  .print-keep-together { break-inside: avoid; }
+}
