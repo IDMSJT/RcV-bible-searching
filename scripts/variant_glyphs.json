@@ -1,0 +1,1453 @@
+{
+  "_comment": "EPUB(恢復本 EPUB 版)↔ YV(bible.com v4230, public/verse.json)逐字對齊得到的等長異體字對。epub=EPUB 用字, yv=YV/現役成品用字。供日後搜尋正規化用(把任一形正規化到同一字)。",
+  "verses_compared": 31219,
+  "unique_pairs": 241,
+  "pairs": [
+    {
+      "epub": "裡",
+      "yv": "裏",
+      "count": 5081,
+      "example": "創世記1:26"
+    },
+    {
+      "epub": "着",
+      "yv": "著",
+      "count": 2705,
+      "example": "創世記1:11"
+    },
+    {
+      "epub": "什",
+      "yv": "甚",
+      "count": 1120,
+      "example": "創世記2:19"
+    },
+    {
+      "epub": "吃",
+      "yv": "喫",
+      "count": 1010,
+      "example": "創世記2:16"
+    },
+    {
+      "epub": "絶",
+      "yv": "絕",
+      "count": 433,
+      "example": "創世記9:11"
+    },
+    {
+      "epub": "于",
+      "yv": "於",
+      "count": 412,
+      "example": "創世記1:30"
+    },
+    {
+      "epub": "吧",
+      "yv": "罷",
+      "count": 403,
+      "example": "創世記4:8"
+    },
+    {
+      "epub": "預",
+      "yv": "豫",
+      "count": 366,
+      "example": "創世記18:7"
+    },
+    {
+      "epub": "它",
+      "yv": "牠",
+      "count": 259,
+      "example": "創世記1:30"
+    },
+    {
+      "epub": "才",
+      "yv": "纔",
+      "count": 236,
+      "example": "創世記3:7"
+    },
+    {
+      "epub": "仆",
+      "yv": "僕",
+      "count": 224,
+      "example": "創世記20:8"
+    },
+    {
+      "epub": "侖",
+      "yv": "崙",
+      "count": 156,
+      "example": "創世記13:18"
+    },
+    {
+      "epub": "台",
+      "yv": "臺",
+      "count": 152,
+      "example": "創世記35:21"
+    },
+    {
+      "epub": "翦",
+      "yv": "剪",
+      "count": 131,
+      "example": "創世記17:14"
+    },
+    {
+      "epub": "面",
+      "yv": "麵",
+      "count": 98,
+      "example": "創世記18:6"
+    },
+    {
+      "epub": "幹",
+      "yv": "乾",
+      "count": 81,
+      "example": "創世記8:7"
+    },
+    {
+      "epub": "踰",
+      "yv": "逾",
+      "count": 81,
+      "example": "出埃及記12:11"
+    },
+    {
+      "epub": "麻",
+      "yv": "痲",
+      "count": 66,
+      "example": "出埃及記4:6"
+    },
+    {
+      "epub": "風",
+      "yv": "瘋",
+      "count": 66,
+      "example": "出埃及記4:6"
+    },
+    {
+      "epub": "哪",
+      "yv": "那",
+      "count": 65,
+      "example": "創世記3:9"
+    },
+    {
+      "epub": "鏈",
+      "yv": "鍊",
+      "count": 61,
+      "example": "創世記41:42"
+    },
+    {
+      "epub": "秘",
+      "yv": "祕",
+      "count": 59,
+      "example": "出埃及記7:11"
+    },
+    {
+      "epub": "唇",
+      "yv": "脣",
+      "count": 58,
+      "example": "利未記13:45"
+    },
+    {
+      "epub": "夠",
+      "yv": "彀",
+      "count": 57,
+      "example": "創世記33:9"
+    },
+    {
+      "epub": "綫",
+      "yv": "線",
+      "count": 56,
+      "example": "創世記14:23"
+    },
+    {
+      "epub": "饑",
+      "yv": "飢",
+      "count": 54,
+      "example": "申命記8:3"
+    },
+    {
+      "epub": "迴",
+      "yv": "回",
+      "count": 53,
+      "example": "出埃及記14:26"
+    },
+    {
+      "epub": "嘆",
+      "yv": "歎",
+      "count": 52,
+      "example": "出埃及記2:23"
+    },
+    {
+      "epub": "僱",
+      "yv": "雇",
+      "count": 51,
+      "example": "創世記30:16"
+    },
+    {
+      "epub": "鈎",
+      "yv": "鉤",
+      "count": 47,
+      "example": "出埃及記26:6"
+    },
+    {
+      "epub": "硃",
+      "yv": "朱",
+      "count": 43,
+      "example": "出埃及記25:4"
+    },
+    {
+      "epub": "譭",
+      "yv": "毀",
+      "count": 42,
+      "example": "出埃及記22:28"
+    },
+    {
+      "epub": "杠",
+      "yv": "槓",
+      "count": 38,
+      "example": "出埃及記25:13"
+    },
+    {
+      "epub": "唸",
+      "yv": "念",
+      "count": 37,
+      "example": "出埃及記17:14"
+    },
+    {
+      "epub": "冑",
+      "yv": "胄",
+      "count": 32,
+      "example": "士師記5:13"
+    },
+    {
+      "epub": "制",
+      "yv": "製",
+      "count": 30,
+      "example": "出埃及記20:4"
+    },
+    {
+      "epub": "凶",
+      "yv": "兇",
+      "count": 28,
+      "example": "出埃及記33:4"
+    },
+    {
+      "epub": "併",
+      "yv": "並",
+      "count": 28,
+      "example": "利未記16:33"
+    },
+    {
+      "epub": "－",
+      "yv": "─",
+      "count": 27,
+      "example": "申命記32:15"
+    },
+    {
+      "epub": "準",
+      "yv": "准",
+      "count": 26,
+      "example": "利未記25:24"
+    },
+    {
+      "epub": "谷",
+      "yv": "穀",
+      "count": 26,
+      "example": "民數記18:27"
+    },
+    {
+      "epub": "慇",
+      "yv": "殷",
+      "count": 25,
+      "example": "申命記4:9"
+    },
+    {
+      "epub": "托",
+      "yv": "託",
+      "count": 24,
+      "example": "創世記38:20"
+    },
+    {
+      "epub": "閙",
+      "yv": "鬧",
+      "count": 23,
+      "example": "創世記26:20"
+    },
+    {
+      "epub": "儘",
+      "yv": "盡",
+      "count": 23,
+      "example": "申命記24:8"
+    },
+    {
+      "epub": "干",
+      "yv": "乾",
+      "count": 22,
+      "example": "出埃及記4:9"
+    },
+    {
+      "epub": "捻",
+      "yv": "撚",
+      "count": 22,
+      "example": "出埃及記26:1"
+    },
+    {
+      "epub": "睏",
+      "yv": "困",
+      "count": 22,
+      "example": "申命記25:18"
+    },
+    {
+      "epub": "癒",
+      "yv": "愈",
+      "count": 21,
+      "example": "利未記13:37"
+    },
+    {
+      "epub": "占",
+      "yv": "佔",
+      "count": 19,
+      "example": "出埃及記10:6"
+    },
+    {
+      "epub": "帘",
+      "yv": "簾",
+      "count": 19,
+      "example": "出埃及記26:36"
+    },
+    {
+      "epub": "羡",
+      "yv": "羨",
+      "count": 19,
+      "example": "歷代志上7:24"
+    },
+    {
+      "epub": "鷄",
+      "yv": "雞",
+      "count": 19,
+      "example": "箴言30:31"
+    },
+    {
+      "epub": "發",
+      "yv": "髮",
+      "count": 17,
+      "example": "利未記13:40"
+    },
+    {
+      "epub": "岩",
+      "yv": "巖",
+      "count": 17,
+      "example": "撒母耳記下22:2"
+    },
+    {
+      "epub": "舍",
+      "yv": "捨",
+      "count": 17,
+      "example": "馬太福音20:28"
+    },
+    {
+      "epub": "只",
+      "yv": "隻",
+      "count": 16,
+      "example": "創世記22:13"
+    },
+    {
+      "epub": "喂",
+      "yv": "餧",
+      "count": 16,
+      "example": "創世記24:32"
+    },
+    {
+      "epub": "几",
+      "yv": "幾",
+      "count": 16,
+      "example": "出埃及記9:6"
+    },
+    {
+      "epub": "髮",
+      "yv": "發",
+      "count": 16,
+      "example": "出埃及記16:8"
+    },
+    {
+      "epub": "闢",
+      "yv": "辟",
+      "count": 15,
+      "example": "創世記29:29"
+    },
+    {
+      "epub": "衝",
+      "yv": "沖",
+      "count": 15,
+      "example": "申命記4:11"
+    },
+    {
+      "epub": "矇",
+      "yv": "蒙",
+      "count": 15,
+      "example": "列王紀下8:15"
+    },
+    {
+      "epub": "里",
+      "yv": "裏",
+      "count": 14,
+      "example": "創世記2:9"
+    },
+    {
+      "epub": "余",
+      "yv": "餘",
+      "count": 14,
+      "example": "創世記45:7"
+    },
+    {
+      "epub": "系",
+      "yv": "繫",
+      "count": 14,
+      "example": "出埃及記28:37"
+    },
+    {
+      "epub": "泄",
+      "yv": "洩",
+      "count": 14,
+      "example": "利未記15:2"
+    },
+    {
+      "epub": "盡",
+      "yv": "儘",
+      "count": 14,
+      "example": "申命記25:18"
+    },
+    {
+      "epub": "熔",
+      "yv": "鎔",
+      "count": 14,
+      "example": "約伯記28:2"
+    },
+    {
+      "epub": "闐",
+      "yv": "田",
+      "count": 13,
+      "example": "創世記3:14"
+    },
+    {
+      "epub": "刮",
+      "yv": "颳",
+      "count": 13,
+      "example": "出埃及記10:13"
+    },
+    {
+      "epub": "桿",
+      "yv": "杆",
+      "count": 13,
+      "example": "出埃及記27:10"
+    },
+    {
+      "epub": "嚮",
+      "yv": "向",
+      "count": 13,
+      "example": "民數記2:3"
+    },
+    {
+      "epub": "哄",
+      "yv": "鬨",
+      "count": 13,
+      "example": "申命記28:26"
+    },
+    {
+      "epub": "樑",
+      "yv": "梁",
+      "count": 13,
+      "example": "列王紀上6:9"
+    },
+    {
+      "epub": "周",
+      "yv": "賙",
+      "count": 13,
+      "example": "以斯帖記9:22"
+    },
+    {
+      "epub": "捲",
+      "yv": "卷",
+      "count": 12,
+      "example": "民數記5:23"
+    },
+    {
+      "epub": "紮",
+      "yv": "扎",
+      "count": 12,
+      "example": "列王紀下19:30"
+    },
+    {
+      "epub": "游",
+      "yv": "遊",
+      "count": 12,
+      "example": "歷代志上16:20"
+    },
+    {
+      "epub": "簽",
+      "yv": "籤",
+      "count": 11,
+      "example": "士師記20:9"
+    },
+    {
+      "epub": "份",
+      "yv": "分",
+      "count": 10,
+      "example": "創世記43:21"
+    },
+    {
+      "epub": "麵",
+      "yv": "面",
+      "count": 10,
+      "example": "出埃及記34:29"
+    },
+    {
+      "epub": "穗",
+      "yv": "繸",
+      "count": 9,
+      "example": "民數記15:38"
+    },
+    {
+      "epub": "閲",
+      "yv": "閱",
+      "count": 9,
+      "example": "撒母耳記上11:8"
+    },
+    {
+      "epub": "饋",
+      "yv": "餽",
+      "count": 9,
+      "example": "列王紀上10:13"
+    },
+    {
+      "epub": "複",
+      "yv": "復",
+      "count": 8,
+      "example": "創世記41:13"
+    },
+    {
+      "epub": "柜",
+      "yv": "櫃",
+      "count": 8,
+      "example": "出埃及記26:34"
+    },
+    {
+      "epub": "髒",
+      "yv": "臟",
+      "count": 8,
+      "example": "出埃及記29:13"
+    },
+    {
+      "epub": "雕",
+      "yv": "鵰",
+      "count": 8,
+      "example": "利未記11:13"
+    },
+    {
+      "epub": "欞",
+      "yv": "櫺",
+      "count": 8,
+      "example": "士師記5:28"
+    },
+    {
+      "epub": "乳",
+      "yv": "奶",
+      "count": 7,
+      "example": "創世記18:8"
+    },
+    {
+      "epub": "准",
+      "yv": "準",
+      "count": 7,
+      "example": "創世記23:18"
+    },
+    {
+      "epub": "幹",
+      "yv": "榦",
+      "count": 7,
+      "example": "出埃及記25:34"
+    },
+    {
+      "epub": "幹",
+      "yv": "干",
+      "count": 7,
+      "example": "民數記33:32"
+    },
+    {
+      "epub": "鎚",
+      "yv": "錘",
+      "count": 7,
+      "example": "士師記4:21"
+    },
+    {
+      "epub": "咸",
+      "yv": "鹹",
+      "count": 7,
+      "example": "約伯記30:4"
+    },
+    {
+      "epub": "監",
+      "yv": "鑑",
+      "count": 7,
+      "example": "以西結書14:8"
+    },
+    {
+      "epub": "綵",
+      "yv": "彩",
+      "count": 6,
+      "example": "創世記37:3"
+    },
+    {
+      "epub": "掛",
+      "yv": "挂",
+      "count": 6,
+      "example": "創世記40:10"
+    },
+    {
+      "epub": "；",
+      "yv": "。",
+      "count": 6,
+      "example": "利未記8:14"
+    },
+    {
+      "epub": "整",
+      "yv": "集",
+      "count": 6,
+      "example": "撒母耳記下23:11"
+    },
+    {
+      "epub": "合",
+      "yv": "成",
+      "count": 6,
+      "example": "撒母耳記下23:11"
+    },
+    {
+      "epub": "禦",
+      "yv": "御",
+      "count": 6,
+      "example": "以斯帖記1:7"
+    },
+    {
+      "epub": "蒙",
+      "yv": "矇",
+      "count": 6,
+      "example": "詩篇69:23"
+    },
+    {
+      "epub": "噁",
+      "yv": "惡",
+      "count": 6,
+      "example": "耶利米書3:17"
+    },
+    {
+      "epub": "侄",
+      "yv": "姪",
+      "count": 5,
+      "example": "創世記12:5"
+    },
+    {
+      "epub": "砫",
+      "yv": "柱",
+      "count": 5,
+      "example": "創世記35:14"
+    },
+    {
+      "epub": "綉",
+      "yv": "繡",
+      "count": 5,
+      "example": "出埃及記26:1"
+    },
+    {
+      "epub": "伙",
+      "yv": "夥",
+      "count": 5,
+      "example": "民數記26:9"
+    },
+    {
+      "epub": "注",
+      "yv": "註",
+      "count": 5,
+      "example": "申命記32:35"
+    },
+    {
+      "epub": "布",
+      "yv": "佈",
+      "count": 5,
+      "example": "撒母耳記下5:18"
+    },
+    {
+      "epub": "仿",
+      "yv": "倣",
+      "count": 5,
+      "example": "歷代志下2:17"
+    },
+    {
+      "epub": "礆",
+      "yv": "鹼",
+      "count": 5,
+      "example": "約伯記9:30"
+    },
+    {
+      "epub": "欲",
+      "yv": "慾",
+      "count": 5,
+      "example": "傳道書6:7"
+    },
+    {
+      "epub": "頽",
+      "yv": "頹",
+      "count": 5,
+      "example": "以賽亞書19:3"
+    },
+    {
+      "epub": "干",
+      "yv": "榦",
+      "count": 4,
+      "example": "出埃及記25:31"
+    },
+    {
+      "epub": "聯",
+      "yv": "連",
+      "count": 4,
+      "example": "出埃及記27:17"
+    },
+    {
+      "epub": "庵",
+      "yv": "菴",
+      "count": 4,
+      "example": "士師記4:6"
+    },
+    {
+      "epub": "構",
+      "yv": "搆",
+      "count": 4,
+      "example": "撒母耳記上23:17"
+    },
+    {
+      "epub": "劃",
+      "yv": "畫",
+      "count": 4,
+      "example": "以斯拉記4:5"
+    },
+    {
+      "epub": "卷",
+      "yv": "捲",
+      "count": 4,
+      "example": "詩篇89:43"
+    },
+    {
+      "epub": "鬥",
+      "yv": "斗",
+      "count": 4,
+      "example": "箴言20:10"
+    },
+    {
+      "epub": "隻",
+      "yv": "只",
+      "count": 4,
+      "example": "耶利米書49:9"
+    },
+    {
+      "epub": "祇",
+      "yv": "只",
+      "count": 4,
+      "example": "馬可福音12:32"
+    },
+    {
+      "epub": "鋭",
+      "yv": "銳",
+      "count": 3,
+      "example": "創世記14:2"
+    },
+    {
+      "epub": "復",
+      "yv": "複",
+      "count": 3,
+      "example": "出埃及記30:25"
+    },
+    {
+      "epub": "顫",
+      "yv": "戰",
+      "count": 3,
+      "example": "士師記7:3"
+    },
+    {
+      "epub": "贊",
+      "yv": "讚",
+      "count": 3,
+      "example": "士師記12:8"
+    },
+    {
+      "epub": "摺",
+      "yv": "折",
+      "count": 3,
+      "example": "撒母耳記上5:4"
+    },
+    {
+      "epub": "壇",
+      "yv": "罈",
+      "count": 3,
+      "example": "列王紀上17:12"
+    },
+    {
+      "epub": "囉",
+      "yv": "羅",
+      "count": 3,
+      "example": "歷代志上2:52"
+    },
+    {
+      "epub": "嚥",
+      "yv": "咽",
+      "count": 3,
+      "example": "約伯記7:19"
+    },
+    {
+      "epub": "了",
+      "yv": "瞭",
+      "count": 3,
+      "example": "約伯記26:14"
+    },
+    {
+      "epub": "采",
+      "yv": "採",
+      "count": 3,
+      "example": "約伯記30:4"
+    },
+    {
+      "epub": "弦",
+      "yv": "絃",
+      "count": 3,
+      "example": "詩篇33:2"
+    },
+    {
+      "epub": "，",
+      "yv": "；",
+      "count": 3,
+      "example": "詩篇146:10"
+    },
+    {
+      "epub": "庾",
+      "yv": "餘",
+      "count": 3,
+      "example": "耶利米書40:15"
+    },
+    {
+      "epub": "覆",
+      "yv": "復",
+      "count": 3,
+      "example": "以西結書16:55"
+    },
+    {
+      "epub": "皇",
+      "yv": "王",
+      "count": 3,
+      "example": "但以理書5:2"
+    },
+    {
+      "epub": "癥",
+      "yv": "症",
+      "count": 3,
+      "example": "馬太福音4:23"
+    },
+    {
+      "epub": "鏽",
+      "yv": "銹",
+      "count": 3,
+      "example": "馬太福音6:19"
+    },
+    {
+      "epub": "闔",
+      "yv": "合",
+      "count": 2,
+      "example": "創世記31:40"
+    },
+    {
+      "epub": "蕓",
+      "yv": "芸",
+      "count": 2,
+      "example": "創世記46:16"
+    },
+    {
+      "epub": "墮",
+      "yv": "墜",
+      "count": 2,
+      "example": "出埃及記21:22"
+    },
+    {
+      "epub": "對",
+      "yv": "接",
+      "count": 2,
+      "example": "出埃及記26:17"
+    },
+    {
+      "epub": "鷀",
+      "yv": "鶿",
+      "count": 2,
+      "example": "利未記11:17"
+    },
+    {
+      "epub": "。",
+      "yv": "；",
+      "count": 2,
+      "example": "申命記32:26"
+    },
+    {
+      "epub": "乾",
+      "yv": "干",
+      "count": 2,
+      "example": "約書亞記7:24"
+    },
+    {
+      "epub": "銜",
+      "yv": "啣",
+      "count": 2,
+      "example": "撒母耳記上17:34"
+    },
+    {
+      "epub": "佈",
+      "yv": "布",
+      "count": 2,
+      "example": "列王紀上4:5"
+    },
+    {
+      "epub": "涂",
+      "yv": "塗",
+      "count": 2,
+      "example": "列王紀下9:30"
+    },
+    {
+      "epub": "周",
+      "yv": "週",
+      "count": 2,
+      "example": "歷代志上27:1"
+    },
+    {
+      "epub": "、",
+      "yv": "，",
+      "count": 2,
+      "example": "尼希米記8:2"
+    },
+    {
+      "epub": "领",
+      "yv": "領",
+      "count": 2,
+      "example": "尼希米記11:17"
+    },
+    {
+      "epub": "覊",
+      "yv": "羈",
+      "count": 2,
+      "example": "約伯記18:10"
+    },
+    {
+      "epub": "剋",
+      "yv": "克",
+      "count": 2,
+      "example": "箴言17:27"
+    },
+    {
+      "epub": "輓",
+      "yv": "挽",
+      "count": 2,
+      "example": "箴言18:19"
+    },
+    {
+      "epub": "慄",
+      "yv": "栗",
+      "count": 2,
+      "example": "以賽亞書6:13"
+    },
+    {
+      "epub": "焊",
+      "yv": "銲",
+      "count": 2,
+      "example": "以賽亞書41:7"
+    },
+    {
+      "epub": "鬍",
+      "yv": "頭",
+      "count": 2,
+      "example": "耶利米書9:26"
+    },
+    {
+      "epub": "鬚",
+      "yv": "髮",
+      "count": 2,
+      "example": "耶利米書9:26"
+    },
+    {
+      "epub": "盃",
+      "yv": "杯",
+      "count": 2,
+      "example": "耶利米書51:7"
+    },
+    {
+      "epub": "斗",
+      "yv": "鬥",
+      "count": 2,
+      "example": "哈巴谷書1:3"
+    },
+    {
+      "epub": "祂",
+      "yv": "他",
+      "count": 2,
+      "example": "撒迦利亞書6:12"
+    },
+    {
+      "epub": "謹",
+      "yv": "留",
+      "count": 2,
+      "example": "瑪拉基書2:15"
+    },
+    {
+      "epub": "守",
+      "yv": "意",
+      "count": 2,
+      "example": "瑪拉基書2:15"
+    },
+    {
+      "epub": "傢",
+      "yv": "家",
+      "count": 2,
+      "example": "馬太福音12:29"
+    },
+    {
+      "epub": "须",
+      "yv": "須",
+      "count": 2,
+      "example": "馬太福音24:6"
+    },
+    {
+      "epub": "裡",
+      "yv": "里",
+      "count": 2,
+      "example": "路加福音3:23"
+    },
+    {
+      "epub": "製",
+      "yv": "制",
+      "count": 2,
+      "example": "哥林多前書7:5"
+    },
+    {
+      "epub": "隷",
+      "yv": "隸",
+      "count": 2,
+      "example": "哥林多後書11:20"
+    },
+    {
+      "epub": "徵",
+      "yv": "征",
+      "count": 1,
+      "example": "創世記41:34"
+    },
+    {
+      "epub": "謡",
+      "yv": "謠",
+      "count": 1,
+      "example": "出埃及記23:1"
+    },
+    {
+      "epub": "屍",
+      "yv": "人",
+      "count": 1,
+      "example": "利未記22:4"
+    },
+    {
+      "epub": "云",
+      "yv": "雲",
+      "count": 1,
+      "example": "民數記9:22"
+    },
+    {
+      "epub": "可",
+      "yv": "能",
+      "count": 1,
+      "example": "申命記7:22"
+    },
+    {
+      "epub": "捨",
+      "yv": "舍",
+      "count": 1,
+      "example": "申命記19:5"
+    },
+    {
+      "epub": "滷",
+      "yv": "鹵",
+      "count": 1,
+      "example": "申命記29:23"
+    },
+    {
+      "epub": "虔",
+      "yv": "全",
+      "count": 1,
+      "example": "約書亞記11:16"
+    },
+    {
+      "epub": "源",
+      "yv": "泉",
+      "count": 1,
+      "example": "約書亞記18:15"
+    },
+    {
+      "epub": "子",
+      "yv": "後",
+      "count": 1,
+      "example": "士師記1:20"
+    },
+    {
+      "epub": "孫",
+      "yv": "代",
+      "count": 1,
+      "example": "士師記1:20"
+    },
+    {
+      "epub": "嶽",
+      "yv": "岳",
+      "count": 1,
+      "example": "士師記4:11"
+    },
+    {
+      "epub": "回",
+      "yv": "迴",
+      "count": 1,
+      "example": "撒母耳記上4:5"
+    },
+    {
+      "epub": "已",
+      "yv": "必",
+      "count": 1,
+      "example": "撒母耳記上23:4"
+    },
+    {
+      "epub": "亞",
+      "yv": "雅",
+      "count": 1,
+      "example": "撒母耳記下3:7"
+    },
+    {
+      "epub": "他",
+      "yv": "車",
+      "count": 1,
+      "example": "撒母耳記下6:4"
+    },
+    {
+      "epub": "們",
+      "yv": "上",
+      "count": 1,
+      "example": "撒母耳記下6:4"
+    },
+    {
+      "epub": "將",
+      "yv": "有",
+      "count": 1,
+      "example": "撒母耳記下6:4"
+    },
+    {
+      "epub": "縟",
+      "yv": "褥",
+      "count": 1,
+      "example": "撒母耳記下17:28"
+    },
+    {
+      "epub": "按",
+      "yv": "挨",
+      "count": 1,
+      "example": "列王紀上7:20"
+    },
+    {
+      "epub": "征",
+      "yv": "徵",
+      "count": 1,
+      "example": "列王紀下23:35"
+    },
+    {
+      "epub": "利",
+      "yv": "列",
+      "count": 1,
+      "example": "以斯拉記10:41"
+    },
+    {
+      "epub": "繙",
+      "yv": "解",
+      "count": 1,
+      "example": "尼希米記8:8"
+    },
+    {
+      "epub": "痴",
+      "yv": "癡",
+      "count": 1,
+      "example": "約伯記5:2"
+    },
+    {
+      "epub": "嚐",
+      "yv": "嘗",
+      "count": 1,
+      "example": "約伯記12:11"
+    },
+    {
+      "epub": "累",
+      "yv": "纍",
+      "count": 1,
+      "example": "約伯記15:29"
+    },
+    {
+      "epub": "沾",
+      "yv": "霑",
+      "count": 1,
+      "example": "約伯記29:19"
+    },
+    {
+      "epub": "遊",
+      "yv": "游",
+      "count": 1,
+      "example": "約伯記37:12"
+    },
+    {
+      "epub": "槍",
+      "yv": "鎗",
+      "count": 1,
+      "example": "約伯記41:7"
+    },
+    {
+      "epub": "泛",
+      "yv": "氾",
+      "count": 1,
+      "example": "詩篇32:6"
+    },
+    {
+      "epub": "巴",
+      "yv": "吧",
+      "count": 1,
+      "example": "詩篇38:13"
+    },
+    {
+      "epub": "系",
+      "yv": "係",
+      "count": 1,
+      "example": "詩篇39:6"
+    },
+    {
+      "epub": "淨",
+      "yv": "除",
+      "count": 1,
+      "example": "詩篇51:7"
+    },
+    {
+      "epub": "活",
+      "yv": "甦",
+      "count": 1,
+      "example": "詩篇71:20"
+    },
+    {
+      "epub": "！",
+      "yv": "。",
+      "count": 1,
+      "example": "詩篇146:10"
+    },
+    {
+      "epub": "艷",
+      "yv": "豔",
+      "count": 1,
+      "example": "箴言31:30"
+    },
+    {
+      "epub": "並",
+      "yv": "併",
+      "count": 1,
+      "example": "雅歌7:4"
+    },
+    {
+      "epub": "朱",
+      "yv": "硃",
+      "count": 1,
+      "example": "以賽亞書1:18"
+    },
+    {
+      "epub": "臓",
+      "yv": "贓",
+      "count": 1,
+      "example": "以賽亞書1:23"
+    },
+    {
+      "epub": "知",
+      "yv": "認",
+      "count": 1,
+      "example": "以賽亞書11:2"
+    },
+    {
+      "epub": "舖",
+      "yv": "鋪",
+      "count": 1,
+      "example": "以賽亞書14:11"
+    },
+    {
+      "epub": "介",
+      "yv": "接",
+      "count": 1,
+      "example": "以賽亞書21:14"
+    },
+    {
+      "epub": "面",
+      "yv": "口",
+      "count": 1,
+      "example": "以賽亞書21:14"
+    },
+    {
+      "epub": "蕩",
+      "yv": "盪",
+      "count": 1,
+      "example": "以賽亞書33:21"
+    },
+    {
+      "epub": "享",
+      "yv": "亨",
+      "count": 1,
+      "example": "以賽亞書52:13"
+    },
+    {
+      "epub": "：",
+      "yv": "，",
+      "count": 1,
+      "example": "耶利米書1:4"
+    },
+    {
+      "epub": "派",
+      "yv": "立",
+      "count": 1,
+      "example": "耶利米書1:10"
+    },
+    {
+      "epub": "性",
+      "yv": "姓",
+      "count": 1,
+      "example": "耶利米書4:22"
+    },
+    {
+      "epub": "下",
+      "yv": "低",
+      "count": 1,
+      "example": "耶利米書15:19"
+    },
+    {
+      "epub": "，",
+      "yv": "、",
+      "count": 1,
+      "example": "耶利米書25:21"
+    },
+    {
+      "epub": "凡",
+      "yv": "都",
+      "count": 1,
+      "example": "耶利米書25:33"
+    },
+    {
+      "epub": "被",
+      "yv": "有",
+      "count": 1,
+      "example": "耶利米書25:33"
+    },
+    {
+      "epub": "，",
+      "yv": "：",
+      "count": 1,
+      "example": "耶利米書27:4"
+    },
+    {
+      "epub": "作",
+      "yv": "為",
+      "count": 1,
+      "example": "以西結書21:21"
+    },
+    {
+      "epub": "他",
+      "yv": "祂",
+      "count": 1,
+      "example": "以西結書34:23"
+    },
+    {
+      "epub": "廟",
+      "yv": "殿",
+      "count": 1,
+      "example": "阿摩司書2:8"
+    },
+    {
+      "epub": "，",
+      "yv": "？",
+      "count": 1,
+      "example": "阿摩司書8:5"
+    },
+    {
+      "epub": "他",
+      "yv": "它",
+      "count": 1,
+      "example": "哈巴谷書2:18"
+    },
+    {
+      "epub": "。",
+      "yv": "！",
+      "count": 1,
+      "example": "撒迦利亞書4:7"
+    },
+    {
+      "epub": "盤",
+      "yv": "盆",
+      "count": 1,
+      "example": "撒迦利亞書14:20"
+    },
+    {
+      "epub": "上",
+      "yv": "外",
+      "count": 1,
+      "example": "瑪拉基書1:5"
+    },
+    {
+      "epub": "卻",
+      "yv": "絕",
+      "count": 1,
+      "example": "馬可福音13:31"
+    },
+    {
+      "epub": "后",
+      "yv": "後",
+      "count": 1,
+      "example": "路加福音13:33"
+    },
+    {
+      "epub": "檯",
+      "yv": "臺",
+      "count": 1,
+      "example": "使徒行傳20:9"
+    },
+    {
+      "epub": "沖",
+      "yv": "衝",
+      "count": 1,
+      "example": "使徒行傳27:41"
+    },
+    {
+      "epub": "糰",
+      "yv": "團",
+      "count": 1,
+      "example": "羅馬書11:16"
+    },
+    {
+      "epub": "饃",
+      "yv": "糢",
+      "count": 1,
+      "example": "哥林多前書13:12"
+    },
+    {
+      "epub": "讚",
+      "yv": "贊",
+      "count": 1,
+      "example": "提摩太前書6:3"
+    },
+    {
+      "epub": "鍛",
+      "yv": "煅",
+      "count": 1,
+      "example": "啟示錄1:15"
+    },
+    {
+      "epub": "鍊",
+      "yv": "煉",
+      "count": 1,
+      "example": "啟示錄1:15"
+    }
+  ]
+}
