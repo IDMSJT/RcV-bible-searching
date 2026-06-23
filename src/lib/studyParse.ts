@@ -79,7 +79,12 @@ const LAST_DASH_RE = new RegExp(`[${DASH_CLASS}](?=[^${DASH_CLASS}]*$)`)
 // `與` joins refs the same way `，` does — context still flows ("詩四八2與五10"
 // → 詩48:2 + 詩5:10) but parser sees them as separate tokens. No canonical
 // book name contains 與, so listing it among the splitters is safe.
-const REF_SEPARATOR_RE = /([，,與])/
+//
+// Exception: 「與注N」 / 「與註N」 is NOT a separator — it's the trailing
+// footnote suffix attaching to the preceding ref (「詩四八2與註1」). The
+// lookahead leaves that 與 inside the ref token so parseToken can swallow
+// the suffix and set `.note` on the last verse.
+const REF_SEPARATOR_RE = /([，,]|與(?![注註]))/
 
 function emitRefs(refsPart: string, ctx: ParseCtx, segs: StudySegment[]): void {
   for (const tok of refsPart.split(REF_SEPARATOR_RE)) {

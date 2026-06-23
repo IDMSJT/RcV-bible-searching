@@ -43,13 +43,18 @@ const BOOK_PATTERN = ALL_BOOK_NAMES.map(escapeRe).join('|')
 // individually hovered / highlighted in the backdrop.
 const REF_CHARS = `0-9${CN_NUMERAL_CHARS}上下章篇節:：~～\\-至到—–－`
 
+// Optional trailing 「注N」 / 「註N」 footnote pointer. Eaten by the match so
+// parseRefs consumes the full 「太一21注3」 as one segment; parseToken then
+// peels the same suffix off and attaches it to the ref as `.note`.
+const NOTE_TAIL_PAT = `(?:[\\s、，,與和及]*[注註]\\s*\\d+)?`
+
 // `^alias` followed by any run of ref-chars. The match string is then handed to
 // parseToken, which decides whether the whole thing is actually a valid ref.
-const ANCHOR_FULL_RE = new RegExp(`^(?:${BOOK_PATTERN})[${REF_CHARS}]*`)
+const ANCHOR_FULL_RE = new RegExp(`^(?:${BOOK_PATTERN})[${REF_CHARS}]*${NOTE_TAIL_PAT}`)
 
 // Continuation: same kind of run, but must start with a digit or CN numeral so
 // stray 上/下/章 chars don't get matched as ref starts.
-const CONT_FULL_RE = new RegExp(`^[0-9${CN_NUMERAL_CHARS}][${REF_CHARS}]*`)
+const CONT_FULL_RE = new RegExp(`^[0-9${CN_NUMERAL_CHARS}][${REF_CHARS}]*${NOTE_TAIL_PAT}`)
 
 // Matches that look like a CN+節 ref but are actually proper nouns (Jewish
 // festivals) that happen to share the shape. Only 七七節 (Pentecost / Feast

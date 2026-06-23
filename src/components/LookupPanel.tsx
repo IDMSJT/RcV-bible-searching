@@ -3,7 +3,13 @@ import { useNavigate, useLocation } from '@tanstack/react-router'
 import { Drawer as VaulDrawer } from 'vaul'
 import { Copy } from 'lucide-react'
 import { parseRefs, type Segment, type VerseRef } from '@/lib/parseRefs'
-import { useBible, useBibleEn, findChapter } from '@/data/loadBible'
+import {
+  useBible,
+  useBibleEn,
+  useAnnotations,
+  findChapter,
+  findAnnotationChapter,
+} from '@/data/loadBible'
 import { BOOK_ABBREV } from '@/data/abbrev'
 import { BOOK_ABBREV_EN } from '@/data/abbrevEn'
 import { Button } from '@/components/ui/button'
@@ -11,8 +17,9 @@ import { Popover, PopoverContent } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { useLocalStorage } from '@/lib/useLocalStorage'
+import { renderMarkedText, renderNoteText } from '@/lib/renderVerse'
 import { cn } from '@/lib/utils'
-import type { Verse } from '@/types/bible'
+import type { Annotation, Verse } from '@/types/bible'
 
 // Shared text/padding rules so the visible Textarea above the highlight-aware
 // backdrop renders glyphs at exactly the same positions. text-base on mobile
@@ -34,13 +41,34 @@ interface ResolvedVerse {
    * matching verse. Stored as a plain string because the English DB doesn't
    * carry the same marks / segment structure. */
   enText?: string
+  /** Single note attached to the ref via 注N / 註N suffix.
+   *
+   * - With a connector (與註1, ，註1) the verse is the row's main content and
+   *   the note renders inline below it.
+   * - Without a connector (啟二一23註1) the row is "note-only": the verse
+   *   text is suppressed and the right column shows just the note body, with
+   *   the label extended to 「<verse>註<N>」. */
+  noteToShow?: Annotation
+  /** True for the direct-attach form (no connector before 注N). Drives the
+   * note-only display + the `${verse}:${n}` hl URL form. */
+  noteOnly?: boolean
   ref: VerseRef
 }
 
 function refHl(ref: VerseRef): string {
-  return ref.verseStart === ref.verseEnd
-    ? String(ref.verseStart)
-    : `${ref.verseStart}-${ref.verseEnd}`
+  // Direct 注N (noteDirect) → the note alone is the target, so the URL only
+  // expands+tints that note. No verse range.
+  if (ref.note != null && ref.noteDirect && ref.verseStart === ref.verseEnd) {
+    return `${ref.verseStart}:${ref.note}`
+  }
+  const range =
+    ref.verseStart === ref.verseEnd
+      ? String(ref.verseStart)
+      : `${ref.verseStart}-${ref.verseEnd}`
+  // Connected 注N → tint verse AND expand note.
+  return ref.note != null && ref.verseStart === ref.verseEnd
+    ? `${range},${ref.verseStart}:${ref.note}`
+    : range
 }
 
 function refKey(bookNo: number, chapterNo: number, hl: string): string {
@@ -51,6 +79,13 @@ function refKey(bookNo: number, chapterNo: number, hl: string): string {
  * empty string when the requested format needs English but the verse has none,
  * so callers can `.filter(Boolean)` and not emit blank lines. */
 function formatCopyText(r: ResolvedVerse, format: 'zh' | 'en' | 'both'): string {
+  // Note-only rows have no verse text and no English source — fold every
+  // format down to the note body with a 註N-suffixed label.
+  if (r.noteOnly && r.noteToShow) {
+    if (format === 'en') return ''
+    const label = `${BOOK_ABBREV[r.bookNo] ?? ''}${r.chapterNo}:${r.verse.verse}註${r.noteToShow.n}`
+    return `${label}『${r.noteToShow.text}』`
+  }
   const zhLabel = `${BOOK_ABBREV[r.bookNo] ?? ''}${r.chapterNo}:${r.verse.verse}`
   const enLabel = `${BOOK_ABBREV_EN[r.bookNo] ?? ''} ${r.chapterNo}:${r.verse.verse}`
   if (format === 'zh') return `${zhLabel}『${r.verse.text}』`
@@ -112,6 +147,11 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   const { data, error } = useBible()
   const [showEnglish] = useLocalStorage('rcv/show-english', false)
   const { data: bibleEn } = useBibleEn(showEnglish)
+  // Annotations are loaded unconditionally because we only surface a note when
+  // the input explicitly asks for it via 「注N」/「註N」 (太一21注3) — not as
+  // an automatic per-verse decoration. 顯示註釋 setting only gates ChapterView's
+  // own sup markers.
+  const { data: annotations } = useAnnotations()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -156,15 +196,53 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
       // Pull the matching English chapter once per ref — findChapter is O(n)
       // over books, so caching it here keeps the per-verse loop cheap.
       const enChapter = showEnglish ? findChapter(bibleEn, ref.bookNo, ref.chapter) : null
+      // Only resolve a note when the ref carries one AND it's a single-verse
+      // ref — 「太一21注3」 makes sense, 「太一21-23注3」 doesn't (which verse?).
+      const wantsNote = ref.note != null && ref.verseStart === ref.verseEnd
+      const annChapter = wantsNote ? findAnnotationChapter(annotations, ref.bookNo, ref.chapter) : null
       for (const v of chapter.verses) {
-        if (v.verse >= ref.verseStart && v.verse <= ref.verseEnd) {
-          const enText = enChapter?.verses.find((x) => x.verse === v.verse)?.text
-          out.push({ bookNo: ref.bookNo, chapterNo: ref.chapter, verse: v, enText, ref })
+        if (v.verse < ref.verseStart || v.verse > ref.verseEnd) continue
+        const isAttachedVerse = wantsNote && v.verse === ref.verseStart
+        const noteToShow = isAttachedVerse
+          ? annChapter?.verses.find((x) => x.verse === v.verse)?.notes.find((n) => n.n === ref.note)
+          : undefined
+
+        // Direct 注N (啟二一23註1) → ONE note-only row in place of the
+        // verse. Drop it entirely when the note doesn't exist (typo / OOR N).
+        if (isAttachedVerse && ref.noteDirect) {
+          if (!noteToShow) continue
+          out.push({
+            bookNo: ref.bookNo,
+            chapterNo: ref.chapter,
+            verse: v,
+            noteToShow,
+            noteOnly: true,
+            ref,
+          })
+          continue
+        }
+
+        // Otherwise emit the verse row.
+        const enText = enChapter?.verses.find((x) => x.verse === v.verse)?.text
+        out.push({ bookNo: ref.bookNo, chapterNo: ref.chapter, verse: v, enText, ref })
+
+        // Connected 注N (啟二一23與註1) → ALSO add a separate note-only row
+        // right after the verse, so the user sees both targets as distinct
+        // results.
+        if (isAttachedVerse && !ref.noteDirect && noteToShow) {
+          out.push({
+            bookNo: ref.bookNo,
+            chapterNo: ref.chapter,
+            verse: v,
+            noteToShow,
+            noteOnly: true,
+            ref,
+          })
         }
       }
     }
     return out
-  }, [refs, data, bibleEn, showEnglish])
+  }, [refs, data, bibleEn, showEnglish, annotations])
 
   // Keyword-search results. Same shape as ref results so the renderer / copy
   // machinery don't care which tab is active. Caps at KW_RESULT_CAP so a
@@ -364,9 +442,14 @@ function ResultRow({
   }, [])
   useEffect(() => () => clearPressTimer(), [clearPressTimer])
 
-  const { bookNo, chapterNo, verse, enText } = resolved
+  const { bookNo, chapterNo, verse, enText, noteToShow, noteOnly } = resolved
   const abbrev = BOOK_ABBREV[bookNo] ?? ''
-  const label = `${abbrev}${chapterNo}:${verse.verse}`
+  // Direct-note rows tag the label with the note number — 「啟21:23註1」 — so
+  // the left column matches what the user typed in the input.
+  const label =
+    noteOnly && noteToShow
+      ? `${abbrev}${chapterNo}:${verse.verse}註${noteToShow.n}`
+      : `${abbrev}${chapterNo}:${verse.verse}`
   const lit = active || hover
 
   const handlers = {
@@ -424,13 +507,33 @@ function ResultRow({
           {label}
         </span>
         <div>
-          <p className={cn('transition-colors', lit ? 'text-foreground' : 'text-foreground/90')}>
-            {verse.text}
-          </p>
-          {enText && (
-            // Match ChapterView's English styling so the lookup result feels
-            // of-a-piece with the reading surface for the same verse.
-            <p className="mt-0.5 font-sans text-[0.9em] text-muted-foreground">{enText}</p>
+          {noteToShow ? (
+            // Note row — render the note body in the same column where verse
+            // text normally goes, so a note result lays out identically to a
+            // verse result. Paragraphs follow the EPUB's restored breaks.
+            // Click bubbles up to the row's onClick so tapping anywhere on
+            // the note still navigates to the source chapter (embedded refs
+            // inside renderNoteText stop propagation on themselves so their
+            // own Link navigation wins instead).
+            noteToShow.text.split('\n').map((para, i) => (
+              <p
+                key={i}
+                className={cn('transition-colors', lit ? 'text-foreground' : 'text-foreground/90')}
+              >
+                {renderNoteText(para, { book: bookNo, chapter: chapterNo })}
+              </p>
+            ))
+          ) : (
+            <>
+              <p className={cn('transition-colors', lit ? 'text-foreground' : 'text-foreground/90')}>
+                {renderMarkedText(verse.text, verse.marks)}
+              </p>
+              {enText && (
+                // Match ChapterView's English styling so the lookup result feels
+                // of-a-piece with the reading surface for the same verse.
+                <p className="mt-0.5 font-sans text-[0.9em] text-muted-foreground">{enText}</p>
+              )}
+            </>
           )}
         </div>
       </div>

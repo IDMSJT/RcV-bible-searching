@@ -1,6 +1,4 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Link } from '@tanstack/react-router'
-import { parseRefs, type VerseRef } from '@/lib/parseRefs'
 import {
   useBible,
   useBibleEn,
@@ -12,176 +10,10 @@ import {
 } from '@/data/loadBible'
 import { BOOK_BY_NO } from '@/data/canon'
 import { chapterUnit, formatOutlineRange, displayMarker } from '@/lib/chinese'
+import { renderMarkedText, sliceMarks, NoteList } from '@/lib/renderVerse'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
 import type { Annotation, Mark, OutlineEntry } from '@/types/bible'
-
-// 人名 / 地名 單底線、補字 點底線（音譯 tl 不標）；線用淡色
-const MARK_CLASS: Record<string, string> = {
-  pn: 'underline decoration-1 decoration-muted-foreground/60 underline-offset-4',
-  png: 'underline decoration-1 decoration-muted-foreground/60 underline-offset-4',
-  add: 'underline decoration-dotted decoration-1 decoration-muted-foreground/60 underline-offset-4',
-}
-
-/** Marks overlapping [start, end), re-based to that slice. */
-function sliceMarks(marks: Mark[] | undefined, start: number, end: number): Mark[] {
-  if (!marks) return []
-  const out: Mark[] = []
-  for (const m of marks) {
-    const s = Math.max(m.s, start)
-    const e = Math.min(m.e, end)
-    if (e > s) out.push({ k: m.k, s: s - start, e: e - start })
-  }
-  return out
-}
-
-function renderMarkedText(
-  text: string,
-  marks?: Mark[],
-  notes?: Annotation[],
-  onNoteClick?: (n: number) => void,
-): ReactNode {
-  const ms = (marks ?? [])
-    .filter((m) => MARK_CLASS[m.k] && m.e > m.s)
-    .sort((a, b) => a.s - b.s)
-  const sups = (notes ?? []).slice().sort((a, b) => a.offset - b.offset)
-  if (ms.length === 0 && sups.length === 0) return text
-
-  const out: ReactNode[] = []
-  let pos = 0
-  let keyCounter = 0
-  let mIdx = 0
-  let sIdx = 0
-
-  const flushSupsAt = (p: number) => {
-    while (sIdx < sups.length && sups[sIdx].offset === p) {
-      const s = sups[sIdx++]
-      out.push(
-        <sup
-          key={`s${keyCounter++}`}
-          onClick={onNoteClick ? () => onNoteClick(s.n) : undefined}
-          // Sits higher than the default <sup> baseline so it reads as a
-          // distinct callout above the line. tabular-nums keeps 「1」/「10」
-          // the same width so the verse glyphs don't jiggle as different
-          // markers appear. p-1/-m-1 expands the clickable area without
-          // shifting layout — the padding adds slop, the negative margin
-          // pulls the surrounding glyphs back to where they would be.
-          className="relative -top-[0.6em] -m-1 cursor-pointer p-1 text-[0.7em] font-sans font-medium tabular-nums text-destructive hover:text-destructive/80"
-        >
-          {s.n}
-        </sup>,
-      )
-    }
-  }
-
-  while (pos < text.length) {
-    flushSupsAt(pos)
-    const m = ms[mIdx]
-    if (m && m.s === pos) {
-      // Skip an overlapping mark already covered.
-      if (m.e <= pos) { mIdx++; continue }
-      out.push(
-        <span key={`m${keyCounter++}`} className={MARK_CLASS[m.k]}>
-          {text.slice(m.s, m.e)}
-        </span>,
-      )
-      pos = m.e
-      mIdx++
-      continue
-    }
-    // Plain text up to whichever event comes first.
-    const nextMarkStart = m ? m.s : text.length
-    const nextSupOffset = sIdx < sups.length ? sups[sIdx].offset : text.length
-    const boundary = Math.min(nextMarkStart, nextSupOffset)
-    if (boundary > pos) {
-      out.push(text.slice(pos, boundary))
-      pos = boundary
-    } else {
-      // Defensive — shouldn't happen but avoid infinite loop.
-      pos += 1
-    }
-  }
-  flushSupsAt(text.length)
-  return out
-}
-
-/** Scan a note paragraph for refs and render them as clickable links. The
- * surrounding prose stays plain text. Same parseRefs as LookupPanel uses, so
- * leading garbage / trailing punctuation around the ref label gets handled
- * the same way. `initialCtx` seeds book/chapter so 「十八20」 inside a Matt 1
- * note resolves to Matt 18:20 instead of dropping for lack of a book.
- *
- * Each ref renders as a <Link> rather than a JS click handler so the
- * underlying <a href> is real — right-click / cmd-click / "copy link"
- * behave the same as any other anchor. */
-// Matches a "[connector]注N" / "[connector]註N" piece at the start of a prose
-// segment that immediately follows a ref. The connector swallows whitespace
-// plus the common Chinese joiners「、，與和及」 so 「路十八13與注1」 and
-// 「啟二20，注3」 both extend the preceding link to also tint the note body.
-const NOTE_SUFFIX_RE = /^([\s、，,與和及]*)([注註])\s*(\d+)/
-
-function renderNoteText(
-  text: string,
-  initialCtx: { book: number; chapter: number },
-): ReactNode {
-  const { segments } = parseRefs(text, initialCtx)
-  if (segments.length === 0) return text
-
-  // A linkable group is the ref's text plus an optional trailing 「…注N」
-  // suffix. Both get merged into ONE <Link> so the destination chapter
-  // highlights the verse AND the matching note body via a single
-  // `?hl=verse,verse:N` param.
-  type Node =
-    | { kind: 'prose'; text: string }
-    | { kind: 'link'; text: string; ref: VerseRef; noteN?: number }
-  const nodes: Node[] = []
-  for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i]
-    if (!seg.refs || seg.refs.length === 0) {
-      nodes.push({ kind: 'prose', text: seg.text })
-      continue
-    }
-    const ref = seg.refs[0]
-    const next = segments[i + 1]
-    if (next && (!next.refs || next.refs.length === 0)) {
-      const m = NOTE_SUFFIX_RE.exec(next.text)
-      if (m) {
-        nodes.push({
-          kind: 'link',
-          text: seg.text + next.text.slice(0, m[0].length),
-          ref,
-          noteN: Number(m[3]),
-        })
-        const rest = next.text.slice(m[0].length)
-        if (rest) nodes.push({ kind: 'prose', text: rest })
-        i++
-        continue
-      }
-    }
-    nodes.push({ kind: 'link', text: seg.text, ref })
-  }
-
-  return nodes.map((node, i) => {
-    if (node.kind === 'prose') return <Fragment key={i}>{node.text}</Fragment>
-    const { ref, noteN } = node
-    const verseRange =
-      ref.verseStart === ref.verseEnd
-        ? String(ref.verseStart)
-        : `${ref.verseStart}-${ref.verseEnd}`
-    const hl = noteN != null ? `${verseRange},${ref.verseStart}:${noteN}` : verseRange
-    return (
-      <Link
-        key={i}
-        to="/$bookNo/$chapterNo"
-        params={{ bookNo: ref.bookNo, chapterNo: ref.chapter }}
-        search={{ hl }}
-        className="text-primary hover:text-primary/80"
-      >
-        {node.text}
-      </Link>
-    )
-  })
-}
 
 function OutlineHeading({
   entry,
@@ -528,41 +360,15 @@ export function ChapterView({
                   {/* Only the notes the user has actually expanded via sup
                    * tap are rendered inline — keeps the reading surface clean
                    * until they ask for the detail. */}
-                  {(() => {
-                    const visible = r.notes?.filter((n) =>
-                      expandedNotes.has(`${r.verse}:${n.n}`),
-                    )
-                    if (!visible || visible.length === 0) return null
-                    return (
-                      <ul className="mt-2 space-y-2 font-sans text-[0.95em] font-light leading-relaxed">
-                        {visible.map((n) => {
-                          // Split the note body on the restored paragraph
-                          // breaks so we can render each as its own <p> with
-                          // space-y between — `whitespace-pre-line` puts the
-                          // paragraphs on separate lines but collapsed too
-                          // tight; explicit <p> spacing reads better.
-                          const paras = n.text.split('\n')
-                          return (
-                            <li
-                              key={n.n}
-                              className="space-y-2 rounded-md bg-muted/40 px-3 py-2 text-muted-foreground"
-                            >
-                              {paras.map((para, i) => (
-                                <p key={i}>
-                                  {i === 0 && (
-                                    <sup className="px-0.5 text-[0.7em] font-sans font-medium tabular-nums text-destructive">
-                                      {n.n}
-                                    </sup>
-                                  )}
-                                  {renderNoteText(para, { book: bookNo, chapter: chapterNo })}
-                                </p>
-                              ))}
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    )
-                  })()}
+                  {r.notes && (
+                    <NoteList
+                      notes={r.notes.filter((n) =>
+                        expandedNotes.has(`${r.verse}:${n.n}`),
+                      )}
+                      bookNo={bookNo}
+                      chapterNo={chapterNo}
+                    />
+                  )}
                 </div>
               </Fragment>
             ),

@@ -20,6 +20,15 @@ export interface VerseRef {
    * spec is a single verse (no range). */
   seg: number | null
   source: string
+  /** Footnote index when the source ref carries a 「注N」 / 「註N」 suffix
+   * (太一21注3). Only attached to the LAST ref in a multi-verse token, since
+   * 「太一21、22注3」 can't disambiguate which verse the note belongs to. */
+  note?: number
+  /** True when 「注N」 attached DIRECTLY to the verse number with no
+   * connector char in between — 「啟二一23註1」 → the note alone is the
+   * target. 「啟二一23與註1」 → verse AND note are both targets. Only
+   * meaningful when `note` is set. */
+  noteDirect?: boolean
 }
 
 export interface ParseCtx {
@@ -97,6 +106,21 @@ export function parseToken(token: string, ctx: ParseCtx): ParseTokenResult {
   }
 
   rest = rest.replace(/節$/, '')
+
+  // 2b. Optional trailing footnote suffix. Strip before verse-list parsing so
+  // the verse spec regex sees a clean tail; the captured `n` re-attaches to
+  // the last emitted ref below. The empty/non-empty connector capture decides
+  // whether the note replaces the verse target (direct: 啟二一23註1) or
+  // augments it (connected: 啟二一23與註1).
+  let trailingNote: number | undefined
+  let trailingNoteDirect = false
+  const tm = rest.match(/([\s、，,與和及]*)([注註])\s*(\d+)\s*$/)
+  if (tm && tm.index! > 0) {
+    trailingNote = Number(tm[3])
+    trailingNoteDirect = tm[1] === ''
+    rest = rest.slice(0, tm.index!)
+  }
+
   if (book == null) return { ok: false, refs: [], reason: '缺少書名' }
   if (chapter == null) return { ok: false, refs: [], reason: '缺少章' }
 
@@ -129,6 +153,12 @@ export function parseToken(token: string, ctx: ParseCtx): ParseTokenResult {
   }
 
   if (refs.length === 0) return { ok: false, refs: [], reason: '無有效節' }
+
+  if (trailingNote != null) {
+    const last = refs[refs.length - 1]
+    last.note = trailingNote
+    last.noteDirect = trailingNoteDirect
+  }
 
   ctx.book = book
   ctx.chapter = curChapter

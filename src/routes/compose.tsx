@@ -1,10 +1,16 @@
 import { Fragment, useMemo } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useBible, findChapter } from '@/data/loadBible'
+import {
+  useBible,
+  useAnnotations,
+  findChapter,
+  findAnnotationChapter,
+} from '@/data/loadBible'
 import { BOOK_ABBREV } from '@/data/abbrev'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { parseStudyLines, type StudySegment, type VerseRef } from '@/lib/studyParse'
-import type { Bible } from '@/types/bible'
+import { renderMarkedText, renderNoteText, NoteList } from '@/lib/renderVerse'
+import type { Annotation, AnnotationData, Bible, Mark } from '@/types/bible'
 
 export const Route = createFileRoute('/compose')({
   component: ComposePage,
@@ -19,6 +25,17 @@ interface VerseRow {
   verse: number
   seg: number | null
   text: string
+  /** Only present for un-segmented verses — splitting on 上/下 would
+   * desynchronise mark offsets from the truncated text. */
+  marks?: Mark[]
+  /** Single note the source ref asked for via 注N. Shown unconditionally
+   * below the verse — never derived from "every note this verse happens
+   * to have". */
+  noteToShow?: Annotation
+  /** True when the source ref attached the note directly (no connector) —
+   * 「啟二一23註1」. The row then renders the note BODY as its main content
+   * instead of the verse text, and the label gains a 註N suffix. */
+  noteOnly?: boolean
   range?: { endChapter: number; endVerse: number; count: number }
 }
 
@@ -48,8 +65,12 @@ function refResolves(bible: Bible, r: VerseRef): boolean {
   )
 }
 
-function expandRef(bible: Bible, r: VerseRef): VerseRow[] {
+function expandRef(bible: Bible, annotations: AnnotationData | null, r: VerseRef): VerseRow[] {
   const single = r.chapter === r.endChapter && r.verseStart === r.verseEnd
+  // Only single-verse refs can attach a specific note — a range can't say
+  // which verse the 「注N」 belongs to.
+  const wantsNote = single && r.note != null
+  const annCh = wantsNote ? findAnnotationChapter(annotations, r.bookNo, r.chapter) : null
   const rows: VerseRow[] = []
   for (let c = r.chapter; c <= r.endChapter; c++) {
     const ch = findChapter(bible, r.bookNo, c)
@@ -59,13 +80,50 @@ function expandRef(bible: Bible, r: VerseRef): VerseRow[] {
     for (const vo of ch.verses) {
       if (vo.verse < from || vo.verse > to || vo.verse === 0) continue
       const seg = single ? r.seg : null
+      const isAttachedVerse = wantsNote && c === r.chapter && vo.verse === r.verseStart
+      const noteToShow = isAttachedVerse
+        ? annCh?.verses.find((x) => x.verse === vo.verse)?.notes.find((n) => n.n === r.note)
+        : undefined
+
+      // Direct 注N → only emit the note row (no verse row).
+      if (isAttachedVerse && r.noteDirect) {
+        if (!noteToShow) continue
+        rows.push({
+          bookNo: r.bookNo,
+          chapter: c,
+          verse: vo.verse,
+          seg: null,
+          text: '',
+          noteToShow,
+          noteOnly: true,
+        })
+        continue
+      }
+
+      // Verse row (default).
       rows.push({
         bookNo: r.bookNo,
         chapter: c,
         verse: vo.verse,
         seg,
         text: seg != null ? segmentText(vo.text, seg) : vo.text,
+        marks: seg == null ? vo.marks : undefined,
       })
+
+      // Connected 注N → add an extra note-only row right after the verse,
+      // so the outline shows both as siblings (same way the lookup panel
+      // splits them).
+      if (isAttachedVerse && !r.noteDirect && noteToShow) {
+        rows.push({
+          bookNo: r.bookNo,
+          chapter: c,
+          verse: vo.verse,
+          seg: null,
+          text: '',
+          noteToShow,
+          noteOnly: true,
+        })
+      }
     }
   }
   if (rows.length > COLLAPSE_OVER) {
@@ -86,7 +144,8 @@ function expandRef(bible: Bible, r: VerseRef): VerseRow[] {
 function verseLabel(row: VerseRow): string {
   const ab = BOOK_ABBREV[row.bookNo] ?? ''
   const s = row.seg === 0 ? '上' : row.seg === 1 ? '下' : ''
-  return `${ab}${row.chapter}:${row.verse}${s}`
+  const noteSuffix = row.noteOnly && row.noteToShow ? `註${row.noteToShow.n}` : ''
+  return `${ab}${row.chapter}:${row.verse}${s}${noteSuffix}`
 }
 
 function rangeLabel(row: VerseRow): string {
@@ -104,9 +163,16 @@ function isRefError(seg: StudySegment, bible: Bible | null): boolean {
   return seg.refs.some((r) => !refResolves(bible, r))
 }
 
-function VerseList({ refs, bible }: { refs: VerseRef[]; bible: Bible }) {
-  const navigate = useNavigate()
-  const rows = refs.flatMap((r) => expandRef(bible, r))
+function VerseList({
+  refs,
+  bible,
+  annotations,
+}: {
+  refs: VerseRef[]
+  bible: Bible
+  annotations: AnnotationData | null
+}) {
+  const rows = refs.flatMap((r) => expandRef(bible, annotations, r))
   if (rows.length === 0) return null
   return (
     <div
@@ -122,34 +188,69 @@ function VerseList({ refs, bible }: { refs: VerseRef[]; bible: Bible }) {
       }}
     >
       {rows.map((row, j) => (
-        <Fragment key={j}>
-          <button
-            type="button"
-            onClick={() =>
-              navigate({
-                to: '/$bookNo/$chapterNo',
-                params: { bookNo: row.bookNo, chapterNo: row.chapter },
-                search: { hl: String(row.verse) },
-              })
-            }
-            className="cursor-pointer self-start whitespace-nowrap pt-0.5 text-left text-xs font-sans text-muted-foreground transition-colors hover:text-foreground"
-          >
-            {row.range ? rangeLabel(row) : verseLabel(row)}
-          </button>
-          {row.range ? (
-            <p className="text-muted-foreground">（共 {row.range.count} 節，點擊閱讀）</p>
-          ) : (
-            <p className="text-foreground/90">{row.text}</p>
-          )}
-        </Fragment>
+        <VerseRowItem key={j} row={row} />
       ))}
     </div>
+  )
+}
+
+function VerseRowItem({ row }: { row: VerseRow }) {
+  const navigate = useNavigate()
+  // URL hl form mirrors the LookupPanel:
+  //   direct  → 「verse:n」      (only the note tinted+expanded)
+  //   linked  → 「verse,verse:n」 (verse and note both)
+  //   plain   → 「verse」
+  const hl = row.noteOnly && row.noteToShow
+    ? `${row.verse}:${row.noteToShow.n}`
+    : row.noteToShow
+      ? `${row.verse},${row.verse}:${row.noteToShow.n}`
+      : String(row.verse)
+  return (
+    <Fragment>
+      <button
+        type="button"
+        onClick={() =>
+          navigate({
+            to: '/$bookNo/$chapterNo',
+            params: { bookNo: row.bookNo, chapterNo: row.chapter },
+            search: { hl },
+          })
+        }
+        className="cursor-pointer self-start whitespace-nowrap pt-0.5 text-left text-xs font-sans text-muted-foreground transition-colors hover:text-foreground"
+      >
+        {row.range ? rangeLabel(row) : verseLabel(row)}
+      </button>
+      {row.range ? (
+        <p className="text-muted-foreground">（共 {row.range.count} 節，點擊閱讀）</p>
+      ) : row.noteOnly && row.noteToShow ? (
+        // Direct 注N row — note body where verse text would go, paragraphs
+        // following the EPUB's restored breaks. Same column treatment as a
+        // verse so a note row lays out identically to a verse row.
+        <div>
+          {row.noteToShow.text.split('\n').map((para, i) => (
+            <p key={i} className="text-foreground/90">
+              {renderNoteText(para, { book: row.bookNo, chapter: row.chapter })}
+            </p>
+          ))}
+        </div>
+      ) : (
+        <div>
+          <p className="text-foreground/90">{renderMarkedText(row.text, row.marks)}</p>
+          {row.noteToShow && (
+            <NoteList notes={[row.noteToShow]} bookNo={row.bookNo} chapterNo={row.chapter} />
+          )}
+        </div>
+      )}
+    </Fragment>
   )
 }
 
 function ComposePage() {
   const [input] = useLocalStorage('rcv/compose-input', '')
   const { data: bible } = useBible()
+  // Annotations are always loaded — they only get surfaced for refs that
+  // explicitly request a note (太一21注3), so this isn't gated on 顯示註釋.
+  const { data: annotations } = useAnnotations()
   const lines = input.split('\n')
   const parsed = useMemo(() => parseStudyLines(input), [input])
 
@@ -213,7 +314,7 @@ function ComposePage() {
             return (
               <div key={i} className="pt-4 first:pt-0" style={{ paddingLeft: '2rem' }}>
                 <p>{p.text}</p>
-                {p.refs.length > 0 && bible && <VerseList refs={p.refs} bible={bible} />}
+                {p.refs.length > 0 && bible && <VerseList refs={p.refs} bible={bible} annotations={annotations} />}
               </div>
             )
           }
@@ -256,7 +357,7 @@ function ComposePage() {
               )}
               {p.refs.length > 0 && bible && (
                 <div style={{ paddingLeft: '2rem' }}>
-                  <VerseList refs={p.refs} bible={bible} />
+                  <VerseList refs={p.refs} bible={bible} annotations={annotations} />
                 </div>
               )}
             </div>
