@@ -370,10 +370,16 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     : null
 
   const openRef = (r: ResolvedVerse) => {
+    // Jumping to a verse in the chapter already on screen: suppress the
+    // router's scroll-to-top so ChapterView glides straight to the target
+    // instead of bouncing off the top first. Cross-chapter keeps the default
+    // reset — the content fully changes there.
+    const sameChapter = r.bookNo === activeBookNo && r.chapterNo === activeChapterNo
     navigate({
       to: '/$bookNo/$chapterNo',
       params: { bookNo: r.bookNo, chapterNo: r.chapterNo },
       search: { hl: refHl(r.ref) },
+      resetScroll: sameChapter ? false : undefined,
     })
     // Called even when navigating to the same chapter (different verse): the
     // pathname doesn't change so the drawer's pathname-effect wouldn't fire.
