@@ -159,12 +159,19 @@ export function renderNoteText(
     const refs = seg.refs
     const ref = refs[0]
     const hl = refs.map(hlForRef).join(',')
+    // Same-chapter jump (a note in ch.1 pointing at another verse in ch.1):
+    // suppress the router's scroll-to-top so we glide straight from the
+    // current verse to the target instead of bouncing off the top first.
+    // Cross-chapter keeps the default reset — the content fully changes there.
+    const sameChapter =
+      ref.bookNo === initialCtx.book && ref.chapter === initialCtx.chapter
     return (
       <Link
         key={i}
         to="/$bookNo/$chapterNo"
         params={{ bookNo: ref.bookNo, chapterNo: ref.chapter }}
         search={{ hl }}
+        resetScroll={sameChapter ? false : undefined}
         // The note body might be rendered inside a row whose surrounding
         // onClick navigates somewhere else (LookupPanel result rows). Stop
         // the click bubbling so the embedded ref's Link wins.

@@ -229,7 +229,16 @@ export function ChapterView({
 
   useEffect(() => {
     if (!data || (firstHlVerse == null && !ohKey)) return
-    scrollRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    // Defer one frame so this runs AFTER the router's own scroll handling for
+    // the navigation (reset-to-top, and any saved-position restoration). On a
+    // same-chapter hl change — e.g. 約1:14 → 約1:29 then 返回 back to :14 —
+    // the pathname doesn't change, so a restore keyed by pathname could
+    // otherwise leave you at the verse you came FROM. Scrolling on the next
+    // frame guarantees the hl target wins.
+    const id = requestAnimationFrame(() => {
+      scrollRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    })
+    return () => cancelAnimationFrame(id)
   }, [data, bookNo, chapterNo, firstHlVerse, ohKey])
 
   if (error) {
