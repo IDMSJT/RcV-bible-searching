@@ -40,6 +40,24 @@ describe('parseRefs — anchors', () => {
     expect(sigs('詩48篇2')).toEqual(['19:48:2'])
   })
 
+  it('circle-zero chapter numeral (詩一○三7 = Ps 103:7)', () => {
+    // The source uses ○ (U+25CB) — and sometimes 〇 (U+3007) — as positional
+    // zero, so 「一○三」 must parse to chapter 103.
+    expect(sigs('（詩一○三7。）')).toEqual(['19:103:7'])
+    expect(sigs('詩一〇三7')).toEqual(['19:103:7'])
+  })
+
+  it('撒迦利亞 abbreviates to 亞 (not 撒, which is Samuel)', () => {
+    expect(sigs('亞一1')).toEqual(['38:1:1'])
+    expect(sigs('撒上一1')).toEqual(['9:1:1'])
+    expect(sigs('撒下一1')).toEqual(['10:1:1'])
+  })
+
+  it('那鴻 abbreviates to 鴻; bare 那 is prose, not a book', () => {
+    expect(sigs('鴻一1')).toEqual(['34:1:1'])
+    expect(sigs('那時候我們')).toEqual([])
+  })
+
   it('single-chapter book without chapter number', () => {
     // Jude has only one chapter; bare 「猶24」 should resolve to Jude 1:24.
     expect(sigs('猶24')).toEqual(['65:1:24'])

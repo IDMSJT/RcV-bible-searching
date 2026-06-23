@@ -1,8 +1,10 @@
 const DIGITS = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九']
 
 /** Character class body for "1+ CN numeral" — without brackets so it can be
- * spliced into other regex sources. */
-export const CN_NUMERAL_CHARS = '零一二三四五六七八九十百'
+ * spliced into other regex sources. Includes both zero glyphs the source
+ * uses for positional numbers: 〇 (U+3007) and ○ (U+25CB, a white circle the
+ * RcV text often substitutes), e.g. 「一○三」 = 103. */
+export const CN_NUMERAL_CHARS = '零〇○一二三四五六七八九十百'
 /** Pre-built "1+ CN numeral" char class, ready to plug into a regex. */
 export const CN_NUMERAL_CLASS = `[${CN_NUMERAL_CHARS}]+`
 
@@ -93,6 +95,9 @@ for (let i = 0; i <= 199; i++) CN_TO_NUM.set(toChineseNumber(i), i)
  * 一一九 = 119), and pure arabic. Returns null when nothing matches. */
 export function parseNum(s: string): number | null {
   if (/^\d+$/.test(s)) return Number(s)
+  // Normalise the circle-zero glyphs (〇 / ○) to 零 so positional parsing of
+  // 「一○三」 = 103 works the same as 「一〇三」 / a spelled-out form.
+  s = s.replace(/[〇○]/g, '零')
   const v = CN_TO_NUM.get(s)
   if (v != null) return v
   if (s.length > 0 && [...s].every((c) => CN_POSITIONAL_DIGITS.includes(c))) {
