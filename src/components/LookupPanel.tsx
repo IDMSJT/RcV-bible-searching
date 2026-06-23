@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useLocation } from '@tanstack/react-router'
 import { Drawer as VaulDrawer } from 'vaul'
 import { Copy } from 'lucide-react'
@@ -139,6 +139,39 @@ function renderBackdrop(
 
 type LookupTab = 'ref' | 'kw'
 const KW_RESULT_CAP = 500
+
+// Wrap every token occurrence (case-insensitive) in a highlighted <mark>. Used
+// by the keyword tab so the visible text shows the user *what* matched their
+// query, not just *which verse* matched.
+function highlightTokens(text: string, tokens: string[]): ReactNode {
+  if (!text || tokens.length === 0) return text
+  // Longest-first so 「abc」 wins over 「ab」 at the same position when both
+  // were in the query. RegExp's `g` walks left-to-right and the alternation
+  // engine commits the first matching arm, so the order matters.
+  const sorted = [...tokens].sort((a, b) => b.length - a.length)
+  const pattern = sorted
+    .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|')
+  const re = new RegExp(`(${pattern})`, 'gi')
+  const out: ReactNode[] = []
+  let last = 0
+  let key = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push(text.slice(last, m.index))
+    out.push(
+      <mark key={`k${key++}`} className="rounded-sm bg-highlight text-inherit">
+        {m[0]}
+      </mark>,
+    )
+    last = re.lastIndex
+    // Defensive guard for zero-length matches — none of the user-typed
+    // tokens should produce them, but if they ever did the loop would spin.
+    if (m[0].length === 0) re.lastIndex++
+  }
+  if (last < text.length) out.push(text.slice(last))
+  return out
+}
 
 export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   const [tab, setTab] = useLocalStorage<LookupTab>('rcv/lookup-tab', 'ref')
@@ -334,6 +367,13 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   }
 
   const emptyInput = tab === 'ref' ? q.trim() === '' : kw.trim() === ''
+
+  // Tokens that the keyword search would highlight inside result rows.
+  // Empty on the ref tab so its rows fall through to the marks-based renderer.
+  const kwTokens = useMemo(
+    () => (tab === 'kw' ? kw.trim().toLowerCase().split(/\s+/).filter(Boolean) : []),
+    [tab, kw],
+  )
   const emptyHint =
     tab === 'ref'
       ? '輸入經文出處以查詢'
@@ -419,6 +459,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
                 <ResultRow
                   key={`${r.bookNo}-${r.chapterNo}-${r.verse.verse}-${i}`}
                   resolved={r}
+                  highlightTokens={kwTokens}
                   active={active}
                   hover={hovered === i}
                   onHover={(h) => setHovered(h ? i : null)}
@@ -435,12 +476,17 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
 
 function ResultRow({
   resolved,
+  highlightTokens: hlTokens,
   active,
   hover,
   onHover,
   onClick,
 }: {
   resolved: ResolvedVerse
+  /** Lowercased query tokens — when non-empty, verse / English text in the
+   * row gets a keyword-highlight overlay instead of the marks-based renderer.
+   * Empty array on the ref tab. */
+  highlightTokens: string[]
   active: boolean
   hover: boolean
   onHover: (hovering: boolean) => void
@@ -544,12 +590,16 @@ function ResultRow({
           ) : (
             <>
               <p className={cn('transition-colors', lit ? 'text-foreground' : 'text-foreground/90')}>
-                {renderMarkedText(verse.text, verse.marks)}
+                {hlTokens.length > 0
+                  ? highlightTokens(verse.text, hlTokens)
+                  : renderMarkedText(verse.text, verse.marks)}
               </p>
               {enText && (
                 // Match ChapterView's English styling so the lookup result feels
                 // of-a-piece with the reading surface for the same verse.
-                <p className="mt-0.5 font-sans text-[0.9em] text-muted-foreground">{enText}</p>
+                <p className="mt-0.5 font-sans text-[0.9em] text-muted-foreground">
+                  {hlTokens.length > 0 ? highlightTokens(enText, hlTokens) : enText}
+                </p>
               )}
             </>
           )}
