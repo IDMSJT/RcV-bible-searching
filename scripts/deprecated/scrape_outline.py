@@ -40,6 +40,8 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 
+# Archived under scripts/deprecated/; reach the still-current scripts/ modules.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scrape_verse_recoveryversion import BOOK_NAMES, CACHE_DIR, fetch_menu
 
 OUTPUT_DIR = Path(__file__).parent / "output"

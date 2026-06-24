@@ -37,6 +37,8 @@ from pathlib import Path
 import requests
 from bs4 import BeautifulSoup, NavigableString, Tag
 
+# Archived under scripts/deprecated/; reach the still-current scripts/ modules.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scrape_verse_recoveryversion import BOOK_NAMES
 
 BASE_URL = "https://line.twgbr.org/recoveryversion/bible/{book:02d}.html"

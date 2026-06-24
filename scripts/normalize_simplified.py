@@ -1,96 +1,103 @@
 #!/usr/bin/env python3
-"""Normalise stray Simplified-Chinese characters in public/annotations.json.
+"""Normalise stray Simplified-Chinese characters to Traditional.
 
 The EPUB-sourced annotations are meant to be Traditional Chinese but contain
-some Simplified characters (overwhelmingly 着 for 著, plus 于→於 and ~20 others).
+some Simplified characters (overwhelmingly 着 for 著, plus 于→於 and ~16 others).
+`extract_annotations.py` imports `normalize_text` and applies it as notes are
+pulled from the EPUB, so a fresh `scrape_annotations.py` run is already clean.
+Run this module directly to (re)normalise an existing public/annotations.json.
 
-We use OpenCC **s2tw**, not s2twp: the "p" (phrases) variant does Taiwan
-*vocabulary* substitution (扩展→擴充套件, 的士→計程車) that mangles this text.
-And we do NOT accept every s2tw change either — it still "standardises" many
-already-correct Traditional characters to Taiwan variant forms (升→昇, 念→唸,
-准→準, 台→臺, 污→汙 …) which would corrupt the text. Instead:
+(verse.json / outline.json come from YouVersion zh-TW and are already clean —
+do NOT run this on them: their proper names 于沙希悉 / 泄撒 and words 鄰里 / 天后
+would be wrongly "fixed".)
 
-  1. Convert each note with OpenCC s2tw to get a context-aware proposal
-     (so one-to-many merges resolve correctly: 公里 stays 里, 生命里 → 生命裡).
-  2. Accept a change ONLY where the original character is in WHITELIST — the
-     set of characters we've confirmed are genuine Simplified contamination
-     here. Everything else is left untouched.
+Why not a blanket OpenCC pass:
+  * We use **s2tw**, not s2twp — the "p" (phrases) variant does Taiwan
+    *vocabulary* substitution (扩展→擴充套件, 的士→計程車) that mangles this text.
+  * Even s2tw "standardises" many already-correct Traditional characters to
+    Taiwan variant forms (升→昇, 念→唸, 准→準, 台→臺, 污→汙 …). So we accept a
+    change ONLY where the original character is in WHITELIST — characters
+    confirmed to be genuine Simplified contamination here. The one-to-many
+    merges (里/征/后) rely on s2tw's context (公里 stays 里, 生命里 → 生命裡).
 
-All changes are 1-char→1-char, so note `offset` fields stay valid; any note
-whose conversion would change length is skipped and reported.
+All changes are 1-char→1-char, so any verse `offset` stays valid; a note whose
+conversion would change length is left untouched (and reported by the CLI).
 """
-import json
-import sys
-from collections import Counter
-from pathlib import Path
+from __future__ import annotations
 
-from opencc import OpenCC
+from functools import lru_cache
 
 # Confirmed Simplified characters to fix (A = clearly simplified, B = simplified
-# merges verified context-safe in this data). 游 is intentionally excluded:
-# its only use is 游手好閒, where 游 is already valid Traditional.
+# merges verified context-safe in this data). 游 is intentionally excluded: its
+# only use here is 游手好閒, where 游 is already valid Traditional.
 WHITELIST = set("着于领几羡杠帘柜泄长国须里征后仆余涂")
 
-ANN = Path(__file__).resolve().parent.parent / "public" / "annotations.json"
+
+@lru_cache(maxsize=1)
+def _converter():
+    from opencc import OpenCC  # imported lazily so the module loads without it
+
+    return OpenCC("s2tw")
 
 
-def normalize(text: str, cc: OpenCC):
-    proposed = cc.convert(text)
+def normalize_text(text: str) -> str:
+    """Return `text` with whitelisted Simplified characters converted to
+    Traditional (context-aware via OpenCC s2tw). Length-preserving; if a
+    conversion would change the string length the original is returned."""
+    if not text:
+        return text
+    proposed = _converter().convert(text)
     if len(proposed) != len(text):
-        return text, None  # length changed -> skip, caller reports
-    changes = Counter()
-    out = []
-    for orig, conv in zip(text, proposed):
-        if orig != conv and orig in WHITELIST:
-            out.append(conv)
-            changes[f"{orig}→{conv}"] += 1
-        else:
-            out.append(orig)
-    return "".join(out), changes
+        return text
+    return "".join(
+        conv if (orig != conv and orig in WHITELIST) else orig
+        for orig, conv in zip(text, proposed)
+    )
 
 
-def main():
-    cc = OpenCC("s2tw")
-    data = json.loads(ANN.read_text(encoding="utf-8"))
+# --- CLI: (re)normalise public/annotations.json in place ---------------------
 
-    total_changes = Counter()
-    notes_touched = 0
-    notes_total = 0
-    skipped = []
 
+def _main():
+    import json
+    import sys
+    from collections import Counter
+    from pathlib import Path
+
+    ann = Path(__file__).resolve().parent.parent / "public" / "annotations.json"
+    data = json.loads(ann.read_text(encoding="utf-8"))
+
+    changes: Counter[str] = Counter()
+    touched = 0
+    total = 0
     for book in data["books"]:
         for chap in book["chapters"]:
             for verse in chap["verses"]:
                 for note in verse.get("notes", []):
-                    notes_total += 1
-                    text = note.get("text", "")
-                    fixed, changes = normalize(text, cc)
-                    if changes is None:
-                        skipped.append(f"{book['bookNo']}/{chap['chapterNo']}:{verse['verse']}註{note['n']}")
-                        continue
-                    if fixed != text:
-                        note["text"] = fixed
-                        notes_touched += 1
-                        total_changes.update(changes)
+                    total += 1
+                    old = note.get("text", "")
+                    new = normalize_text(old)
+                    if new != old:
+                        note["text"] = new
+                        touched += 1
+                        changes.update(
+                            f"{a}→{b}" for a, b in zip(old, new) if a != b
+                        )
 
     apply = "--apply" in sys.argv
-    print(f"掃描 {notes_total} 條註釋；{'將修改' if apply else '預計修改'} {notes_touched} 條")
-    print("變更明細（字→繁：次數）：")
-    for pair, n in total_changes.most_common():
+    print(f"掃描 {total} 條註釋；{'將修改' if apply else '預計修改'} {touched} 條")
+    for pair, n in changes.most_common():
         print(f"  {pair}: {n}")
-    print(f"合計 {sum(total_changes.values())} 字、{len(total_changes)} 種")
-    if skipped:
-        print(f"\n⚠ 長度改變而跳過 {len(skipped)} 條（需人工看）：{', '.join(skipped[:20])}")
-
+    print(f"合計 {sum(changes.values())} 字、{len(changes)} 種")
     if apply:
-        ANN.write_text(
+        ann.write_text(
             json.dumps(data, ensure_ascii=False, separators=(",", ":")),
             encoding="utf-8",
         )
-        print(f"\n✓ 已寫回 {ANN}")
+        print(f"\n✓ 已寫回 {ann}")
     else:
         print("\n(預覽模式；加 --apply 才會寫回檔案)")
 
 
 if __name__ == "__main__":
-    main()
+    _main()

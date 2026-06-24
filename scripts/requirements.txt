@@ -2,3 +2,5 @@ requests>=2.31.0
 beautifulsoup4>=4.12.0
 lxml>=5.0.0
 tqdm>=4.66.0
+# Simplified→Traditional normalisation for EPUB-sourced annotations
+opencc-python-reimplemented>=0.1.7

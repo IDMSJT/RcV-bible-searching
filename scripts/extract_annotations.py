@@ -27,6 +27,10 @@ import warnings
 
 from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
 
+# The EPUB notes carry stray Simplified characters; normalise each one to
+# Traditional as it's extracted so the generated annotations.json is clean.
+from normalize_simplified import normalize_text
+
 # These xhtml files declare an XML prolog so bs4 nags about using the html
 # parser; the html parser is intentional here (XML parser is stricter than the
 # Calibre-generated markup tolerates), so silence the noise.
@@ -145,6 +149,7 @@ def extract_notes_from_file(note_file: Path):
         # ASCII spaces. Chinese text never has a real space after 句末標點,
         # so re-promote those to newlines for the renderer to honour.
         text = re.sub(r'([。？！]) +', r'\1\n', text)
+        text = normalize_text(text)
         notes.append({'n': n, 'text': text})
     return notes
 
