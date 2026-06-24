@@ -45,7 +45,7 @@ type NavTarget =
 
 function ArrowLink({ target, children }: { target: NavTarget; children: React.ReactNode }) {
   const cls = cn(
-    'inline-flex size-7 items-center justify-center rounded-md',
+    'inline-flex items-center px-4 transition-colors',
     target
       ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
       : 'text-muted-foreground/40 pointer-events-none',

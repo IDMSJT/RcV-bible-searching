@@ -136,6 +136,12 @@
    * Single source of truth — a CSS var, not a JS const, because Tailwind only
    * generates arbitrary-value classes it sees as literal strings. */
   --nav-h: calc(3.5rem + env(safe-area-inset-bottom));
+
+  /* Title-bar height: the mobile drawer/panel headers AND the chapter/outline
+   * reading headers all use this, plus the catalog's sticky-section offsets are
+   * derived from it — so one value keeps them in lockstep. Desktop panels
+   * compact themselves to h-9 via their own md: overrides. */
+  --header-h: 3.25rem;
 }
 
 html, body, #root {

@@ -388,15 +388,15 @@ export function ChapterView({
   return (
     <>
       <header className="border-b border-border bg-background">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-3 md:px-8">
-          <div className="flex w-7 justify-start">{leftAction}</div>
-          <h1 className="text-base font-medium tracking-tight">
+        <div className="mx-auto flex h-[var(--header-h)] max-w-3xl items-stretch justify-between">
+          {leftAction}
+          <h1 className="self-center text-base font-medium tracking-tight">
             {book.name}{' '}
             <span className="text-muted-foreground">
               第 {chapterNo} {chapterUnit(bookNo)}
             </span>
           </h1>
-          <div className="flex w-7 justify-end">{rightAction}</div>
+          {rightAction}
         </div>
       </header>
 

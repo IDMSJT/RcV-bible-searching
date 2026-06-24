@@ -30,36 +30,32 @@ function BookOutlinePage() {
   return (
     <>
       <header className="border-b border-border bg-background">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-3 md:px-8">
-          <div className="flex w-7 justify-start">
-            {prevBook ? (
-              <Link
-                to="/$bookNo/$chapterNo"
-                params={{ bookNo: prevBook.bookNo, chapterNo: prevBook.chapterCount }}
-                search={{}}
-                className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <ChevronLeft className="size-3.5" />
-              </Link>
-            ) : (
-              <span className="inline-flex size-7 items-center justify-center text-muted-foreground/40">
-                <ChevronLeft className="size-3.5" />
-              </span>
-            )}
-          </div>
-          <h1 className="text-base font-medium tracking-tight">
-            {book.name} <span className="text-muted-foreground">綱目</span>
-          </h1>
-          <div className="flex w-7 justify-end">
+        <div className="mx-auto flex h-[var(--header-h)] max-w-3xl items-stretch justify-between">
+          {prevBook ? (
             <Link
               to="/$bookNo/$chapterNo"
-              params={{ bookNo, chapterNo: 1 }}
+              params={{ bookNo: prevBook.bookNo, chapterNo: prevBook.chapterCount }}
               search={{}}
-              className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="inline-flex items-center px-4 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
-              <ChevronRight className="size-3.5" />
+              <ChevronLeft className="size-3.5" />
             </Link>
-          </div>
+          ) : (
+            <span className="inline-flex items-center px-4 text-muted-foreground/40">
+              <ChevronLeft className="size-3.5" />
+            </span>
+          )}
+          <h1 className="self-center text-base font-medium tracking-tight">
+            {book.name} <span className="text-muted-foreground">綱目</span>
+          </h1>
+          <Link
+            to="/$bookNo/$chapterNo"
+            params={{ bookNo, chapterNo: 1 }}
+            search={{}}
+            className="inline-flex items-center px-4 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <ChevronRight className="size-3.5" />
+          </Link>
         </div>
       </header>
 

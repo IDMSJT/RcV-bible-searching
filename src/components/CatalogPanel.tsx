@@ -223,15 +223,15 @@ const BookPicker = memo(function BookPicker({
     <>
       <AccordionHeader
         label="舊約"
-        stickyCls="sticky top-0 bottom-14 md:bottom-9"
+        stickyCls="sticky top-0 bottom-[var(--header-h)] md:bottom-9"
         anchorCls="scroll-mt-0"
       />
       <BookSection books={OT_BOOKS} activeBookNo={activeBookNo} onPickBook={onPickBook} />
       <AccordionHeader
         label="新約"
         topBorder
-        stickyCls="sticky top-[calc(3.5rem-1px)] md:top-[calc(2.25rem-1px)] bottom-0"
-        anchorCls="scroll-mt-[calc(3.5rem-1px)] md:scroll-mt-[calc(2.25rem-1px)]"
+        stickyCls="sticky top-[calc(var(--header-h)-1px)] md:top-[calc(2.25rem-1px)] bottom-0"
+        anchorCls="scroll-mt-[calc(var(--header-h)-1px)] md:scroll-mt-[calc(2.25rem-1px)]"
       />
       <BookSection books={NT_BOOKS} activeBookNo={activeBookNo} onPickBook={onPickBook} />
     </>
@@ -279,7 +279,7 @@ function ChapterHeader({
   onBack?: () => void
 }) {
   return (
-    <div className="sticky top-0 z-10 flex h-14 items-stretch justify-between border-b border-border bg-muted/80 text-base font-normal backdrop-blur md:h-9 md:text-xs md:font-semibold">
+    <div className="sticky top-0 z-10 flex h-[var(--header-h)] items-stretch justify-between border-b border-border bg-muted/80 text-base font-normal backdrop-blur md:h-9 md:text-xs md:font-semibold">
       {onBack ? (
         <button
           type="button"
@@ -334,7 +334,7 @@ function AccordionHeader({
         onClick={() => anchorRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' })}
         className={cn(
           stickyCls,
-          'z-10 flex h-14 w-full items-center justify-between border-b border-border bg-muted/80 px-4 text-base font-normal backdrop-blur transition-colors hover:bg-muted md:h-9 md:text-xs md:font-semibold',
+          'z-10 flex h-[var(--header-h)] w-full items-center justify-between border-b border-border bg-muted/80 px-4 text-base font-normal backdrop-blur transition-colors hover:bg-muted md:h-9 md:text-xs md:font-semibold',
           topBorder && 'border-t',
         )}
       >
