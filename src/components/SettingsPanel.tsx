@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 type Theme = 'light' | 'dark' | 'system'
 
 const HEADER_CLS =
-  'sticky top-0 z-10 flex h-14 items-center justify-center border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur md:h-9 md:justify-between md:text-xs'
+  'sticky top-0 z-10 flex h-14 items-center justify-center border-b border-border bg-muted/80 px-4 text-base font-normal backdrop-blur md:h-9 md:justify-between md:text-xs md:font-semibold'
 
 // All settings state lives here. The values themselves are picked up by other
 // consumers (ChapterView, ReadingPreferences, …) via useLocalStorage on the
@@ -95,14 +95,14 @@ function SettingRow({
           disabled ? 'cursor-not-allowed opacity-50' : 'hover:bg-muted/40',
         )}
       >
-        <span className="text-sm text-foreground">{label}</span>
+        <span className="text-base text-foreground md:text-sm">{label}</span>
         {children}
       </button>
     )
   }
   return (
     <div className={cls}>
-      <span className="text-sm text-foreground">{label}</span>
+      <span className="text-base text-foreground md:text-sm">{label}</span>
       {children}
     </div>
   )
@@ -174,7 +174,7 @@ function ThemeSwatch({
           </span>
         )}
       </span>
-      <span className={cn('text-xs font-medium', active ? 'text-foreground' : 'text-muted-foreground')}>
+      <span className={cn('text-sm font-medium md:text-xs', active ? 'text-foreground' : 'text-muted-foreground')}>
         {label}
       </span>
     </button>

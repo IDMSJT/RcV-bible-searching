@@ -279,7 +279,7 @@ function ChapterHeader({
   onBack?: () => void
 }) {
   return (
-    <div className="sticky top-0 z-10 flex h-14 items-stretch justify-between border-b border-border bg-muted/80 text-sm font-semibold backdrop-blur md:h-9 md:text-xs">
+    <div className="sticky top-0 z-10 flex h-14 items-stretch justify-between border-b border-border bg-muted/80 text-base font-normal backdrop-blur md:h-9 md:text-xs md:font-semibold">
       {onBack ? (
         <button
           type="button"
@@ -334,7 +334,7 @@ function AccordionHeader({
         onClick={() => anchorRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' })}
         className={cn(
           stickyCls,
-          'z-10 flex h-14 w-full items-center justify-between border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur transition-colors hover:bg-muted md:h-9 md:text-xs',
+          'z-10 flex h-14 w-full items-center justify-between border-b border-border bg-muted/80 px-4 text-base font-normal backdrop-blur transition-colors hover:bg-muted md:h-9 md:text-xs md:font-semibold',
           topBorder && 'border-t',
         )}
       >
