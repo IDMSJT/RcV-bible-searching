@@ -5,6 +5,27 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import type { Plugin } from 'vite'
 import path from 'node:path'
+import { execSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+
+// App version shown in Settings. major.minor are hand-bumped in package.json
+// (you decide when to jump those); the patch is the git commit count, so every
+// commit auto-increments it at build time — e.g. 0.2.0 → "0.2.137".
+// (CI must do a full clone — fetch-depth: 0 — or the count collapses to 1.)
+function resolveAppVersion(): string {
+  const { version } = JSON.parse(
+    readFileSync(new URL('./package.json', import.meta.url), 'utf-8'),
+  ) as { version: string }
+  const [major = '0', minor = '0'] = version.split('.')
+  let commits = '0'
+  try {
+    commits = execSync('git rev-list --count HEAD', { encoding: 'utf-8' }).trim()
+  } catch {
+    // no git (e.g. tarball build) — fall back to the package.json patch
+    commits = version.split('.')[2] ?? '0'
+  }
+  return `${major}.${minor}.${commits}`
+}
 
 // vite-plugin-pwa 1.3 + vite 8 (rolldown) breaks the dev server's
 // /@vite/client serving for `Sec-Fetch-Dest: script` requests (404), so we
@@ -32,6 +53,9 @@ export function useRegisterSW() {
 
 export default defineConfig(({ command }) => ({
   base: command === 'build' ? '/RcV-bible-searching/' : '/',
+  define: {
+    __APP_VERSION__: JSON.stringify(resolveAppVersion()),
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
