@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { BOOK_BY_NO } from '@/data/canon'
 import { useOutline } from '@/data/loadBible'
 import { formatOutlineRange, displayMarker } from '@/lib/chinese'
+import { ScrollBody } from '@/components/ScrollBody'
 
 export const Route = createFileRoute('/$bookNo/')({
   parseParams: (raw) => ({ bookNo: Number(raw.bookNo) }),
@@ -28,7 +29,7 @@ function BookOutlinePage() {
 
   return (
     <>
-      <header className="sticky top-0 z-10 border-b border-border bg-background">
+      <header className="border-b border-border bg-background">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-3 md:px-8">
           <div className="flex w-7 justify-start">
             {prevBook ? (
@@ -62,6 +63,7 @@ function BookOutlinePage() {
         </div>
       </header>
 
+      <ScrollBody>
       <article className="mx-auto max-w-3xl px-[2.8125rem] py-6 md:px-[3.8125rem] md:py-10">
         <div className="flex flex-col gap-y-2.5 font-sans text-[length:calc(var(--reading-fs,1rem)*0.875)]">
           {entries.map((e, i) => (
@@ -89,6 +91,7 @@ function BookOutlinePage() {
           ))}
         </div>
       </article>
+      </ScrollBody>
     </>
   )
 }

@@ -23,6 +23,7 @@ import { renderMarkedText, sliceMarks, NoteList } from '@/lib/renderVerse'
 import type { HlItem } from '@/lib/highlight'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
+import { ScrollBody } from '@/components/ScrollBody'
 import type { Annotation, Mark, OutlineEntry } from '@/types/bible'
 
 function OutlineHeading({
@@ -386,7 +387,7 @@ export function ChapterView({
 
   return (
     <>
-      <header className="sticky top-0 z-10 border-b border-border bg-background">
+      <header className="border-b border-border bg-background">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-3 md:px-8">
           <div className="flex w-7 justify-start">{leftAction}</div>
           <h1 className="text-base font-medium tracking-tight">
@@ -399,6 +400,7 @@ export function ChapterView({
         </div>
       </header>
 
+      <ScrollBody>
       <article className="mx-auto max-w-3xl px-4 py-6 md:px-8 md:py-10">
         {/* TODO: 展開/收起所有註釋 — toggleAll + allExpanded are wired up
          * and ready (see useMemo above); UI is hidden until we decide on a
@@ -466,6 +468,7 @@ export function ChapterView({
           </div>
         )}
       </article>
+      </ScrollBody>
     </>
   )
 }

@@ -362,11 +362,11 @@ function RootComponent() {
         </div>
       </aside>
 
-      {/* Main */}
-      <main
-        className="flex-1 overflow-y-auto pb-[var(--nav-h)] md:pb-0 print:overflow-visible print:pb-0"
-        data-scroll-restoration-id="main"
-      >
+      {/* Main — a non-scrolling flex column. The actual scrolling happens in
+       * each route's <ScrollBody>, so page headers rendered as its siblings
+       * (chapter / outline titles) stay put instead of scrolling under an
+       * overscroll bounce. */}
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden print:block print:overflow-visible">
         <Outlet />
       </main>
 
