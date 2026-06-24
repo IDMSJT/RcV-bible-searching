@@ -8,7 +8,8 @@ function sig(r: VerseRef): string {
   if (r.verseEnd !== r.verseStart) v += `-${r.verseEnd}`
   if (r.seg === 0) v += '上'
   else if (r.seg === 1) v += '下'
-  if (r.note != null) v += r.noteDirect ? `註${r.note}` : `與註${r.note}`
+  if (r.noteAll) v += r.noteDirect ? '註all' : '與註all'
+  else if (r.note != null) v += r.noteDirect ? `註${r.note}` : `與註${r.note}`
   return `${r.bookNo}:${ch}:${v}`
 }
 
@@ -155,6 +156,21 @@ describe('parseToken — 注N / 註N suffix', () => {
       '66:2:1註3',
       '66:2:2註1',
     ])
+  })
+
+  it('bare 註 (no number) = all notes, direct (太八2註)', () => {
+    const ctx: ParseCtx = { book: 40, chapter: 1 }
+    expect(parseToken('八2註', ctx).refs.map(sig)).toEqual(['40:8:2註all'])
+  })
+
+  it('bare 註 on a range = all notes of the range (太八2～4註)', () => {
+    const ctx: ParseCtx = { book: 40, chapter: 1 }
+    expect(parseToken('八2～4註', ctx).refs.map(sig)).toEqual(['40:8:2-4註all'])
+  })
+
+  it('connected bare 註 (太八2與註) → verse + all-notes, one ref', () => {
+    const ctx: ParseCtx = { book: 40, chapter: 1 }
+    expect(parseToken('八2與註', ctx).refs.map(sig)).toEqual(['40:8:2與註all'])
   })
 })
 

@@ -17,7 +17,8 @@ function sig(r: VerseRef): string {
   if (r.verseEnd !== r.verseStart) v += `-${r.verseEnd}`
   if (r.seg === 0) v += '上'
   else if (r.seg === 1) v += '下'
-  if (r.note != null) v += r.noteDirect ? `註${r.note}` : `與註${r.note}`
+  if (r.noteAll) v += r.noteDirect ? '註all' : '與註all'
+  else if (r.note != null) v += r.noteDirect ? `註${r.note}` : `與註${r.note}`
   return `${r.bookNo}:${ch}:${v}`
 }
 
@@ -154,6 +155,23 @@ describe('parseRefs — 注N / 註N footnote pointer', () => {
       '43:2:1註3',
       '43:2:1註4',
     ])
+  })
+
+  it('bare 註 = all notes (太八2註)', () => {
+    expect(sigs('太八2註')).toEqual(['40:8:2註all'])
+  })
+
+  it('bare 註 on a range = all notes of the range (太八2～4註)', () => {
+    expect(sigs('太八2～4註')).toEqual(['40:8:2-4註all'])
+  })
+
+  it('太八2與2註 → verse + all-notes (與 before a digit splits)', () => {
+    expect(sigs('太八2與2註')).toEqual(['40:8:2', '40:8:2註all'])
+  })
+
+  it('bare 註 followed by a CJK char stays prose (太八2註解 → just the verse)', () => {
+    // 註解 is the word "annotation" — the 註 must not be eaten as a footnote.
+    expect(sigs('太八2註解')).toEqual(['40:8:2'])
   })
 })
 

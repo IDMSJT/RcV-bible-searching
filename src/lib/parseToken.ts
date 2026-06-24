@@ -27,8 +27,12 @@ export interface VerseRef {
   /** True when 「注N」 attached DIRECTLY to the verse number with no
    * connector char in between — 「啟二一23註1」 → the note alone is the
    * target. 「啟二一23與註1」 → verse AND note are both targets. Only
-   * meaningful when `note` is set. */
+   * meaningful when `note` or `noteAll` is set. */
   noteDirect?: boolean
+  /** True when the source carried a bare 「注」 / 「註」 with NO number
+   * (太八2註) — means "every footnote on this verse / range". Mutually
+   * exclusive with `note`. Honours `noteDirect` the same way. */
+  noteAll?: boolean
 }
 
 export interface ParseCtx {
@@ -129,16 +133,27 @@ export function parseToken(token: string, ctx: ParseCtx): ParseTokenResult {
     // Peel this spec's trailing 「[連接符]注N」 chain. The first note's
     // connector decides the target: empty (二1注3) → direct (note IS the
     // target); non-empty (二1與注3) → connected (verse AND note). Extra notes
-    // are additional note-only targets on the same verse.
-    const noteChain: { n: number; direct: boolean }[] = []
-    const cm = vspec.match(/((?:[\s、，,與和及]*[注註]\s*\d+)+)\s*$/)
+    // are additional note-only targets on the same verse. A bare 「注」 with no
+    // number (太八2註) means EVERY note on the verse — represented as 'all'.
+    // The `(?![一-鿿\d])` guard keeps a bare 注 from matching prose
+    // words like 「註解」/「註釋」 (a CJK char after 注 → not a footnote ref).
+    const noteChain: { n: number | 'all'; direct: boolean }[] = []
+    const cm = vspec.match(/((?:[\s、，,與和及]*[注註]\s*(?:\d+|(?![一-鿿\d])))+)\s*$/)
     if (cm) {
-      const itemRe = /([\s、，,與和及]*)[注註]\s*(\d+)/g
+      const itemRe = /([\s、，,與和及]*)[注註]\s*(\d+)?/g
       let im: RegExpExecArray | null
       while ((im = itemRe.exec(cm[1])) !== null) {
-        noteChain.push({ n: Number(im[2]), direct: im[1] === '' })
+        if (im[0] === '') break // zero-width match guard
+        noteChain.push({ n: im[2] ? Number(im[2]) : 'all', direct: im[1] === '' })
       }
       vspec = vspec.slice(0, cm.index!).trim().replace(/節$/, '')
+    }
+
+    const noteClone = (tpl: VerseRef, item: { n: number | 'all' }): VerseRef => {
+      const r: VerseRef = { ...tpl, note: undefined, noteAll: undefined, noteDirect: true }
+      if (item.n === 'all') r.noteAll = true
+      else r.note = item.n
+      return r
     }
 
     // A spec that is ONLY notes (no verse number left after the strip) —
@@ -147,9 +162,7 @@ export function parseToken(token: string, ctx: ParseCtx): ParseTokenResult {
     if (!vspec) {
       const prev = refs[refs.length - 1]
       if (prev) {
-        for (const note of noteChain) {
-          refs.push({ ...prev, note: note.n, noteDirect: true })
-        }
+        for (const item of noteChain) refs.push(noteClone(prev, item))
       }
       continue
     }
@@ -177,14 +190,16 @@ export function parseToken(token: string, ctx: ParseCtx): ParseTokenResult {
       source: vspec,
     }
     if (noteChain.length > 0) {
-      base.note = noteChain[0].n
-      base.noteDirect = noteChain[0].direct
+      const first = noteChain[0]
+      if (first.n === 'all') base.noteAll = true
+      else base.note = first.n
+      base.noteDirect = first.direct
     }
     refs.push(base)
     // Each extra note clones the verse as its own note-only ref so the caller
     // renders one row per footnote.
     for (let k = 1; k < noteChain.length; k++) {
-      refs.push({ ...base, note: noteChain[k].n, noteDirect: true })
+      refs.push(noteClone(base, noteChain[k]))
     }
     curChapter = endChapter
   }

@@ -1,4 +1,13 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import {
   useBible,
   useBibleEn,
@@ -128,10 +137,16 @@ export function ChapterView({
   const noteHighlights = useMemo(() => {
     const s = new Set<string>()
     for (const h of highlights) {
-      if (h.kind === 'note') s.add(`${h.verse}:${h.n}`)
+      if (h.kind === 'note') {
+        s.add(`${h.verse}:${h.n}`)
+      } else if (h.kind === 'noteAll') {
+        // 「v:*」 — expand to every note the verse actually has.
+        const vNotes = annChapter?.verses.find((x) => x.verse === h.verse)?.notes ?? []
+        for (const n of vNotes) s.add(`${h.verse}:${n.n}`)
+      }
     }
     return s
-  }, [highlights])
+  }, [highlights, annChapter])
 
   // Persist the open-footnote set per chapter in sessionStorage so navigating
   // to a referenced verse and pressing 「back」 (or hitting refresh) returns
@@ -162,19 +177,46 @@ export function ChapterView({
     for (const k of noteHighlights) initial.add(k)
     return initial
   })
-  // Re-read on chapter change (the lazy initializer only fires on first
-  // mount, so subsequent navigations need this effect to swap in the new
-  // chapter's saved set).
+  // Mirror the latest set into a ref so the sync effect can read the current
+  // value (and persist it) without listing expandedNotes as a dependency.
+  const expandedNotesRef = useRef(expandedNotes)
+  expandedNotesRef.current = expandedNotes
+
+  // Keep `expandedNotes` in sync across navigations, AND persist hl-opened
+  // notes to sessionStorage (the lazy initializer / hl-seed only put them in
+  // state). Persisting means that leaving a chapter and coming back via a
+  // different verse keeps the earlier hl note open — 3:2註1 stays open after
+  // you later jump to 3:3註1. Two cases:
+  //   - CHAPTER changed → load the new chapter's saved set + its hl notes.
+  //   - same chapter, hl changed → ADD the new hl notes; don't reset, or a
+  //     note opened by a prior hl (or by hand) would close.
   const initialMountRef = useRef(true)
-  useEffect(() => {
+  const prevNotesKeyRef = useRef(notesKey)
+  // useLayoutEffect (not useEffect) so the hl note expands BEFORE the browser
+  // paints — otherwise the user sees one frame without it, then it pops in.
+  useLayoutEffect(() => {
     if (initialMountRef.current) {
       initialMountRef.current = false
+      prevNotesKeyRef.current = notesKey
+      // Persist the mount-time hl seeds so a later return restores them.
+      if (noteHighlights.size > 0) writeStorage(notesKey, expandedNotesRef.current)
       return
     }
-    const restored = readStorage(notesKey)
-    for (const k of noteHighlights) restored.add(k)
-    setExpandedNotes(restored)
-  }, [notesKey, noteHighlights, readStorage])
+    const chapterChanged = prevNotesKeyRef.current !== notesKey
+    prevNotesKeyRef.current = notesKey
+    const base = chapterChanged ? readStorage(notesKey) : new Set(expandedNotesRef.current)
+    let added = false
+    for (const k of noteHighlights) {
+      if (!base.has(k)) {
+        base.add(k)
+        added = true
+      }
+    }
+    if (chapterChanged || added) {
+      setExpandedNotes(base)
+      writeStorage(notesKey, base)
+    }
+  }, [notesKey, noteHighlights, readStorage, writeStorage])
 
   const toggleNote = useCallback(
     (verse: number, n: number) => {
@@ -224,19 +266,36 @@ export function ChapterView({
   // the scroll target so the landing position matches what the user clicked.
   const firstHlVerse =
     verseRanges[0]?.start ??
-    (highlights.find((h) => h.kind === 'note') as { verse: number } | undefined)?.verse ??
+    (highlights.find((h) => h.kind === 'note' || h.kind === 'noteAll') as
+      | { verse: number }
+      | undefined)?.verse ??
     null
 
+  const prevChapterKey = useRef('')
   useEffect(() => {
     if (!data || (firstHlVerse == null && !ohKey)) return
-    // Defer one frame so this runs AFTER the router's own scroll handling for
-    // the navigation (reset-to-top, and any saved-position restoration). On a
-    // same-chapter hl change — e.g. 約1:14 → 約1:29 then 返回 back to :14 —
-    // the pathname doesn't change, so a restore keyed by pathname could
-    // otherwise leave you at the verse you came FROM. Scrolling on the next
-    // frame guarantees the hl target wins.
+    // Did we land on a different chapter, or just change the hl within the
+    // same one? A chapter change reuses this component, so the scroll
+    // container can still hold the previous chapter's (possibly much larger)
+    // offset — smooth-scrolling from there shows a stretch of blank until the
+    // animation catches up. So jump INSTANTLY for chapter changes, and keep
+    // the smooth glide only for same-chapter hl moves (約1:14 → 約1:29).
+    const chapterKey = `${bookNo}/${chapterNo}`
+    const chapterChanged = prevChapterKey.current !== chapterKey
+    prevChapterKey.current = chapterKey
+    // Defer one frame so this runs AFTER the router's own scroll handling.
     const id = requestAnimationFrame(() => {
-      scrollRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      // Belt-and-suspenders for chapter changes: clear any stale offset the
+      // reused container kept from the (taller) previous chapter, so worst
+      // case we land at the top — never in blank space past the content.
+      if (chapterChanged) {
+        const main = document.querySelector<HTMLElement>('[data-scroll-restoration-id="main"]')
+        if (main) main.scrollTop = 0
+      }
+      scrollRef.current?.scrollIntoView({
+        block: 'center',
+        behavior: chapterChanged ? 'auto' : 'smooth',
+      })
     })
     return () => cancelAnimationFrame(id)
   }, [data, bookNo, chapterNo, firstHlVerse, ohKey])
@@ -387,6 +446,13 @@ export function ChapterView({
                       )}
                       bookNo={bookNo}
                       chapterNo={chapterNo}
+                      highlightedNs={
+                        new Set(
+                          r.notes
+                            .filter((n) => noteHighlights.has(`${r.verse}:${n.n}`))
+                            .map((n) => n.n),
+                        )
+                      }
                     />
                   )}
                 </div>

@@ -62,6 +62,16 @@ function refHl(ref: VerseRef): string {
   if (ref.endChapter !== ref.chapter) {
     return `${ref.chapter}:${ref.verseStart}-${ref.endChapter}:${ref.verseEnd}`
   }
+  // Bare 註 (noteAll). Single verse → 「v:*」 = all notes (connected also tints
+  // the verse). Range → tint the span AND expand every verse's notes.
+  if (ref.noteAll) {
+    if (ref.verseStart === ref.verseEnd) {
+      return ref.noteDirect ? `${ref.verseStart}:*` : `${ref.verseStart},${ref.verseStart}:*`
+    }
+    const parts = [`${ref.verseStart}-${ref.verseEnd}`]
+    for (let v = ref.verseStart; v <= ref.verseEnd; v++) parts.push(`${v}:*`)
+    return parts.join(',')
+  }
   // Direct 注N (noteDirect) → the note alone is the target, so the URL only
   // expands+tints that note. No verse range.
   if (ref.note != null && ref.noteDirect && ref.verseStart === ref.verseEnd) {
@@ -264,6 +274,34 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
         ref.verseStart,
         ref.verseEnd,
       )) {
+        // Bare 註 (noteAll): every footnote on this verse becomes its own
+        // note-only row. Each row carries a synthesised single-note ref so the
+        // existing refHl / navigation / backdrop machinery works unchanged.
+        // Connected form (太八2與註) also emits the verse row first.
+        if (ref.noteAll) {
+          const vNotes =
+            findAnnotationChapter(annotations, ref.bookNo, vCh)?.verses.find(
+              (x) => x.verse === v.verse,
+            )?.notes ?? []
+          if (!ref.noteDirect) {
+            const enText = showEnglish
+              ? findChapter(bibleEn, ref.bookNo, vCh)?.verses.find((x) => x.verse === v.verse)?.text
+              : undefined
+            out.push({ bookNo: ref.bookNo, chapterNo: vCh, verse: v, enText, ref: { ...ref, noteAll: undefined } })
+          }
+          for (const note of vNotes) {
+            out.push({
+              bookNo: ref.bookNo,
+              chapterNo: vCh,
+              verse: v,
+              noteToShow: note,
+              noteOnly: true,
+              ref: { ...ref, noteAll: undefined, note: note.n, noteDirect: true },
+            })
+          }
+          continue
+        }
+
         const isAttachedVerse = wantsNote && vCh === ref.chapter && v.verse === ref.verseStart
         const noteToShow = isAttachedVerse
           ? annChapter?.verses.find((x) => x.verse === v.verse)?.notes.find((n) => n.n === ref.note)

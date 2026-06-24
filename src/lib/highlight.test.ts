@@ -19,6 +19,10 @@ describe('parseHighlight', () => {
     expect(parseHighlight('13:1')).toEqual<HlItem[]>([{ kind: 'note', verse: 13, n: 1 }])
   })
 
+  it('all-notes ref (v:*)', () => {
+    expect(parseHighlight('2:*')).toEqual<HlItem[]>([{ kind: 'noteAll', verse: 2 }])
+  })
+
   it('cross-chapter range', () => {
     expect(parseHighlight('11:27-12:37')).toEqual<HlItem[]>([
       { kind: 'crange', startCh: 11, startV: 27, endCh: 12, endV: 37 },

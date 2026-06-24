@@ -7,6 +7,9 @@
 export type HlItem =
   | { kind: 'verse'; start: number; end: number }
   | { kind: 'note'; verse: number; n: number }
+  // 「v:*」 — every footnote on verse V (太八2註 = all notes). ChapterView
+  // expands it against the annotation data into the individual notes.
+  | { kind: 'noteAll'; verse: number }
   | { kind: 'crange'; startCh: number; startV: number; endCh: number; endV: number }
 
 function serializeCrange(h: Extract<HlItem, { kind: 'crange' }>): string {
@@ -45,6 +48,9 @@ export function parseHighlight(hl: string | undefined): HlItem[] {
         },
       ]
     }
+    // 「verse:*」 — all notes on the verse (bare 註).
+    const allM = seg.match(/^(\d+):\*$/)
+    if (allM) return [{ kind: 'noteAll', verse: Number(allM[1]) }]
     // 「verse:n」 — note reference (auto-expand + tint that note body).
     const noteM = seg.match(/^(\d+):(\d+)$/)
     if (noteM) return [{ kind: 'note', verse: Number(noteM[1]), n: Number(noteM[2]) }]

@@ -14,6 +14,17 @@ function hlForRef(ref: VerseRef): string {
   if (ref.endChapter !== ref.chapter) {
     return `${ref.chapter}:${ref.verseStart}-${ref.endChapter}:${ref.verseEnd}`
   }
+  // Bare 註 (noteAll). Single verse → 「v:*」 (all notes; connected also tints
+  // the verse). Range → tint the span AND expand every verse's notes, so
+  // 「可一40～45註」 opens all the footnotes across 40–45, not just highlights.
+  if (ref.noteAll) {
+    if (ref.verseStart === ref.verseEnd) {
+      return ref.noteDirect ? `${ref.verseStart}:*` : `${ref.verseStart},${ref.verseStart}:*`
+    }
+    const parts = [`${ref.verseStart}-${ref.verseEnd}`]
+    for (let v = ref.verseStart; v <= ref.verseEnd; v++) parts.push(`${v}:*`)
+    return parts.join(',')
+  }
   const range =
     ref.verseStart === ref.verseEnd
       ? String(ref.verseStart)
@@ -187,15 +198,19 @@ export function renderNoteText(
 /** Inline-expanded notes block for a single verse. Pass only the notes the
  * caller wants visible — typically the result of filtering against an
  * `expandedNotes` Set. `bookNo` / `chapterNo` seed the ref parser inside each
- * note paragraph so embedded refs resolve correctly. */
+ * note paragraph so embedded refs resolve correctly. `highlightedNs` are the
+ * note numbers the URL pointed at (?hl=v:n / v:*) — they get a warm tint so
+ * the one the user navigated to stands out from notes they expanded by hand. */
 export function NoteList({
   notes,
   bookNo,
   chapterNo,
+  highlightedNs,
 }: {
   notes: Annotation[]
   bookNo: number
   chapterNo: number
+  highlightedNs?: Set<number>
 }): ReactNode {
   if (notes.length === 0) return null
   return (
@@ -205,10 +220,16 @@ export function NoteList({
         // render each as its own <p> with space-y between — whitespace-pre-line
         // would collapse the inter-paragraph gap too tight.
         const paras = n.text.split('\n')
+        const hit = highlightedNs?.has(n.n)
         return (
           <li
             key={n.n}
-            className="space-y-2 rounded-md bg-muted/40 px-3 py-2 text-muted-foreground"
+            className={
+              'space-y-2 rounded-md px-3 py-2 ' +
+              (hit
+                ? 'bg-highlight/50 text-foreground'
+                : 'bg-muted/40 text-muted-foreground')
+            }
           >
             {paras.map((para, i) => (
               <p key={i}>

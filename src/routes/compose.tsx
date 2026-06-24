@@ -80,6 +80,38 @@ function expandRef(bible: Bible, annotations: AnnotationData | null, r: VerseRef
     for (const vo of ch.verses) {
       if (vo.verse < from || vo.verse > to || vo.verse === 0) continue
       const seg = single ? r.seg : null
+
+      // Bare 註 (noteAll): every footnote on this verse → its own note row.
+      // Connected form (太八2與註) also emits the verse row first.
+      if (r.noteAll) {
+        const vNotes =
+          findAnnotationChapter(annotations, r.bookNo, c)?.verses.find(
+            (x) => x.verse === vo.verse,
+          )?.notes ?? []
+        if (!r.noteDirect) {
+          rows.push({
+            bookNo: r.bookNo,
+            chapter: c,
+            verse: vo.verse,
+            seg,
+            text: seg != null ? segmentText(vo.text, seg) : vo.text,
+            marks: seg == null ? vo.marks : undefined,
+          })
+        }
+        for (const note of vNotes) {
+          rows.push({
+            bookNo: r.bookNo,
+            chapter: c,
+            verse: vo.verse,
+            seg: null,
+            text: '',
+            noteToShow: note,
+            noteOnly: true,
+          })
+        }
+        continue
+      }
+
       const isAttachedVerse = wantsNote && c === r.chapter && vo.verse === r.verseStart
       const noteToShow = isAttachedVerse
         ? annCh?.verses.find((x) => x.verse === vo.verse)?.notes.find((n) => n.n === r.note)

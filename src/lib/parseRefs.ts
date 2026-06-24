@@ -46,8 +46,10 @@ const REF_CHARS = `0-9${CN_NUMERAL_CHARS}上下章篇節:：~～\\-至到—–�
 // Optional trailing chain of 「注N」 / 「註N」 footnote pointers. Eaten by the
 // match so parseRefs consumes the full 「太一21注3」 / 「二1注3與注4」 as one
 // segment; parseToken then peels the same suffix off and attaches each note.
-// `*` (not `?`) so multiple notes on one verse stay in the same segment.
-const NOTE_TAIL_PAT = `(?:[\\s、，,與和及]*[注註]\\s*\\d+)*`
+// `*` (not `?`) so multiple notes on one verse stay in the same segment. A
+// bare 注/註 (no number, 太八2註 = all notes) is allowed too, but only when
+// NOT followed by a CJK char — so prose like 「太八2註解」 doesn't get eaten.
+const NOTE_TAIL_PAT = `(?:[\\s、，,與和及]*[注註]\\s*(?:\\d+|(?![一-鿿\\d])))*`
 
 // `^alias` followed by any run of ref-chars. The match string is then handed to
 // parseToken, which decides whether the whole thing is actually a valid ref.
