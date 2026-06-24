@@ -209,7 +209,7 @@ function VerseList({
   if (rows.length === 0) return null
   return (
     <div
-      className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-sm leading-relaxed"
+      className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-[0.875em] leading-relaxed"
       style={{
         // scaleX is the only width-compression that actually works on system
         // fonts (font-stretch quietly no-ops without a wdth axis). The width
@@ -254,7 +254,7 @@ function VerseRowItem({ row }: { row: VerseRow }) {
             search: { hl },
           })
         }
-        className="cursor-pointer self-start whitespace-nowrap pt-0.5 text-left text-xs font-sans text-muted-foreground transition-colors hover:text-foreground"
+        className="cursor-pointer self-start whitespace-nowrap pt-0.5 text-left text-[0.75em] font-sans text-muted-foreground transition-colors hover:text-foreground"
       >
         {row.range ? rangeLabel(row) : verseLabel(row)}
       </button>
@@ -334,7 +334,7 @@ function ComposePage() {
       >
         列印
       </button>
-      <div className="flex flex-col font-serif leading-relaxed tracking-wide text-[length:var(--reading-fs,1rem)]">
+      <div className="flex flex-col font-serif leading-relaxed tracking-wide text-[length:var(--reading-fs,1rem)] print:text-base">
         {lines.map((line, i) => {
           const p = parsed[i]
           if (!p || p.kind === 'empty') return null
@@ -342,7 +342,7 @@ function ComposePage() {
             // Only render at the first title position; the rest fold in via <br>.
             if (i !== firstTitleIdx) return null
             return (
-              <h1 key={i} className="pt-5 text-center text-[22px] font-semibold text-balance first:pt-0">
+              <h1 key={i} className="pt-5 text-center text-[1.375em] font-semibold text-balance first:pt-0">
                 {titleTexts.map((t, j) => (
                   <Fragment key={j}>
                     {j > 0 && <br />}
@@ -362,7 +362,7 @@ function ComposePage() {
           }
           if (p.kind === 'week') {
             return (
-              <h2 key={i} className="pt-4 text-center text-sm font-semibold text-muted-foreground first:pt-0">
+              <h2 key={i} className="pt-4 text-center text-[0.875em] font-semibold text-muted-foreground first:pt-0">
                 {line.trim()}
               </h2>
             )
