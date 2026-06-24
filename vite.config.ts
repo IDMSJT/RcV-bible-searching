@@ -71,6 +71,11 @@ export default defineConfig(({ command }) => ({
     }),
   ],
   server: {
+    // Listen on all interfaces (IPv4 + IPv6), not just localhost/[::1]. A
+    // cloudflared tunnel pointed at 127.0.0.1 then connects reliably — proxying
+    // to an IPv6-only [::1] bind is flaky under a browser's concurrent module
+    // requests (504s).
+    host: true,
     allowedHosts: ['.trycloudflare.com'],
     watch: {
       ignored: ['**/scripts/**'],
