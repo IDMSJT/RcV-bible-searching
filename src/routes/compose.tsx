@@ -319,13 +319,14 @@ function ComposePage() {
 
   return (
     <article className="relative mx-auto max-w-3xl px-4 py-6 md:px-8 md:py-10">
-      {/* Floating dismiss-equivalent — pinned to viewport bottom-right so it's
-       * always reachable while scrolling. The mobile offset (bottom-20) clears
-       * the bottom nav bar; desktop drops it to bottom-4. */}
+      {/* Floating print button — pinned to viewport bottom-right so it's always
+       * reachable while scrolling. On mobile it sits just above the bottom nav
+       * (nav height = 3.5rem + the iOS home-indicator safe area); desktop, where
+       * there's no bottom nav, drops it to bottom-4. */}
       <button
         type="button"
         onClick={() => window.print()}
-        className="fixed bottom-20 right-5 z-40 inline-flex items-center rounded-full bg-primary px-7 py-3.5 text-base font-medium text-primary-foreground shadow-lg transition-colors hover:bg-primary/90 md:bottom-4 md:right-4 md:px-5 md:py-2.5 md:text-sm print:hidden"
+        className="fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom)+0.75rem)] right-5 z-40 inline-flex items-center rounded-full bg-primary px-7 py-3.5 text-base font-medium text-primary-foreground shadow-lg transition-colors hover:bg-primary/90 md:bottom-4 md:right-4 md:px-5 md:py-2.5 md:text-sm print:hidden"
       >
         列印
       </button>

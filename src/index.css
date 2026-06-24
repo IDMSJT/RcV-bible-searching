@@ -147,14 +147,47 @@ body {
 }
 
 @media print {
+  /* Always print in the light palette on white paper — regardless of dark mode.
+   * Overriding the tokens under both :root and .dark means dark-mode users get
+   * the same clean light printout. We also flip the cream page surfaces
+   * (background/card/popover/muted) to pure white: mobile Safari renders those
+   * tinted backgrounds, which showed up as a yellow cast on printed pages. */
+  :root,
+  .dark {
+    --color-background: white;
+    --color-foreground: oklch(0.305 0.024 238.8);   /* 藍黑 ink */
+
+    --color-card: white;
+    --color-card-foreground: oklch(0.305 0.024 238.8);
+
+    --color-popover: white;
+    --color-popover-foreground: oklch(0.305 0.024 238.8);
+
+    --color-primary: oklch(0.503 0.095 84.9);       /* 暗金 — readable on white */
+    --color-primary-foreground: white;
+
+    --color-secondary: white;
+    --color-secondary-foreground: oklch(0.305 0.024 238.8);
+
+    --color-muted: white;
+    --color-muted-foreground: oklch(0.515 0.020 153.2);
+
+    --color-accent: white;
+    --color-accent-foreground: oklch(0.503 0.095 84.9);
+
+    --color-border: oklch(0.85 0.02 250);
+    --color-highlight: transparent;                 /* drop the gold jump tint */
+  }
+
   /* Reset the layout shell so the article doesn't get clipped by the flex
    * column / overflow-hidden of the on-screen app shell. */
   html, body, #root {
     height: auto !important;
+    background: white;
   }
   body {
     background: white;
-    color: black;
+    color: var(--color-foreground);
   }
   /* Avoid page break right after a heading or in the middle of a verse row. */
   h1, h2 { break-after: avoid; }

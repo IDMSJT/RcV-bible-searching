@@ -3,7 +3,32 @@ import react from '@vitejs/plugin-react'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import type { Plugin } from 'vite'
 import path from 'node:path'
+
+// vite-plugin-pwa 1.3 + vite 8 (rolldown) breaks the dev server's
+// /@vite/client serving for `Sec-Fetch-Dest: script` requests (404), so we
+// drop the real plugin in dev entirely. ReloadPrompt still imports
+// `virtual:pwa-register/react`, so provide a no-op stub for that module in dev.
+function pwaRegisterDevStub(): Plugin {
+  const id = 'virtual:pwa-register/react'
+  const resolved = '\0' + id
+  return {
+    name: 'pwa-register-dev-stub',
+    resolveId: (source) => (source === id ? resolved : undefined),
+    load: (loadId) =>
+      loadId === resolved
+        ? `import { useState } from 'react'
+export function useRegisterSW() {
+  return {
+    needRefresh: useState(false),
+    offlineReady: useState(false),
+    updateServiceWorker: () => {},
+  }
+}`
+        : undefined,
+  }
+}
 
 export default defineConfig(({ command }) => ({
   base: command === 'build' ? '/RcV-bible-searching/' : '/',
@@ -16,6 +41,10 @@ export default defineConfig(({ command }) => ({
     tailwindcss(),
     tanstackRouter({ target: 'react', autoCodeSplitting: true }),
     react(),
+    // Real PWA plugin only for the build; a no-op stub in dev (see above).
+    ...(command !== 'build'
+      ? [pwaRegisterDevStub()]
+      : [
     VitePWA({
       // 'prompt' → the app asks before reloading to a new version.
       registerType: 'prompt',
@@ -69,6 +98,7 @@ export default defineConfig(({ command }) => ({
         ],
       },
     }),
+      ]),
   ],
   server: {
     // Listen on all interfaces (IPv4 + IPv6), not just localhost/[::1]. A
