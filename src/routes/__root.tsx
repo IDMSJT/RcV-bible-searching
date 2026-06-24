@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Outlet, createRootRoute, useLocation, useNavigate } from '@tanstack/react-router'
 // import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 import { BookOpen, ClipboardList, Search, Settings } from 'lucide-react'
@@ -429,7 +429,21 @@ function RootComponent() {
         // drawer stuck at the keyboard-time height after dismiss.
         repositionInputs={false}
       >
-        <DrawerContent className="bottom-[calc(4rem+env(safe-area-inset-bottom)-1px)]! h-[calc(100dvh-4rem-env(safe-area-inset-bottom)+1px)] md:hidden">
+        {/* Full-height to bottom-0 with bottom padding so content stays above
+         * the bottom nav (z-[60], on top of the sheet's z-50, still tappable).
+         * vaul's closed transform is translate3d(0, var(--initial-transform,
+         * 100%)) — 100% would be the full sheet height (a whole screen, too far)
+         * so we pin --initial-transform to exactly the nav top: the sheet slides
+         * just far enough to clear the visible area, then unmounts. */}
+        <DrawerContent
+          style={
+            {
+              '--initial-transform':
+                'calc(100dvh - 3.5rem - env(safe-area-inset-bottom))',
+            } as CSSProperties
+          }
+          className="h-[100dvh] pb-[calc(4rem+env(safe-area-inset-bottom))] md:hidden"
+        >
           <DrawerTitle className="sr-only">
             {effectiveMode === 'lookup'
               ? '經節'

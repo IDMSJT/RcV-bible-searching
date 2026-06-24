@@ -14,7 +14,7 @@ export function ReloadPrompt() {
   return (
     <div
       role="status"
-      className="fixed inset-x-3 bottom-20 z-[100] flex items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 py-3 text-sm text-popover-foreground shadow-lg backdrop-blur md:inset-x-auto md:right-4 md:bottom-4 md:max-w-sm"
+      className="fixed inset-x-3 bottom-[calc(3.5rem+env(safe-area-inset-bottom)+0.75rem)] z-[100] flex items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 py-3 text-sm text-popover-foreground shadow-lg backdrop-blur md:inset-x-auto md:right-4 md:bottom-4 md:max-w-sm"
     >
       <span className="flex-1">有新版本可用</span>
       <button
