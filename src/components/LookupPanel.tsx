@@ -29,7 +29,7 @@ import type { Annotation, Verse } from '@/types/bible'
 const FIELD_CLS = 'p-4 font-serif text-base leading-relaxed md:text-sm'
 
 const HEADER_CLS =
-  'sticky top-0 z-10 flex h-14 items-center justify-center border-b border-border bg-muted/80 px-4 text-sm font-semibold backdrop-blur md:h-9 md:justify-start md:text-xs'
+  'sticky top-0 z-10 flex h-14 items-center justify-center border-b border-border bg-muted/80 px-4 text-base font-normal backdrop-blur md:h-9 md:justify-start md:text-xs md:font-semibold'
 
 const PLACEHOLDER =
   '輸入經文出處，例如：\n約翰福音一章一節，三章十六節，十四章六節'
@@ -190,7 +190,7 @@ function highlightTokens(text: string, tokens: string[]): ReactNode {
 }
 
 export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
-  const [tab, setTab] = useLocalStorage<LookupTab>('rcv/lookup-tab', 'ref')
+  const [tab, setTab] = useLocalStorage<LookupTab>('rcv/lookup-tab', 'kw')
   const [q, setQ] = useLocalStorage('rcv/lookup-q', '')
   const [kw, setKw] = useLocalStorage('rcv/lookup-kw', '')
   const { data, error } = useBible()
@@ -443,8 +443,8 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
        * padding so the hover/active bg fills cleanly to the edges — mirrors
        * the 綱目 link style on the chapter header. */}
       <h2 className={cn(HEADER_CLS, 'items-stretch px-0 md:px-1.5')}>
-        <TabBtn active={tab === 'ref'} onClick={() => setTab('ref')}>經節</TabBtn>
         <TabBtn active={tab === 'kw'} onClick={() => setTab('kw')}>關鍵字</TabBtn>
+        <TabBtn active={tab === 'ref'} onClick={() => setTab('ref')}>經節</TabBtn>
       </h2>
       {/* Sticky on mobile so the input stays reachable while scrolling the
        * results below it. Desktop's aside already keeps the input visible by
