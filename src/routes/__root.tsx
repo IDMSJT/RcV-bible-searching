@@ -313,7 +313,7 @@ function RootComponent() {
   const sidebarFlexCol = effectiveMode === 'compose' || effectiveMode === 'settings'
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-card text-foreground md:flex-row print:block print:h-auto print:overflow-visible">
+    <div className="flex h-screen flex-col overflow-hidden bg-card pt-[env(safe-area-inset-top)] text-foreground md:flex-row md:pt-0 print:block print:h-auto print:overflow-visible">
       <ReadingPreferences />
 
       {/* Desktop: left vertical rail */}
@@ -361,7 +361,7 @@ function RootComponent() {
 
       {/* Main */}
       <main
-        className="flex-1 overflow-y-auto pb-16 md:pb-0 print:overflow-visible print:pb-0"
+        className="flex-1 overflow-y-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0 print:overflow-visible print:pb-0"
         data-scroll-restoration-id="main"
       >
         <Outlet />
@@ -373,7 +373,7 @@ function RootComponent() {
        * across the full width so taps are easy with a thumb. */}
       <nav
         data-bottom-nav
-        className="pointer-events-auto fixed inset-x-0 bottom-0 z-[60] flex h-16 items-stretch border-t border-border bg-background [&>button]:size-auto [&>button]:flex-1 [&>button]:h-full [&>button]:rounded-none md:hidden print:hidden"
+        className="pointer-events-auto fixed inset-x-0 bottom-0 z-[60] flex h-[calc(4rem+env(safe-area-inset-bottom))] items-stretch border-t border-border bg-background pb-[env(safe-area-inset-bottom)] [&>button]:size-auto [&>button]:flex-1 [&>button]:h-full [&>button]:rounded-none md:hidden print:hidden"
       >
         {sharedNavButtons(
           // Compose stays lit whenever the saved mode is 'compose' (i.e. we're
@@ -422,7 +422,7 @@ function RootComponent() {
         // drawer stuck at the keyboard-time height after dismiss.
         repositionInputs={false}
       >
-        <DrawerContent className="bottom-[calc(4rem-1px)]! h-[calc(100dvh-4rem+1px)] md:hidden">
+        <DrawerContent className="bottom-[calc(4rem+env(safe-area-inset-bottom)-1px)]! h-[calc(100dvh-4rem-env(safe-area-inset-bottom)+1px)] md:hidden">
           <DrawerTitle className="sr-only">
             {effectiveMode === 'lookup'
               ? '經節'
@@ -471,15 +471,14 @@ function NavButton({
       onClick={onClick}
       {...rest}
       className={cn(
-        // Mobile keeps the full-button highlight (bg covers the whole tab).
-        // Desktop drops the outer bg via md:* so the inner icon chip below
-        // carries the highlight instead — yielding a Slack-style square pill
-        // around the icon and a plain text label underneath.
+        // Mobile: active is a colour change only (no full-button bg) — a bg
+        // would stop at the buttons and leave the safe-area strip below them
+        // an odd mismatched colour. Desktop keeps the Slack-style icon chip
+        // (the inner span carries the highlight, see below).
         'group inline-flex flex-col items-center justify-center gap-1.5 rounded-md transition-colors md:p-2',
         active
-          ? 'bg-secondary text-secondary-foreground'
-          : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-        'md:bg-transparent md:hover:bg-transparent',
+          ? 'text-primary md:text-secondary-foreground'
+          : 'text-muted-foreground hover:text-foreground',
         className,
       )}
     >
