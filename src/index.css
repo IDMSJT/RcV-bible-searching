@@ -130,7 +130,12 @@
 }
 
 html, body, #root {
-  height: 100%;
+  /* dvh (dynamic viewport), not %/vh: with viewport-fit=cover, 100vh is the
+   * *large* viewport (taller than what's visible behind iOS Safari's address
+   * bar), which let the body scroll independently of the in-app <main>. dvh
+   * tracks the actually-visible height, so the shell fits and there's a single
+   * scroll container. */
+  height: 100dvh;
 }
 
 body {

@@ -208,7 +208,7 @@ function RootComponent() {
 
   // Same icon size on both viewports — desktop now stacks icon + label
   // Slack-style in a wider rail, so the icon doesn't need to shrink.
-  const navIcon = 'size-5'
+  const navIcon = 'size-6'
   // The first three buttons are identical on both viewports; settings differs
   // — on desktop it opens a Popover anchored to the button, on mobile it stays
   // a regular nav that swaps the drawer into settings mode.
@@ -313,7 +313,7 @@ function RootComponent() {
   const sidebarFlexCol = effectiveMode === 'compose' || effectiveMode === 'settings'
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-card pt-[env(safe-area-inset-top)] text-foreground md:flex-row md:pt-0 print:block print:h-auto print:overflow-visible">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-card pt-[env(safe-area-inset-top)] text-foreground md:flex-row md:pt-0 print:block print:h-auto print:overflow-visible">
       <ReadingPreferences />
 
       {/* Desktop: left vertical rail */}
@@ -376,12 +376,16 @@ function RootComponent() {
         className="pointer-events-auto fixed inset-x-0 bottom-0 z-[60] flex h-[calc(4rem+env(safe-area-inset-bottom))] items-stretch border-t border-border bg-background pb-[env(safe-area-inset-bottom)] [&>button]:size-auto [&>button]:flex-1 [&>button]:h-full [&>button]:rounded-none md:hidden print:hidden"
       >
         {sharedNavButtons(
-          // Compose stays lit whenever the saved mode is 'compose' (i.e. we're
-          // on /compose, or compose was the last panel opened) — the article
-          // itself is the compose surface, so the indicator should reflect
-          // route context, not drawer visibility. Other tabs only light up
-          // while the drawer is actually showing them.
-          (m) => effectiveMode === m && (m === 'compose' || drawerOpen),
+          // While the drawer is open, light the tab whose panel it shows.
+          // While it's dismissed, light the tab matching the current surface:
+          // 綱要 on /compose, 目錄 while reading a chapter (the article itself
+          // is the surface, so the tab reflects route context, not the drawer).
+          (m) => {
+            if (drawerOpen) return effectiveMode === m
+            if (onCompose) return m === 'compose'
+            if (/^\/\d+/.test(pathname)) return m === 'catalog'
+            return false
+          },
           // 「目錄」 when on a book route (outline or chapter) with the drawer
           // dismissed — tapping there opens the catalog. Everywhere else
           // (/compose, root) tapping navigates to a chapter, so 「閱讀」
@@ -484,9 +488,12 @@ function NavButton({
     >
       <span
         className={cn(
-          'inline-flex items-center justify-center transition-colors',
-          // Desktop-only: square icon chip with its own hover / active bg.
-          'md:size-9 md:rounded-md',
+          'inline-flex items-center justify-center',
+          // Desktop-only: square icon chip with its own hover / active bg —
+          // its colour transition lives here. On mobile the icon has no
+          // transition of its own; it inherits the button's animated colour
+          // (currentColor), so icon + label change colour in lock-step.
+          'md:size-9 md:rounded-md md:transition-colors',
           active
             ? 'md:bg-secondary md:text-secondary-foreground'
             : 'md:group-hover:bg-muted md:group-hover:text-foreground',
@@ -494,7 +501,7 @@ function NavButton({
       >
         {children}
       </span>
-      <span className="text-[11px] font-medium leading-none">{label}</span>
+      <span className="text-xs font-medium leading-none">{label}</span>
     </button>
   )
 }
