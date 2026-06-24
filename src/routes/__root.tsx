@@ -208,7 +208,10 @@ function RootComponent() {
 
   // Same icon size on both viewports — desktop now stacks icon + label
   // Slack-style in a wider rail, so the icon doesn't need to shrink.
-  const navIcon = 'size-6'
+  // Mobile gets a slightly larger, thinner icon; desktop keeps its original
+  // size-5 / 1.8 stroke (stroke-width via CSS so it can be responsive — the
+  // lucide strokeWidth prop can't be).
+  const navIcon = 'size-6 [stroke-width:1.6] md:size-5 md:[stroke-width:1.8]'
   // The first three buttons are identical on both viewports; settings differs
   // — on desktop it opens a Popover anchored to the button, on mobile it stays
   // a regular nav that swaps the drawer into settings mode.
@@ -257,7 +260,7 @@ function RootComponent() {
         label={catalogLabel}
         onClick={onCatalogClick}
       >
-        <BookOpen className={navIcon} strokeWidth={1.8} />
+        <BookOpen className={navIcon} />
       </NavButton>
       <NavButton
         active={isActive('lookup')}
@@ -271,14 +274,14 @@ function RootComponent() {
           openMode('lookup', onCompose ? goToLastChapter : undefined)
         }}
       >
-        <Search className={navIcon} strokeWidth={1.8} />
+        <Search className={navIcon} />
       </NavButton>
       <NavButton
         active={isActive('compose')}
         label="綱要"
         onClick={() => openMode('compose', () => navigate({ to: '/compose' }))}
       >
-        <ClipboardList className={navIcon} strokeWidth={1.8} />
+        <ClipboardList className={navIcon} />
       </NavButton>
     </>
   )
@@ -323,7 +326,7 @@ function RootComponent() {
           <PopoverTrigger
             render={
               <NavButton active={settingsOpen} label="設定" className="mt-auto">
-                <Settings className={navIcon} strokeWidth={1.8} />
+                <Settings className={navIcon} />
               </NavButton>
             }
           />
@@ -373,7 +376,7 @@ function RootComponent() {
        * across the full width so taps are easy with a thumb. */}
       <nav
         data-bottom-nav
-        className="pointer-events-auto fixed inset-x-0 bottom-0 z-[60] flex h-[calc(4rem+env(safe-area-inset-bottom))] items-stretch border-t border-border bg-background pb-[env(safe-area-inset-bottom)] [&>button]:size-auto [&>button]:flex-1 [&>button]:h-full [&>button]:rounded-none md:hidden print:hidden"
+        className="pointer-events-auto fixed inset-x-0 bottom-0 z-[60] flex h-[calc(3.5rem+env(safe-area-inset-bottom))] items-stretch border-t border-border bg-background pb-[env(safe-area-inset-bottom)] [&>button]:size-auto [&>button]:flex-1 [&>button]:h-full [&>button]:rounded-none md:hidden print:hidden"
       >
         {sharedNavButtons(
           // While the drawer is open, light the tab whose panel it shows.
@@ -404,7 +407,7 @@ function RootComponent() {
             openMode('settings', onCompose ? goToLastChapter : undefined)
           }}
         >
-          <Settings className={navIcon} strokeWidth={1.8} />
+          <Settings className={navIcon} />
         </NavButton>
       </nav>
 
@@ -501,7 +504,7 @@ function NavButton({
       >
         {children}
       </span>
-      <span className="text-xs font-medium leading-none">{label}</span>
+      <span className="text-xs font-medium leading-none md:text-[11px]">{label}</span>
     </button>
   )
 }
