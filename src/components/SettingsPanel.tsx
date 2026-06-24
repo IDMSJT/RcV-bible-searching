@@ -1,5 +1,5 @@
 import { Check } from 'lucide-react'
-import { Slider } from '@/components/ui/slider'
+import { Slider as SliderPrimitive } from '@base-ui/react/slider'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
 
@@ -31,21 +31,8 @@ export function SettingsPanel() {
         <SettingRow label="顯示註釋" onClick={() => setShowNotes(!showNotes)}>
           <Switch on={showNotes} />
         </SettingRow>
-        {/* Cross-references live inside annotations in our EPUB source, so a
-         * standalone 串珠 toggle would need a different data set. Keep it
-         * planned but disabled. */}
-        <SettingRow label="顯示串珠" disabled>
-          <Switch on={false} disabled />
-        </SettingRow>
         <SettingRow label={`字體大小　${fontSize}px`} stack>
-          <Slider
-            min={13}
-            max={24}
-            step={1}
-            value={[fontSize]}
-            onValueChange={(v) => setFontSize(Array.isArray(v) ? v[0] : v)}
-            className="my-1.5"
-          />
+          <FontSizeSlider value={fontSize} min={13} max={24} onChange={setFontSize} />
         </SettingRow>
         <SettingRow label="主題" stack>
           <div className="grid grid-cols-3 gap-3 pt-1">
@@ -181,6 +168,54 @@ function ThemeSwatch({
   )
 }
 
+/** iOS "Larger Text"-style reading-size control: a tick-marked track with a
+ * white capsule thumb (no flanking A's, no card — just the slider). */
+function FontSizeSlider({
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  value: number
+  min: number
+  max: number
+  onChange: (v: number) => void
+}) {
+  const ticks = max - min + 1
+  return (
+    <SliderPrimitive.Root
+      value={[value]}
+      min={min}
+      max={max}
+      step={1}
+      thumbAlignment="edge"
+      onValueChange={(v) => onChange(Array.isArray(v) ? v[0] : v)}
+      // Dragging the thumb must not also drag the surrounding vaul drawer shut.
+      data-vaul-no-drag=""
+      className="my-1.5 w-full"
+    >
+      {/* edge alignment: base-ui insets the thumb by its own width, so at the
+       * ends the capsule's OUTER edge sits flush with the track end (never
+       * overhanging or clipped). The thumb's centre therefore stops half a
+       * thumb in — so the ticks are inset to match where the centre lands. */}
+      <SliderPrimitive.Control className="relative flex w-full touch-none items-center py-2 select-none">
+        <SliderPrimitive.Track className="relative h-1 w-full rounded-full bg-foreground/15">
+          <SliderPrimitive.Indicator className="h-full rounded-full bg-primary" />
+        </SliderPrimitive.Track>
+        {/* Tick marks — one per reading size, inset by half the thumb width
+         * (mobile w-9 → 4.5, desktop w-7 → 3.5) so the end ticks line up with
+         * where the thumb centre stops under edge alignment. */}
+        <div className="pointer-events-none absolute inset-x-4.5 flex items-center justify-between md:inset-x-3.5">
+          {Array.from({ length: ticks }, (_, i) => (
+            <span key={i} className="h-2 w-0.5 rounded-full bg-foreground/25" />
+          ))}
+        </div>
+        <SliderPrimitive.Thumb className="block h-5 w-9 rounded-full bg-white shadow-md ring-1 ring-black/10 transition-[background-color,box-shadow] duration-150 select-none hover:ring-2 hover:ring-primary/40 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-hidden active:bg-white/50 data-[dragging]:bg-white/50 md:w-7" />
+      </SliderPrimitive.Control>
+    </SliderPrimitive.Root>
+  )
+}
+
 /** Presentational switch indicator — the surrounding SettingRow handles clicks
  * so the entire row is the toggle target (good for thumbs on mobile). */
 function Switch({ on, disabled }: { on: boolean; disabled?: boolean }) {
@@ -190,13 +225,13 @@ function Switch({ on, disabled }: { on: boolean; disabled?: boolean }) {
       aria-checked={on}
       aria-disabled={disabled}
       className={cn(
-        'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors',
+        'relative inline-flex h-6 w-12 shrink-0 items-center rounded-full transition-colors md:h-5 md:w-11',
         on ? 'bg-primary' : 'bg-muted-foreground/30',
       )}
     >
       <span
         className={cn(
-          'inline-block size-4 rounded-full bg-card shadow transition-transform',
+          'inline-block h-5 w-7 rounded-full bg-card shadow transition-transform md:h-4 md:w-6',
           on ? 'translate-x-4.5' : 'translate-x-0.5',
         )}
       />
