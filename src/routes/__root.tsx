@@ -422,7 +422,7 @@ function RootComponent() {
         // drawer stuck at the keyboard-time height after dismiss.
         repositionInputs={false}
       >
-        <DrawerContent className="bottom-[calc(4rem-1px)]! h-[calc(100vh-4rem+1px)] md:hidden">
+        <DrawerContent className="bottom-[calc(4rem-1px)]! h-[calc(100dvh-4rem+1px)] md:hidden">
           <DrawerTitle className="sr-only">
             {effectiveMode === 'lookup'
               ? '經節'
