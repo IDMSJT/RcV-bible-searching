@@ -326,7 +326,7 @@ function ComposePage() {
       <button
         type="button"
         onClick={() => window.print()}
-        className="fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom)+0.75rem)] right-5 z-40 inline-flex items-center rounded-full bg-primary px-7 py-3.5 text-base font-medium text-primary-foreground shadow-lg transition-colors hover:bg-primary/90 md:bottom-4 md:right-4 md:px-5 md:py-2.5 md:text-sm print:hidden"
+        className="fixed bottom-[calc(var(--nav-h)+0.75rem)] right-5 z-40 inline-flex items-center rounded-full bg-primary px-7 py-3.5 text-base font-medium text-primary-foreground shadow-lg transition-colors hover:bg-primary/90 md:bottom-4 md:right-4 md:px-5 md:py-2.5 md:text-sm print:hidden"
       >
         列印
       </button>

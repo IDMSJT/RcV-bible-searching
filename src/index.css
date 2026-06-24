@@ -129,6 +129,15 @@
   --color-highlight: oklch(0.78 0.15 87 / 0.30);
 }
 
+:root {
+  /* Mobile bottom-nav height, incl. the iOS home-indicator safe area. Used by
+   * the nav itself and by everything that has to sit above it (the drawer's
+   * padding + close distance, the floating print button, the update toast).
+   * Single source of truth — a CSS var, not a JS const, because Tailwind only
+   * generates arbitrary-value classes it sees as literal strings. */
+  --nav-h: calc(3.5rem + env(safe-area-inset-bottom));
+}
+
 html, body, #root {
   /* dvh (dynamic viewport), not %/vh: with viewport-fit=cover, 100vh is the
    * *large* viewport (taller than what's visible behind iOS Safari's address

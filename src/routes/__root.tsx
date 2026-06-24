@@ -364,7 +364,7 @@ function RootComponent() {
 
       {/* Main */}
       <main
-        className="flex-1 overflow-y-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0 print:overflow-visible print:pb-0"
+        className="flex-1 overflow-y-auto pb-[var(--nav-h)] md:pb-0 print:overflow-visible print:pb-0"
         data-scroll-restoration-id="main"
       >
         <Outlet />
@@ -376,7 +376,7 @@ function RootComponent() {
        * across the full width so taps are easy with a thumb. */}
       <nav
         data-bottom-nav
-        className="pointer-events-auto fixed inset-x-0 bottom-0 z-[60] flex h-[calc(3.5rem+env(safe-area-inset-bottom))] items-stretch border-t border-border bg-background pb-[env(safe-area-inset-bottom)] [&>button]:size-auto [&>button]:flex-1 [&>button]:h-full [&>button]:rounded-none md:hidden print:hidden"
+        className="pointer-events-auto fixed inset-x-0 bottom-0 z-[60] flex h-[var(--nav-h)] items-stretch border-t border-border bg-background pb-[env(safe-area-inset-bottom)] [&>button]:size-auto [&>button]:flex-1 [&>button]:h-full [&>button]:rounded-none md:hidden print:hidden"
       >
         {sharedNavButtons(
           // While the drawer is open, light the tab whose panel it shows.
@@ -438,11 +438,10 @@ function RootComponent() {
         <DrawerContent
           style={
             {
-              '--initial-transform':
-                'calc(100dvh - 3.5rem - env(safe-area-inset-bottom))',
+              '--initial-transform': 'calc(100dvh - var(--nav-h))',
             } as CSSProperties
           }
-          className="h-[100dvh] pb-[calc(4rem+env(safe-area-inset-bottom))] md:hidden"
+          className="h-[100dvh] pb-[calc(var(--nav-h)-1px)] md:hidden"
         >
           <DrawerTitle className="sr-only">
             {effectiveMode === 'lookup'
