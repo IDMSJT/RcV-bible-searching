@@ -1,5 +1,5 @@
 import { CANON } from '@/data/canon'
-import { CN_NUMERAL_CLASS } from './chinese'
+import { CN_NUMERAL_CLASS, CN_NUMERAL_CHARS } from './chinese'
 import { parseToken, type ParseCtx, type VerseRef } from './parseToken'
 
 export type { VerseRef } from './parseToken'
@@ -75,6 +75,11 @@ function scanBook(text: string, ctx: ParseCtx): void {
 const DASH_CLASS = '—─－\\-―'
 const REGION_RE = new RegExp(`([${DASH_CLASS}])([^()：:。」\\n]+)|\\(([^()]*)\\)`, 'g')
 const LAST_DASH_RE = new RegExp(`[${DASH_CLASS}](?=[^${DASH_CLASS}]*$)`)
+// A dash inside a heading is appositive punctuation (not a range mark) when a
+// prose word — a CJK char that isn't a numeral — sits before it:
+// 「永遠的生命──三一神──裏作王──羅五18下」. Range dashes are flanked by digits/CN
+// numerals only. Spotting prose lets emitRefs peel it so the trailing ref parses.
+const PROSE_HAN_RE = new RegExp(`(?![${CN_NUMERAL_CHARS}])[\\u3400-\\u9fff]`)
 
 // `與` joins refs the same way `，` does — context still flows ("詩四八2與五10"
 // → 詩48:2 + 詩5:10) but parser sees them as separate tokens. No canonical
@@ -96,14 +101,34 @@ function emitRefs(refsPart: string, ctx: ParseCtx, segs: StudySegment[]): void {
     const refs = parseRefList(tok, ctx)
     if (refs.length > 0) {
       segs.push({ text: tok, refs })
-    } else {
-      // No refs extracted — treat as prose rather than flagging it red.
-      // The parser can't reliably tell "malformed ref" apart from "citation
-      // of another book" or other dash-trailed prose ("…生命讀經，一七頁"),
-      // so we err toward silent fall-through; a real ref failing to parse
-      // will just render as plain text, which is acceptable.
-      segs.push({ text: tok })
+      continue
     }
+    // The dash region regex starts at the FIRST dash, so a heading with
+    // appositive dashes ("…永遠的生命──三一神──裏作王──羅五18下") hands the whole
+    // prose-plus-ref blob here as one token that won't parse. If prose sits
+    // before the last dash, the real ref is after it — peel the prose (scanning
+    // it for a book name) and retry the tail.
+    const dm = tok.match(LAST_DASH_RE)
+    if (dm) {
+      const cut = dm.index! + dm[0].length
+      const prose = tok.slice(0, cut)
+      const tail = tok.slice(cut)
+      if (PROSE_HAN_RE.test(prose) && tail) {
+        scanBook(prose, ctx)
+        const tailRefs = parseRefList(tail, ctx)
+        if (tailRefs.length > 0) {
+          segs.push({ text: prose })
+          segs.push({ text: tail, refs: tailRefs })
+          continue
+        }
+      }
+    }
+    // No refs extracted — treat as prose rather than flagging it red.
+    // The parser can't reliably tell "malformed ref" apart from "citation
+    // of another book" or other dash-trailed prose ("…生命讀經，一七頁"),
+    // so we err toward silent fall-through; a real ref failing to parse
+    // will just render as plain text, which is acceptable.
+    segs.push({ text: tok })
   }
 }
 

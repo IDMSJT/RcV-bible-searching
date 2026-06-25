@@ -127,7 +127,10 @@ export function parseToken(token: string, ctx: ParseCtx): ParseTokenResult {
     // Was the verse explicitly marked with 節? Captured before we strip it,
     // because it gates whether a *CN-numeral* verse is allowed (see below).
     const hadJie = vspec.includes('節')
-    vspec = vspec.replace(/節$/, '')
+    // Strip the 節 verse-unit wherever it sits — it shows up mid-token before a
+    // 上/下 segment marker (「十八節下」), not only trailing (「十八節」). Also peel
+    // any sentence punctuation that rode in on the final ref (「…十六節。」).
+    vspec = vspec.replace(/節/g, '').replace(/[。．.\s]+$/, '')
     if (!vspec) continue
 
     // Peel this spec's trailing 「[連接符]注N」 chain. The first note's
@@ -178,8 +181,17 @@ export function parseToken(token: string, ctx: ParseCtx): ParseTokenResult {
     const vStart = parseNum(vm[1])
     if (vStart == null) continue
     const isRange = vm[4] != null
-    const endChapter = vm[3] ? (parseNum(vm[3]) ?? curChapter) : curChapter
-    const vEnd = isRange ? (parseNum(vm[4]) ?? vStart) : vStart
+    // vm[3] is the optional CN endChapter prefix for cross-chapter ranges
+    // (十一36～十二5). That heuristic only holds when verses are arabic; in an
+    // all-CN range (十一至十二) the greedy prefix wrongly swallows the 十 of the
+    // end verse, so fold it back into the verse and keep the current chapter.
+    let endChapter = curChapter
+    let endVerseStr = vm[4]
+    if (vm[3]) {
+      if (verseIsCN) endVerseStr = vm[3] + (vm[4] ?? '')
+      else endChapter = parseNum(vm[3]) ?? curChapter
+    }
+    const vEnd = isRange ? (parseNum(endVerseStr ?? '') ?? vStart) : vStart
     const base: VerseRef = {
       bookNo: book,
       chapter: curChapter,

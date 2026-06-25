@@ -107,6 +107,25 @@ describe('parseStudyLines — ref regions in point lines', () => {
     if (p.kind !== 'point') throw new Error('typecheck')
     expect(refSigs(p.refs)).toEqual(['66:21:23'])
   })
+
+  it('appositive dashes in the heading do not swallow the trailing refs', () => {
+    // 「永遠的生命──三一神──裏作王──羅五18下」: the region regex starts at the
+    // FIRST dash, but the real refs sit after the LAST one. Prose before that
+    // dash gets peeled so 羅五18下 (+ inherited 21下, 約壹五11～12) still parse.
+    const [p] = parseStudyLines(
+      '一　救贖神的選民，甚至在永遠的生命──三一神──裏作王──羅五18下，21下，約壹五11～12。',
+    )
+    if (p.kind !== 'point') throw new Error('typecheck')
+    expect(refSigs(p.refs)).toEqual(['45:5:18下', '45:5:21下', '62:5:11-12'])
+  })
+
+  it('an em-dash range stays a range, not a heading split (太一1—3)', () => {
+    // The guard only peels prose-led dashes, so 1—3 (digits on both sides)
+    // is left as a range and never mis-split into prose + verse.
+    const [p] = parseStudyLines('壹、起頭—太一1—3')
+    if (p.kind !== 'point') throw new Error('typecheck')
+    expect(refSigs(p.refs)).toEqual(['40:1:1-3'])
+  })
 })
 
 describe('parseStudyLines — 與(?![注註]) splitter', () => {
@@ -137,5 +156,62 @@ describe('parseStudyLines — 與(?![注註]) splitter', () => {
     const [p] = parseStudyLines('叁、x—啟二1注3、2注1')
     if (p.kind !== 'point') throw new Error('typecheck')
     expect(refSigs(p.refs)).toEqual(['66:2:1註3', '66:2:2註1'])
+  })
+})
+
+describe('parseStudyLines — fully-spelled 讀經 reading list', () => {
+  const reading = (refs: string) => {
+    const [p] = parseStudyLines(`讀經：${refs}`)
+    if (p.kind !== 'reading') throw new Error('typecheck')
+    return refSigs(p.refs)
+  }
+
+  it('「節下 / 節上」 (segment marker after 節) is kept, not dropped', () => {
+    // The 節 sits BEFORE the 上/下 — earlier code only stripped a trailing 節.
+    expect(reading('羅馬書五章十八節下，二十一節下')).toEqual(['45:5:18下', '45:5:21下'])
+    expect(reading('歌羅西書三章四節上')).toEqual(['51:3:4上'])
+  })
+
+  it('all-CN verse range is not mis-split into a cross-chapter range', () => {
+    // 「十一至十二」 must stay 5:11-12, not become 5:11–10:2.
+    expect(reading('約翰一書五章十一至十二節')).toEqual(['62:5:11-12'])
+    expect(reading('希伯來書十章十九至二十節')).toEqual(['58:10:19-20'])
+    expect(reading('腓立比書二章十五至十六節')).toEqual(['50:2:15-16'])
+  })
+
+  it('CN-chapter + arabic-verse cross-chapter range still works (十一36～十二5)', () => {
+    expect(reading('馬太福音十一章36～十二5')).toEqual(['40:11-12:36-5'])
+  })
+
+  it('trailing 。 on the final ref does not drop it', () => {
+    expect(reading('馬太福音五章十六節。')).toEqual(['40:5:16'])
+  })
+
+  it('parses the whole fully-spelled reading line (16 refs)', () => {
+    expect(
+      reading(
+        '羅馬書五章十八節下，二十一節下，約翰一書五章十一至十二節，羅馬書五章十節，' +
+          '使徒行傳十一章十八節，創世記三章二十四節，希伯來書十章十九至二十節 ，啟示錄二章七節，' +
+          '希伯來書四章十六節，以弗所書十九章三節，約翰福音一章十二至十三節，歌羅西書三章四節上，' +
+          '彼得後書一章四節下，約翰一書四章十三節，腓立比書二章十五至十六節，馬太福音五章十六節。',
+      ),
+    ).toEqual([
+      '45:5:18下',
+      '45:5:21下',
+      '62:5:11-12',
+      '45:5:10',
+      '44:11:18',
+      '1:3:24',
+      '58:10:19-20',
+      '66:2:7',
+      '58:4:16',
+      '49:19:3',
+      '43:1:12-13',
+      '51:3:4上',
+      '61:1:4下',
+      '62:4:13',
+      '50:2:15-16',
+      '40:5:16',
+    ])
   })
 })
