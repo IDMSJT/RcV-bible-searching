@@ -562,11 +562,12 @@ export function ChapterView({
       </article>
       </ScrollBody>
 
-      {/* Non-modal selection bar — a floating card (no overlay) above the bottom
-       * nav, so the verses behind it stay tappable and you can keep adding to the
-       * selection. Mobile only. */}
+      {/* Non-modal selection card (no overlay) so the verses behind it stay
+       * tappable and you can keep adding to the selection. Floats above the
+       * bottom nav on mobile; a bottom-right toast on desktop (matching the
+       * update prompt). */}
       {selected.size > 0 && (
-        <div className="fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-[55] flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 shadow-lg backdrop-blur md:hidden">
+        <div className="fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-[55] flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 text-sm shadow-lg backdrop-blur md:inset-x-auto md:right-4 md:bottom-4 md:max-w-sm">
           <span className="text-sm text-muted-foreground">已選 {selected.size} 節</span>
           <div className="ml-auto flex items-center gap-2">
             <button
