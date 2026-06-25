@@ -774,7 +774,7 @@ function CopyMenu({ resolved, onDone }: { resolved: ResolvedVerse; onDone: () =>
       // active: covers touch press + desktop click — gives the tactile bg +
       // shrink feedback. transition-all so colors and transform animate
       // together; duration-150 keeps it snappy.
-      className="flex items-center gap-3 rounded-md px-3 py-2 text-left text-base transition-all duration-150 hover:bg-muted active:scale-[0.97] active:bg-muted md:py-1.5 md:text-sm"
+      className="flex items-center gap-3 rounded-md px-3 py-2 text-left text-base transition-all duration-150 hover:bg-muted active:scale-95 active:bg-muted md:py-1.5 md:text-sm"
     >
       <Copy className="size-5 shrink-0 text-muted-foreground md:size-4" strokeWidth={1.8} />
       {children}

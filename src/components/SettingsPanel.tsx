@@ -43,15 +43,15 @@ export function SettingsPanel() {
             <ThemeSwatch active={theme === 'system'} onClick={() => setTheme('system')} variant="system" label="系統" />
           </div>
         </SettingRow>
-        <SettingRow label="複製引用格式" stack>
-          <div className="flex flex-col gap-2.5 pt-1">
+        <SettingRow label="複製格式" stack>
+          <div className="flex flex-col gap-3 pt-1">
             {CITE_FORMATS.map((f) => (
               <button
                 key={f.value}
                 type="button"
                 onClick={() => setCiteFormat(f.value)}
                 className={cn(
-                  'flex items-center justify-between rounded-lg px-3 py-2.5 text-left text-base transition-shadow md:py-2 md:text-sm',
+                  'flex items-center justify-between rounded-lg px-3 py-2.5 text-left text-base transition-all duration-150 select-none active:scale-95 md:py-2 md:text-sm',
                   citeFormat === f.value
                     ? 'text-foreground ring-2 ring-primary'
                     : 'text-muted-foreground ring-1 ring-border hover:bg-muted/40',
@@ -164,11 +164,11 @@ function ThemeSwatch({
       onClick={onClick}
       aria-pressed={active}
       aria-label={label}
-      className="flex flex-col items-center gap-2 focus:outline-none"
+      className="group flex flex-col items-center gap-2 select-none focus:outline-none"
     >
       <span
         className={cn(
-          'relative block aspect-[4/3] w-full overflow-hidden rounded-2xl text-base transition-shadow',
+          'relative block aspect-[4/3] w-full overflow-hidden rounded-2xl text-base transition-[box-shadow,scale] duration-150 group-active:scale-95',
           active ? 'ring-2 ring-primary' : 'ring-1 ring-border',
         )}
       >
