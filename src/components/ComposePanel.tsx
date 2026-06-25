@@ -33,7 +33,7 @@ export function ComposePanel({ onDone }: { onDone?: () => void } = {}) {
         <button
           type="button"
           onClick={onDone}
-          className="absolute bottom-5 right-5 inline-flex items-center rounded-full bg-primary px-7 py-3.5 text-base font-medium text-primary-foreground shadow-lg transition-colors hover:bg-primary/90 md:hidden"
+          className="absolute right-5 bottom-5 rounded-lg bg-primary px-5 py-2.5 text-base font-medium text-primary-foreground shadow-lg transition-all duration-150 hover:bg-primary/90 active:scale-95 md:hidden"
         >
           完成
         </button>

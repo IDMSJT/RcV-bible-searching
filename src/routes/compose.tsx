@@ -8,7 +8,7 @@ import {
 } from '@/data/loadBible'
 import { BOOK_ABBREV } from '@/data/abbrev'
 import { useLocalStorage } from '@/lib/useLocalStorage'
-import { parseStudyLines, type StudySegment, type VerseRef } from '@/lib/studyParse'
+import { parseStudyLines, type StudyLine, type StudySegment, type VerseRef } from '@/lib/studyParse'
 import { renderMarkedText, renderNoteText, NoteList } from '@/lib/renderVerse'
 import { ScrollBody } from '@/components/ScrollBody'
 import type { Annotation, AnnotationData, Bible, Mark } from '@/types/bible'
@@ -189,6 +189,46 @@ function rangeLabel(row: VerseRow): string {
   return `${ab}${row.chapter}:${row.verse}-${end}`
 }
 
+/** One expanded verse / note / range row as a plain-text line for copying. */
+function rowToText(row: VerseRow): string {
+  if (row.range) return `${rangeLabel(row)}（共 ${row.range.count} 節）`
+  const text = row.noteOnly && row.noteToShow ? row.noteToShow.text : row.text
+  return `${verseLabel(row)}　${text}`
+}
+
+/** Serialise the rendered outline (titles, headings, points + their filled-in
+ * verses) to plain text — what the 複製 button puts on the clipboard. */
+function buildComposeText(
+  parsed: StudyLine[],
+  lines: string[],
+  bible: Bible | null,
+  annotations: AnnotationData | null,
+): string {
+  const titleTexts = parsed.flatMap((p) => (p.kind === 'title' ? [p.text] : []))
+  const firstTitleIdx = parsed.findIndex((p) => p.kind === 'title')
+  const out: string[] = []
+  const pushVerses = (refs: VerseRef[]) => {
+    if (!bible) return
+    for (const r of refs)
+      for (const row of expandRef(bible, annotations, r)) out.push('　' + rowToText(row))
+  }
+  parsed.forEach((p, i) => {
+    if (p.kind === 'empty') return
+    if (p.kind === 'title') {
+      if (i === firstTitleIdx) out.push(titleTexts.join('\n'))
+    } else if (p.kind === 'week') {
+      out.push(lines[i].trim())
+    } else if (p.kind === 'reading') {
+      out.push(p.text)
+      pushVerses(p.refs)
+    } else {
+      out.push(p.segments.map((s) => s.text).join(''))
+      pushVerses(p.refs)
+    }
+  })
+  return out.join('\n')
+}
+
 function isRefError(seg: StudySegment, bible: Bible | null): boolean {
   if (!seg.refs) return false
   if (seg.refs.length === 0) return true
@@ -309,6 +349,16 @@ function ComposePage() {
     )
   }
 
+  const copyText = async () => {
+    const text = buildComposeText(parsed, lines, bible, annotations)
+    if (!text) return
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      /* clipboard denied */
+    }
+  }
+
   // Collect every title line so we can render them as one centered <h1> with
   // <br> between, instead of a stack of separate headings.
   let firstTitleIdx = -1
@@ -323,17 +373,25 @@ function ComposePage() {
   return (
     <ScrollBody>
     <article className="relative mx-auto max-w-3xl px-4 py-6 md:px-8 md:py-10">
-      {/* Floating print button — pinned to viewport bottom-right so it's always
-       * reachable while scrolling. On mobile it sits just above the bottom nav
-       * (nav height = 3.5rem + the iOS home-indicator safe area); desktop, where
-       * there's no bottom nav, drops it to bottom-4. */}
-      <button
-        type="button"
-        onClick={() => window.print()}
-        className="fixed bottom-[calc(var(--nav-h)+0.75rem)] right-5 z-40 inline-flex items-center rounded-full bg-primary px-7 py-3.5 text-base font-medium text-primary-foreground shadow-lg transition-colors hover:bg-primary/90 md:bottom-4 md:right-4 md:px-5 md:py-2.5 md:text-sm print:hidden"
-      >
-        列印
-      </button>
+      {/* Floating 複製 + 列印 toolbar — pinned to the viewport bottom-right so
+       * it's always reachable while scrolling. On mobile it sits just above the
+       * bottom nav; desktop, where there's no bottom nav, drops to bottom-4. */}
+      <div className="fixed right-5 bottom-[calc(var(--nav-h)+1.25rem)] z-40 flex items-center gap-2 print:hidden md:right-4 md:bottom-4">
+        <button
+          type="button"
+          onClick={copyText}
+          className="rounded-lg border border-border bg-secondary px-5 py-2.5 text-base font-medium text-secondary-foreground shadow-lg transition-all duration-150 hover:bg-secondary/80 active:scale-95"
+        >
+          複製
+        </button>
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="rounded-lg bg-primary px-5 py-2.5 text-base font-medium text-primary-foreground shadow-lg transition-all duration-150 hover:bg-primary/90 active:scale-95"
+        >
+          列印
+        </button>
+      </div>
       <div className="flex flex-col font-serif leading-relaxed tracking-wide text-[length:var(--reading-fs,1rem)] print:text-base">
         {lines.map((line, i) => {
           const p = parsed[i]
