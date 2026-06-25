@@ -1,3 +1,5 @@
+import { useRef } from 'react'
+import { InputActions } from '@/components/InputActions'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 
@@ -10,6 +12,7 @@ const HEADER_CLS =
 export function ComposePanel({ onDone }: { onDone?: () => void } = {}) {
   const [input, setInput] = useLocalStorage('rcv/compose-input', '')
   const isMobile = useIsMobile()
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   return (
     // `relative` so the mobile dismiss FAB below can pin to the bottom-right
     // corner of the panel. The parent wrapper already supplies `h-full
@@ -17,6 +20,7 @@ export function ComposePanel({ onDone }: { onDone?: () => void } = {}) {
     <div className="relative flex h-full flex-col">
       <h2 className={HEADER_CLS}><span>綱要</span></h2>
       <textarea
+        ref={textareaRef}
         value={input}
         onChange={(e) => setInput(e.target.value)}
         placeholder={
@@ -25,6 +29,14 @@ export function ComposePanel({ onDone }: { onDone?: () => void } = {}) {
             : '貼上綱要，右邊會列出每個點下面的經文…'
         }
         className="flex-1 resize-none bg-transparent p-4 font-serif text-base leading-relaxed outline-none placeholder:text-muted-foreground md:text-sm"
+      />
+      {/* Bottom-left so they clear the 完成 FAB pinned bottom-right. */}
+      <InputActions
+        value={input}
+        onChange={setInput}
+        focusRef={textareaRef}
+        className="bottom-5 left-5"
+        btnClassName="px-5 py-2.5 text-base"
       />
       {/* Mobile-only floating dismiss button — the drawer overlays the rendered
        * article, so once the user is done editing they need a one-tap way to

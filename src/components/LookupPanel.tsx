@@ -19,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { renderMarkedText, renderNoteText } from '@/lib/renderVerse'
+import { InputActions } from '@/components/InputActions'
 import { cn } from '@/lib/utils'
 import type { Annotation, Verse } from '@/types/bible'
 
@@ -703,53 +704,6 @@ function ResultRow({
 /** Clear + paste affordances pinned to the bottom-right of a search field.
  * Paste reads the clipboard (needs a user gesture; hidden where the read API
  * isn't available); clear only shows when there's text. */
-function InputActions({
-  value,
-  onChange,
-  focusRef,
-}: {
-  value: string
-  onChange: (v: string) => void
-  focusRef: React.RefObject<HTMLTextAreaElement | null>
-}) {
-  const canPaste =
-    typeof navigator !== 'undefined' && typeof navigator.clipboard?.readText === 'function'
-
-  const clear = () => {
-    onChange('')
-    focusRef.current?.focus()
-  }
-  const paste = async () => {
-    try {
-      const text = await navigator.clipboard.readText()
-      if (text) {
-        onChange(text)
-        focusRef.current?.focus()
-      }
-    } catch {
-      /* clipboard read denied / unavailable */
-    }
-  }
-
-  const btn =
-    'rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95'
-
-  return (
-    <div className="absolute right-2 bottom-2 flex items-center gap-2">
-      {value && (
-        <button type="button" onClick={clear} className={btn}>
-          清除
-        </button>
-      )}
-      {canPaste && (
-        <button type="button" onClick={paste} className={btn}>
-          貼上
-        </button>
-      )}
-    </div>
-  )
-}
-
 /** Three buttons that copy a single verse in different formats. The English
  * citation falls back to the Chinese abbreviation when 顯示英文 is off (no
  * `enText` available) by simply hiding the en / both options. */
