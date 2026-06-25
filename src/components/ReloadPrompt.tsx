@@ -14,7 +14,10 @@ export function ReloadPrompt() {
   return (
     <div
       role="status"
-      className="fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-[100] flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 text-sm text-popover-foreground shadow-lg backdrop-blur md:inset-x-auto md:right-4 md:bottom-4 md:max-w-sm"
+      // pointer-events-auto: vaul sets `body { pointer-events: none }` while a
+      // modal drawer is open, which would otherwise make this top-most toast
+      // unclickable. Re-enable it for the toast (same trick the bottom nav uses).
+      className="pointer-events-auto fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-[100] flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 text-sm text-popover-foreground shadow-lg backdrop-blur md:inset-x-auto md:right-4 md:bottom-4 md:max-w-sm"
     >
       <span className="flex-1">有新版本可用</span>
       <button
