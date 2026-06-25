@@ -250,6 +250,11 @@ export function ChapterView({
     })
   }, [])
 
+  // In-flight press: the long-press timer, the start point (to cancel on
+  // scroll), and whether the long-press already fired (so the trailing click
+  // doesn't toggle the verse back off).
+  const pressRef = useRef<{ x: number; y: number; long: boolean; timer: number } | null>(null)
+
   // Clear selection whenever the chapter changes.
   useEffect(() => {
     setSelected(new Set())
@@ -342,16 +347,53 @@ export function ChapterView({
   // appears at the bottom doesn't hide it; later taps just toggle. The scroll
   // is deferred a frame so the extra bottom padding (added on this same render)
   // exists first — otherwise the last verses have no room to move up.
-  const handleVerseTap = (verse: number, e: React.MouseEvent) => {
+  const selectVerse = (verse: number, el: Element | null) => {
     const wasEmpty = selected.size === 0
-    const el = e.currentTarget
     toggleSelect(verse)
-    if (wasEmpty) {
+    if (wasEmpty && el) {
       requestAnimationFrame(() => {
         el.scrollIntoView({ block: 'center', behavior: 'smooth' })
       })
     }
   }
+
+  // Both a tap and a ~500ms long-press select a verse. The pointer handlers run
+  // the long-press timer (cancelled once the finger moves past a few px = a
+  // scroll); a quick tap is handled on click. The `long` flag stops the trailing
+  // click from toggling the verse straight back off after a long-press fired.
+  const versePress = (verse: number) => ({
+    onPointerDown: (e: React.PointerEvent) => {
+      const el = e.currentTarget
+      const st = { x: e.clientX, y: e.clientY, long: false, timer: 0 }
+      st.timer = window.setTimeout(() => {
+        st.long = true
+        selectVerse(verse, el)
+      }, 500)
+      pressRef.current = st
+    },
+    onPointerMove: (e: React.PointerEvent) => {
+      const st = pressRef.current
+      if (st && (Math.abs(e.clientX - st.x) > 10 || Math.abs(e.clientY - st.y) > 10)) {
+        clearTimeout(st.timer)
+        pressRef.current = null
+      }
+    },
+    onPointerUp: () => {
+      const st = pressRef.current
+      if (st) clearTimeout(st.timer)
+    },
+    onPointerCancel: () => {
+      const st = pressRef.current
+      if (st) clearTimeout(st.timer)
+      pressRef.current = null
+    },
+    onClick: (e: React.MouseEvent) => {
+      const st = pressRef.current
+      pressRef.current = null
+      if (st?.long) return // long-press already selected; ignore the click
+      selectVerse(verse, e.currentTarget)
+    },
+  })
 
   const selectedText = () =>
     (chapter?.verses ?? [])
@@ -507,13 +549,13 @@ export function ChapterView({
               <Fragment key={r.key}>
                 <span
                   ref={r.ref ? assignScroll : undefined}
-                  onClick={(e) => handleVerseTap(r.verse, e)}
+                  {...versePress(r.verse)}
                   className="pt-1 text-right text-xs font-sans text-muted-foreground select-none"
                 >
                   {r.num}
                 </span>
                 <div
-                  onClick={(e) => handleVerseTap(r.verse, e)}
+                  {...versePress(r.verse)}
                   className="select-none [-webkit-touch-callout:none]"
                 >
                   <p
@@ -523,9 +565,15 @@ export function ChapterView({
                       selected.has(r.verse) && 'bg-blue-500/20 dark:bg-blue-400/25',
                     )}
                   >
-                    {renderMarkedText(r.text, r.marks, r.notes, (n) =>
-                      toggleNote(r.verse, n),
-                    )}
+                    {renderMarkedText(r.text, r.marks, r.notes, (n) => {
+                      // A long-press over a note already selected the verse —
+                      // don't also open the note.
+                      if (pressRef.current?.long) {
+                        pressRef.current = null
+                        return
+                      }
+                      toggleNote(r.verse, n)
+                    })}
                   </p>
                   {r.en && (
                     <p className="mt-0.5 font-sans text-[0.9em] text-muted-foreground">{r.en}</p>
