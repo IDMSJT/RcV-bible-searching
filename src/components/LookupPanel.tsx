@@ -475,6 +475,8 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
               onChange={(e) => setQ(e.target.value)}
               placeholder={PLACEHOLDER}
               spellCheck={false}
+              // Edit surface owns its touches; don't fight vaul's drawer drag.
+              data-vaul-no-drag
               className={cn(
                 FIELD_CLS,
                 'relative block h-[120px] w-full resize-none break-words border-0 bg-transparent text-transparent caret-foreground shadow-none focus-visible:ring-0 [field-sizing:fixed]',
@@ -493,6 +495,8 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
               onChange={(e) => setKw(e.target.value)}
               placeholder="搜尋關鍵字…（中英文皆可、空白分隔多詞）"
               spellCheck={false}
+              // Edit surface owns its touches; don't fight vaul's drawer drag.
+              data-vaul-no-drag
               className={cn(
                 FIELD_CLS,
                 'relative block h-[120px] w-full resize-none break-words border-0 bg-transparent shadow-none focus-visible:ring-0 [field-sizing:fixed]',

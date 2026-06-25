@@ -23,12 +23,18 @@ export function ComposePanel({ onDone }: { onDone?: () => void } = {}) {
         ref={textareaRef}
         value={input}
         onChange={(e) => setInput(e.target.value)}
+        // The textarea fills the whole drawer; let it own its touches (caret,
+        // selection, scroll) instead of fighting vaul's drag. Dismiss via the
+        // header drag / 完成 button / backdrop tap.
+        data-vaul-no-drag
         placeholder={
           isMobile
             ? '貼上綱要，下面會列出每個點的經文…'
             : '貼上綱要，右邊會列出每個點下面的經文…'
         }
-        className="flex-1 resize-none bg-transparent p-4 font-serif text-base leading-relaxed outline-none placeholder:text-muted-foreground md:text-sm"
+        // pb-20 leaves room below the last line so the floating 清除/貼上/完成
+        // buttons (pinned bottom-5) don't cover text when scrolled to the end.
+        className="flex-1 resize-none bg-transparent p-4 pb-20 font-serif text-base leading-relaxed outline-none placeholder:text-muted-foreground md:text-sm"
       />
       {/* Bottom-left so they clear the 完成 FAB pinned bottom-right. */}
       <InputActions

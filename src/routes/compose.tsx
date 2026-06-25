@@ -372,7 +372,10 @@ function ComposePage() {
 
   return (
     <ScrollBody>
-    <article className="relative mx-auto max-w-3xl px-4 py-6 md:px-8 md:py-10">
+    {/* pb-20 clears the floating 複製/列印 toolbar so the last outline line
+     * isn't covered when scrolled to the end (md:py-10 would otherwise reset
+     * the bottom, so it gets its own md:pb-20). */}
+    <article className="relative mx-auto max-w-3xl px-4 py-6 pb-20 md:px-8 md:py-10 md:pb-20">
       {/* Floating 複製 + 列印 toolbar — pinned to the viewport bottom-right so
        * it's always reachable while scrolling. On mobile it sits just above the
        * bottom nav; desktop, where there's no bottom nav, drops to bottom-4. */}
