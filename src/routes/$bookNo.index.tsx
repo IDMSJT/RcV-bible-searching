@@ -38,11 +38,11 @@ function BookOutlinePage() {
               search={{}}
               className="inline-flex items-center px-4 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
-              <ChevronLeft className="size-3.5" />
+              <ChevronLeft className="size-5 [stroke-width:1.8]" />
             </Link>
           ) : (
             <span className="inline-flex items-center px-4 text-muted-foreground/40">
-              <ChevronLeft className="size-3.5" />
+              <ChevronLeft className="size-5 [stroke-width:1.8]" />
             </span>
           )}
           <h1 className="self-center text-base font-medium tracking-tight">
@@ -54,7 +54,7 @@ function BookOutlinePage() {
             search={{}}
             className="inline-flex items-center px-4 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            <ChevronRight className="size-3.5" />
+            <ChevronRight className="size-5 [stroke-width:1.8]" />
           </Link>
         </div>
       </header>

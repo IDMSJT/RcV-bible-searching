@@ -111,12 +111,12 @@ function ChapterPage() {
       headingAnchor={headingAnchor}
       leftAction={
         <ArrowLink target={prev}>
-          <ChevronLeft className="size-3.5" />
+          <ChevronLeft className="size-5 [stroke-width:1.8]" />
         </ArrowLink>
       }
       rightAction={
         <ArrowLink target={next}>
-          <ChevronRight className="size-3.5" />
+          <ChevronRight className="size-5 [stroke-width:1.8]" />
         </ArrowLink>
       }
     />

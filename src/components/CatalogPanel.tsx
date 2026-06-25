@@ -287,7 +287,7 @@ function ChapterHeader({
           aria-label="返回書卷選擇"
           className="inline-flex items-center px-4 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
-          <ChevronLeft className="size-4" />
+          <ChevronLeft className="size-5 [stroke-width:1.8]" />
         </button>
       ) : (
         <span className="inline-flex items-center px-4">{book.name}</span>
