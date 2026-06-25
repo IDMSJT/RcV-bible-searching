@@ -13,6 +13,7 @@ import {
 } from '@/data/loadBible'
 import { BOOK_ABBREV } from '@/data/abbrev'
 import { BOOK_ABBREV_EN } from '@/data/abbrevEn'
+import { formatVerseRef, DEFAULT_CITE_FORMAT, type CiteFormat } from '@/lib/cite'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
@@ -29,7 +30,7 @@ import type { Annotation, Verse } from '@/types/bible'
 const FIELD_CLS = 'p-4 font-serif text-base leading-relaxed md:text-sm'
 
 const HEADER_CLS =
-  'sticky top-0 z-10 flex h-[var(--header-h)] items-center justify-center border-b border-border bg-muted/80 px-4 text-base font-normal backdrop-blur md:h-9 md:justify-start md:text-xs md:font-semibold'
+  'sticky top-0 z-10 flex h-[var(--header-h)] shrink-0 items-center justify-center border-b border-border bg-muted/80 px-4 text-base font-normal backdrop-blur md:h-9 md:justify-start md:text-xs md:font-semibold'
 
 const PLACEHOLDER =
   '輸入經文出處，例如：\n約翰福音一章一節，三章十六節，十四章六節'
@@ -94,15 +95,19 @@ function refKey(bookNo: number, chapterNo: number, hl: string): string {
 /** Format a single resolved verse as a quotable line for copy. Returns an
  * empty string when the requested format needs English but the verse has none,
  * so callers can `.filter(Boolean)` and not emit blank lines. */
-function formatCopyText(r: ResolvedVerse, format: 'zh' | 'en' | 'both'): string {
+function formatCopyText(
+  r: ResolvedVerse,
+  format: 'zh' | 'en' | 'both',
+  cite: CiteFormat,
+): string {
   // Note-only rows have no verse text and no English source — fold every
   // format down to the note body with a 註N-suffixed label.
   if (r.noteOnly && r.noteToShow) {
     if (format === 'en') return ''
-    const label = `${BOOK_ABBREV[r.bookNo] ?? ''}${r.chapterNo}:${r.verse.verse}註${r.noteToShow.n}`
+    const label = `${formatVerseRef(r.bookNo, r.chapterNo, r.verse.verse, cite)}註${r.noteToShow.n}`
     return `${label}『${r.noteToShow.text}』`
   }
-  const zhLabel = `${BOOK_ABBREV[r.bookNo] ?? ''}${r.chapterNo}:${r.verse.verse}`
+  const zhLabel = formatVerseRef(r.bookNo, r.chapterNo, r.verse.verse, cite)
   const enLabel = `${BOOK_ABBREV_EN[r.bookNo] ?? ''} ${r.chapterNo}:${r.verse.verse}`
   if (format === 'zh') return `${zhLabel}『${r.verse.text}』`
   if (format === 'en') return r.enText ? `${enLabel} "${r.enText}"` : ''
@@ -699,9 +704,10 @@ function ResultRow({
  * `enText` available) by simply hiding the en / both options. */
 function CopyMenu({ resolved, onDone }: { resolved: ResolvedVerse; onDone: () => void }) {
   const { enText } = resolved
+  const [cite] = useLocalStorage<CiteFormat>('rcv/cite-format', DEFAULT_CITE_FORMAT)
 
   const copy = async (format: 'zh' | 'en' | 'both') => {
-    const text = formatCopyText(resolved, format)
+    const text = formatCopyText(resolved, format, cite)
     if (!text) return
     try { await navigator.clipboard.writeText(text) } catch { /* clipboard denied */ }
     onDone()
@@ -741,11 +747,12 @@ function CopyMenu({ resolved, onDone }: { resolved: ResolvedVerse; onDone: () =>
  * at once. Empty list / no English greys out the relevant buttons. */
 function CopyAllBar({ resolved }: { resolved: ResolvedVerse[] }) {
   const isMobile = useIsMobile()
+  const [cite] = useLocalStorage<CiteFormat>('rcv/cite-format', DEFAULT_CITE_FORMAT)
   const empty = resolved.length === 0
   const noEn = empty || !resolved.some((r) => r.enText)
 
   const copyAll = async (format: 'zh' | 'en' | 'both') => {
-    const lines = resolved.map((r) => formatCopyText(r, format)).filter(Boolean)
+    const lines = resolved.map((r) => formatCopyText(r, format, cite)).filter(Boolean)
     if (!lines.length) return
     const sep = format === 'both' ? '\n\n' : '\n'
     try { await navigator.clipboard.writeText(lines.join(sep)) } catch { /* denied */ }

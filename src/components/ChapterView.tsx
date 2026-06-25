@@ -18,6 +18,7 @@ import {
   chapterOutlineByAnchor,
 } from '@/data/loadBible'
 import { BOOK_BY_NO } from '@/data/canon'
+import { formatVerseRef, DEFAULT_CITE_FORMAT, type CiteFormat } from '@/lib/cite'
 import { chapterUnit, formatOutlineRange, displayMarker } from '@/lib/chinese'
 import { renderMarkedText, sliceMarks, NoteList } from '@/lib/renderVerse'
 import type { HlItem } from '@/lib/highlight'
@@ -104,6 +105,7 @@ export function ChapterView({
   const [showOutline] = useLocalStorage('rcv/show-outline', true)
   const [showEnglish] = useLocalStorage('rcv/show-english', false)
   const [showNotes] = useLocalStorage('rcv/show-notes', true)
+  const [citeFormat] = useLocalStorage<CiteFormat>('rcv/cite-format', DEFAULT_CITE_FORMAT)
   const { data: bibleEn } = useBibleEn(showEnglish)
   const { data: annotations } = useAnnotations(showNotes)
   const enChapter = showEnglish ? findChapter(bibleEn, bookNo, chapterNo) : null
@@ -233,6 +235,26 @@ export function ChapterView({
     [notesKey, writeStorage],
   )
 
+  // --- 多選經節(手機)-------------------------------------------------------
+  // Tap a verse to add/remove it from `selected`; the floating bar (non-modal,
+  // so you can keep tapping) appears whenever ≥1 verse is chosen and copies /
+  // shares them. Footnote sups still open notes (they stop propagation).
+  const [selected, setSelected] = useState<Set<number>>(() => new Set())
+
+  const toggleSelect = useCallback((verse: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(verse)) next.delete(verse)
+      else next.add(verse)
+      return next
+    })
+  }, [])
+
+  // Clear selection whenever the chapter changes.
+  useEffect(() => {
+    setSelected(new Set())
+  }, [bookNo, chapterNo])
+
   // Every footnote in this chapter, keyed `verse:n`. Used by the「展開全部」
   // toggle below — empty when 顯示註釋 is off or the chapter has no notes.
   const allNoteKeys = useMemo(() => {
@@ -315,6 +337,56 @@ export function ChapterView({
   const outlineMap = showOutline
     ? chapterOutlineByAnchor(outline, bookNo, chapterNo)
     : new Map<string, OutlineEntry[]>()
+
+  // First tap (0 → 1 selected) recenters the verse so the floating bar that
+  // appears at the bottom doesn't hide it; later taps just toggle. The scroll
+  // is deferred a frame so the extra bottom padding (added on this same render)
+  // exists first — otherwise the last verses have no room to move up.
+  const handleVerseTap = (verse: number, e: React.MouseEvent) => {
+    const wasEmpty = selected.size === 0
+    const el = e.currentTarget
+    toggleSelect(verse)
+    if (wasEmpty) {
+      requestAnimationFrame(() => {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      })
+    }
+  }
+
+  const selectedText = () =>
+    (chapter?.verses ?? [])
+      .filter((v) => selected.has(v.verse))
+      .map((v) => `${formatVerseRef(bookNo, chapterNo, v.verse, citeFormat)}『${v.text}』`)
+      .join('\n')
+
+  const exitSelection = () => {
+    setSelected(new Set())
+  }
+
+  const copySelected = async () => {
+    const text = selectedText()
+    if (text) {
+      try {
+        await navigator.clipboard.writeText(text)
+      } catch {
+        /* clipboard denied */
+      }
+    }
+    exitSelection()
+  }
+
+  const shareSelected = async () => {
+    const text = selectedText()
+    if (!text) return
+    try {
+      if (navigator.share) await navigator.share({ text })
+      else await navigator.clipboard.writeText(text)
+      exitSelection() // only dismiss after a completed share — keep the
+      // selection if the user backs out of the share sheet.
+    } catch {
+      /* cancelled / denied — leave the selection so they can retry */
+    }
+  }
 
   const rows: Row[] = []
   let headingRefDone = false
@@ -401,7 +473,22 @@ export function ChapterView({
       </header>
 
       <ScrollBody>
-      <article className="mx-auto max-w-3xl px-4 py-6 md:px-8 md:py-10">
+      <article
+        className={cn(
+          // Extra bottom room while selecting so the last verses can scroll
+          // above the floating selection card, keeping the same breathing room
+          // they normally have: original py (1.5rem) + card height (h-14 =
+          // 3.5rem) + the card's 0.75rem inset above the nav = 92px. The
+          // transition stays defined and only the duration toggles: instant
+          // (duration-0) when it appears so the scroll-to-centre has room right
+          // away, but eased (duration-300) when it collapses so the margin
+          // shrinks smoothly on exit.
+          'mx-auto max-w-3xl px-4 py-6 transition-[padding-bottom] md:px-8 md:py-10',
+          selected.size > 0
+            ? 'pb-[calc(1.5rem+3.5rem+0.75rem)] duration-0'
+            : 'duration-300',
+        )}
+      >
         {/* TODO: 展開/收起所有註釋 — toggleAll + allExpanded are wired up
          * and ready (see useMemo above); UI is hidden until we decide on a
          * better entry point than a top-right text button. */}
@@ -420,15 +507,20 @@ export function ChapterView({
               <Fragment key={r.key}>
                 <span
                   ref={r.ref ? assignScroll : undefined}
-                  className="pt-1 text-right text-xs font-sans text-muted-foreground"
+                  onClick={(e) => handleVerseTap(r.verse, e)}
+                  className="pt-1 text-right text-xs font-sans text-muted-foreground select-none"
                 >
                   {r.num}
                 </span>
-                <div>
+                <div
+                  onClick={(e) => handleVerseTap(r.verse, e)}
+                  className="select-none [-webkit-touch-callout:none]"
+                >
                   <p
                     className={cn(
-                      'font-medium leading-relaxed',
-                      r.hl && 'rounded bg-highlight px-1 -mx-1',
+                      'rounded px-1 -mx-1 font-medium leading-relaxed',
+                      r.hl && 'bg-highlight',
+                      selected.has(r.verse) && 'bg-blue-500/20 dark:bg-blue-400/25',
                     )}
                   >
                     {renderMarkedText(r.text, r.marks, r.notes, (n) =>
@@ -469,6 +561,40 @@ export function ChapterView({
         )}
       </article>
       </ScrollBody>
+
+      {/* Non-modal selection bar — a floating card (no overlay) above the bottom
+       * nav, so the verses behind it stay tappable and you can keep adding to the
+       * selection. Mobile only. */}
+      {selected.size > 0 && (
+        <div className="fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-[55] flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 shadow-lg backdrop-blur md:hidden">
+          <span className="text-sm text-muted-foreground">已選 {selected.size} 節</span>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={copySelected}
+              disabled={selected.size === 0}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-95 disabled:opacity-50"
+            >
+              複製
+            </button>
+            <button
+              type="button"
+              onClick={shareSelected}
+              disabled={selected.size === 0}
+              className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95 disabled:opacity-50"
+            >
+              分享
+            </button>
+            <button
+              type="button"
+              onClick={exitSelection}
+              className="rounded-lg px-3 py-2 text-sm text-muted-foreground transition-all duration-150 hover:text-foreground active:scale-95"
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      )}
     </>
   )
 }

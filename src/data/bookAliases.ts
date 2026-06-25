@@ -8,7 +8,7 @@ import { BOOK_ABBREV } from './abbrev'
  * use their full name or standard abbreviation (撒上, 約壹, …) instead, so that
  * compact forms like 約一1 stay unambiguous (= 約翰福音 1:1).
  */
-const MID_FORM: Record<number, string> = {
+export const MID_FORM: Record<number, string> = {
   1: '創世', 2: '出埃及', 3: '利未', 4: '民數', 5: '申命',
   6: '約書亞', 7: '士師', 8: '路得',
   15: '以斯拉', 16: '尼希米', 17: '以斯帖', 18: '約伯',
@@ -16,7 +16,7 @@ const MID_FORM: Record<number, string> = {
   28: '何西阿', 29: '約珥', 30: '阿摩司', 31: '俄巴底亞', 32: '約拿',
   33: '彌迦', 34: '那鴻', 35: '哈巴谷', 36: '西番雅', 37: '哈該',
   38: '撒迦利亞', 39: '瑪拉基',
-  40: '馬太', 41: '馬可', 42: '路加', 43: '約翰', 44: '使徒',
+  40: '馬太', 41: '馬可', 42: '路加', 43: '約翰', 44: '行傳',
   45: '羅馬', 48: '加拉太', 49: '以弗所', 50: '腓立比', 51: '歌羅西',
   56: '提多', 57: '腓利門', 58: '希伯來', 59: '雅各', 65: '猶大',
 }

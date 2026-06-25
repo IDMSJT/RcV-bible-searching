@@ -2,11 +2,12 @@ import { Check } from 'lucide-react'
 import { Slider as SliderPrimitive } from '@base-ui/react/slider'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
+import { CITE_FORMATS, DEFAULT_CITE_FORMAT, type CiteFormat } from '@/lib/cite'
 
 type Theme = 'light' | 'dark' | 'system'
 
 const HEADER_CLS =
-  'sticky top-0 z-10 flex h-[var(--header-h)] items-center justify-center border-b border-border bg-muted/80 px-4 text-base font-normal backdrop-blur md:h-9 md:justify-between md:text-xs md:font-semibold'
+  'sticky top-0 z-10 flex h-[var(--header-h)] shrink-0 items-center justify-center border-b border-border bg-muted/80 px-4 text-base font-normal backdrop-blur md:h-9 md:justify-between md:text-xs md:font-semibold'
 
 // All settings state lives here. The values themselves are picked up by other
 // consumers (ChapterView, ReadingPreferences, …) via useLocalStorage on the
@@ -17,6 +18,7 @@ export function SettingsPanel() {
   const [showEnglish, setShowEnglish] = useLocalStorage('rcv/show-english', false)
   const [showNotes, setShowNotes] = useLocalStorage('rcv/show-notes', true)
   const [fontSize, setFontSize] = useLocalStorage('rcv/font-size', 16)
+  const [citeFormat, setCiteFormat] = useLocalStorage<CiteFormat>('rcv/cite-format', DEFAULT_CITE_FORMAT)
 
   return (
     <>
@@ -41,8 +43,35 @@ export function SettingsPanel() {
             <ThemeSwatch active={theme === 'system'} onClick={() => setTheme('system')} variant="system" label="系統" />
           </div>
         </SettingRow>
+        <SettingRow label="複製引用格式" stack>
+          <div className="flex flex-col gap-2.5 pt-1">
+            {CITE_FORMATS.map((f) => (
+              <button
+                key={f.value}
+                type="button"
+                onClick={() => setCiteFormat(f.value)}
+                className={cn(
+                  'flex items-center justify-between rounded-lg px-3 py-2.5 text-left text-base transition-shadow md:py-2 md:text-sm',
+                  citeFormat === f.value
+                    ? 'text-foreground ring-2 ring-primary'
+                    : 'text-muted-foreground ring-1 ring-border hover:bg-muted/40',
+                )}
+              >
+                <span>
+                  {f.example}
+                  <span className="text-muted-foreground">『經文』</span>
+                </span>
+                {citeFormat === f.value && (
+                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
+                    <Check className="size-3 [stroke-width:3]" />
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </SettingRow>
       </div>
-      <p className="mt-auto px-4 py-4 text-center text-xs text-muted-foreground">
+      <p className="mt-auto shrink-0 px-4 py-4 text-center text-xs text-muted-foreground">
         v{__APP_VERSION__}
       </p>
     </>
