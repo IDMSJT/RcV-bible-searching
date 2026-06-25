@@ -14,7 +14,6 @@ import {
 import { BOOK_ABBREV } from '@/data/abbrev'
 import { BOOK_ABBREV_EN } from '@/data/abbrevEn'
 import { formatVerseRef, DEFAULT_CITE_FORMAT, type CiteFormat } from '@/lib/cite'
-import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
 import { useIsMobile } from '@/lib/useIsMobile'
@@ -455,7 +454,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
        * results below it. Desktop's aside already keeps the input visible by
        * scrolling the results in their own pane, so the sticky is a no-op
        * there. */}
-      <div className="sticky top-14 z-10 border-b border-border bg-background md:static">
+      <div className="sticky top-[var(--header-h)] z-10 border-b border-border bg-background md:static">
         {tab === 'ref' ? (
           <div className="relative">
             {/* Backdrop: same text, failed tokens in red */}
@@ -480,6 +479,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
                 'relative block h-[120px] w-full resize-none break-words border-0 bg-transparent text-transparent caret-foreground shadow-none focus-visible:ring-0 [field-sizing:fixed]',
               )}
             />
+            <InputActions value={q} onChange={setQ} focusRef={textareaRef} />
           </div>
         ) : (
           // Mirror the ref textarea's frame exactly so flipping tabs keeps
@@ -497,6 +497,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
                 'relative block h-[120px] w-full resize-none break-words border-0 bg-transparent shadow-none focus-visible:ring-0 [field-sizing:fixed]',
               )}
             />
+            <InputActions value={kw} onChange={setKw} focusRef={kwTextareaRef} />
           </div>
         )}
         <CopyAllBar resolved={resolved} />
@@ -699,6 +700,56 @@ function ResultRow({
   )
 }
 
+/** Clear + paste affordances pinned to the bottom-right of a search field.
+ * Paste reads the clipboard (needs a user gesture; hidden where the read API
+ * isn't available); clear only shows when there's text. */
+function InputActions({
+  value,
+  onChange,
+  focusRef,
+}: {
+  value: string
+  onChange: (v: string) => void
+  focusRef: React.RefObject<HTMLTextAreaElement | null>
+}) {
+  const canPaste =
+    typeof navigator !== 'undefined' && typeof navigator.clipboard?.readText === 'function'
+
+  const clear = () => {
+    onChange('')
+    focusRef.current?.focus()
+  }
+  const paste = async () => {
+    try {
+      const text = await navigator.clipboard.readText()
+      if (text) {
+        onChange(text)
+        focusRef.current?.focus()
+      }
+    } catch {
+      /* clipboard read denied / unavailable */
+    }
+  }
+
+  const btn =
+    'rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95'
+
+  return (
+    <div className="absolute right-2 bottom-2 flex items-center gap-2">
+      {value && (
+        <button type="button" onClick={clear} className={btn}>
+          清除
+        </button>
+      )}
+      {canPaste && (
+        <button type="button" onClick={paste} className={btn}>
+          貼上
+        </button>
+      )}
+    </div>
+  )
+}
+
 /** Three buttons that copy a single verse in different formats. The English
  * citation falls back to the Chinese abbreviation when 顯示英文 is off (no
  * `enText` available) by simply hiding the en / both options. */
@@ -746,7 +797,6 @@ function CopyMenu({ resolved, onDone }: { resolved: ResolvedVerse; onDone: () =>
 /** Bulk copy bar — sits just below the input and copies every resolved verse
  * at once. Empty list / no English greys out the relevant buttons. */
 function CopyAllBar({ resolved }: { resolved: ResolvedVerse[] }) {
-  const isMobile = useIsMobile()
   const [cite] = useLocalStorage<CiteFormat>('rcv/cite-format', DEFAULT_CITE_FORMAT)
   const empty = resolved.length === 0
   const noEn = empty || !resolved.some((r) => r.enText)
@@ -758,54 +808,20 @@ function CopyAllBar({ resolved }: { resolved: ResolvedVerse[] }) {
     try { await navigator.clipboard.writeText(lines.join(sep)) } catch { /* denied */ }
   }
 
-  // Mobile: tall (48px) ghost buttons in a segmented row with hairline
-  // dividers between them. We render explicit <span> dividers because
-  // Tailwind's `divide-x` fights with the Button base class's transparent
-  // border. Desktop keeps the original secondary-xs pill layout, untouched.
-  if (isMobile) {
-    return (
-      <div className="flex items-stretch border-t border-border">
-        <Button
-          variant="ghost"
-          onClick={() => copyAll('zh')}
-          disabled={empty}
-          className="h-11 rounded-none px-4 text-sm"
-        >
-          複製中文
-        </Button>
-        <span aria-hidden className="w-px self-stretch bg-border" />
-        <Button
-          variant="ghost"
-          onClick={() => copyAll('en')}
-          disabled={noEn}
-          className="h-11 rounded-none px-4 text-sm"
-        >
-          複製英文
-        </Button>
-        <span aria-hidden className="w-px self-stretch bg-border" />
-        <Button
-          variant="ghost"
-          onClick={() => copyAll('both')}
-          disabled={noEn}
-          className="h-11 rounded-none px-4 text-sm"
-        >
-          複製中英文
-        </Button>
-      </div>
-    )
-  }
+  const btn =
+    'rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95 disabled:opacity-50'
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 border-t border-border p-2">
-      <Button variant="secondary" size="xs" onClick={() => copyAll('zh')} disabled={empty}>
+    <div className="flex flex-wrap items-center gap-2 border-t border-border p-2">
+      <button type="button" className={btn} onClick={() => copyAll('zh')} disabled={empty}>
         複製中文
-      </Button>
-      <Button variant="secondary" size="xs" onClick={() => copyAll('en')} disabled={noEn}>
+      </button>
+      <button type="button" className={btn} onClick={() => copyAll('en')} disabled={noEn}>
         複製英文
-      </Button>
-      <Button variant="secondary" size="xs" onClick={() => copyAll('both')} disabled={noEn}>
+      </button>
+      <button type="button" className={btn} onClick={() => copyAll('both')} disabled={noEn}>
         複製中英文
-      </Button>
+      </button>
     </div>
   )
 }
