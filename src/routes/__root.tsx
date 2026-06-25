@@ -455,7 +455,11 @@ function RootComponent() {
           <div
             key={effectiveMode}
             className={cn(
-              'h-full overflow-y-auto animate-in fade-in duration-600',
+              'h-full animate-in fade-in duration-600',
+              // Only scroll the content at the top snap. At a lower snap
+              // (settings' 0.7) keep it overflow-hidden so a drag expands the
+              // drawer to full first, instead of scrolling and expanding at once.
+              drawerSnap === 1 ? 'overflow-y-auto' : 'overflow-hidden',
               sidebarFlexCol && 'flex flex-col',
             )}
           >
