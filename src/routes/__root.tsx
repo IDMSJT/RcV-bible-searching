@@ -376,7 +376,11 @@ function RootComponent() {
        * across the full width so taps are easy with a thumb. */}
       <nav
         data-bottom-nav
-        className="pointer-events-auto fixed inset-x-0 bottom-0 z-[60] flex h-[var(--nav-h)] items-stretch border-t border-border bg-background pb-[env(safe-area-inset-bottom)] [&>button]:size-auto [&>button]:flex-1 [&>button]:h-full [&>button]:rounded-none md:hidden print:hidden"
+        // Height includes the home-indicator inset; the buttons fill it and
+        // their internal spacers handle vertical placement (see NavButton):
+        // centred when there's little slack (no safe-area), sunk toward the
+        // bottom with a capped gap when the inset is large.
+        className="pointer-events-auto fixed inset-x-0 bottom-0 z-[60] flex h-[var(--nav-h)] items-stretch border-t border-border bg-background [&>button]:size-auto [&>button]:flex-1 [&>button]:h-full [&>button]:rounded-none md:hidden print:hidden"
       >
         {sharedNavButtons(
           // While the drawer is open, light the tab whose panel it shows.
@@ -499,13 +503,19 @@ function NavButton({
         // would stop at the buttons and leave the safe-area strip below them
         // an odd mismatched colour. Desktop keeps the Slack-style icon chip
         // (the inner span carries the highlight, see below).
-        'group inline-flex flex-col items-center justify-center gap-1.5 rounded-md transition-colors md:p-2',
+        // Vertical placement (mobile) is done by the two flex spacers below, not
+        // justify: centred when slack is small (no safe-area), sunk toward the
+        // bottom with a capped gap when the home-indicator inset is large.
+        'group inline-flex flex-col items-center rounded-md transition-colors md:p-2',
         active
           ? 'text-primary md:text-secondary-foreground'
           : 'text-muted-foreground hover:text-foreground',
         className,
       )}
     >
+      {/* Top spacer grows freely; bottom spacer grows but is capped (max-h-5),
+       * so extra height (a big safe-area) pushes the content down only so far. */}
+      <span aria-hidden className="flex-1 md:hidden" />
       <span
         className={cn(
           'inline-flex items-center justify-center',
@@ -526,13 +536,14 @@ function NavButton({
       </span>
       <span
         className={cn(
-          'text-xs leading-none md:text-[11px] md:font-medium',
+          'mt-1.5 text-xs leading-none md:text-[11px] md:font-medium',
           // Mobile: bolder label on the active tab; desktop keeps font-medium.
           active ? 'font-semibold' : 'font-medium',
         )}
       >
         {label}
       </span>
+      <span aria-hidden className="max-h-5 flex-1 md:hidden" />
     </button>
   )
 }
