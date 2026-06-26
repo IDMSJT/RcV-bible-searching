@@ -7,7 +7,7 @@ import { CITE_FORMATS, DEFAULT_CITE_FORMAT, type CiteFormat } from '@/lib/cite'
 type Theme = 'light' | 'dark' | 'system'
 
 const HEADER_CLS =
-  'sticky top-0 z-10 flex h-[var(--header-h)] shrink-0 items-center justify-center border-b border-border bg-muted/80 px-4 text-base font-normal backdrop-blur md:h-9 md:justify-between md:text-xs md:font-semibold'
+  'sticky top-0 z-10 flex h-[var(--header-h)] shrink-0 items-center justify-center border-b border-border bg-muted/80 px-4 text-base font-medium backdrop-blur md:h-9 md:justify-between md:text-xs md:font-semibold'
 
 // All settings state lives here. The values themselves are picked up by other
 // consumers (ChapterView, ReadingPreferences, …) via useLocalStorage on the

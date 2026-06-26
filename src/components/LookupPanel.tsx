@@ -30,7 +30,7 @@ import type { Annotation, Verse } from '@/types/bible'
 const FIELD_CLS = 'p-4 font-serif text-base leading-relaxed md:text-sm'
 
 const HEADER_CLS =
-  'sticky top-0 z-10 flex h-[var(--header-h)] shrink-0 items-center justify-center border-b border-border bg-muted/80 px-4 text-base font-normal backdrop-blur md:h-9 md:justify-start md:text-xs md:font-semibold'
+  'sticky top-0 z-10 flex h-[var(--header-h)] shrink-0 items-center justify-center border-b border-border bg-muted/80 px-4 text-base font-medium backdrop-blur md:h-9 md:justify-start md:text-xs md:font-semibold'
 
 const PLACEHOLDER =
   '輸入經文出處，例如：\n約翰福音一章一節，三章十六節，十四章六節'

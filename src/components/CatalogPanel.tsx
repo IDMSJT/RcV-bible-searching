@@ -279,28 +279,34 @@ function ChapterHeader({
   onBack?: () => void
 }) {
   return (
-    <div className="sticky top-0 z-10 flex h-[var(--header-h)] items-stretch justify-between border-b border-border bg-muted/80 text-base font-normal backdrop-blur md:h-9 md:text-xs md:font-semibold">
-      {onBack ? (
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label="返回書卷選擇"
-          className="inline-flex items-center px-4 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+    <div className="sticky top-0 z-10 grid h-[var(--header-h)] grid-cols-[1fr_auto_1fr] items-stretch border-b border-border bg-muted/80 text-base font-medium backdrop-blur md:h-9 md:text-xs md:font-semibold">
+      <div className="flex items-stretch">
+        {onBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label="返回書卷選擇"
+            className="inline-flex items-center px-4 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <ChevronLeft className="size-5 [stroke-width:1.8]" />
+          </button>
+        ) : (
+          <span className="inline-flex items-center px-4">{book.name}</span>
+        )}
+      </div>
+      {/* Centred only when drilled in (the back arrow holds the left slot); at
+       * top level the name lives in the left slot above and this stays empty. */}
+      <span className="self-center">{onBack ? book.name : null}</span>
+      <div className="flex items-stretch justify-end">
+        <Link
+          to="/$bookNo"
+          params={{ bookNo: book.bookNo }}
+          onClick={onPick}
+          className="inline-flex items-center px-4 font-medium text-primary transition-colors hover:bg-muted"
         >
-          <ChevronLeft className="size-5 [stroke-width:1.8]" />
-        </button>
-      ) : (
-        <span className="inline-flex items-center px-4">{book.name}</span>
-      )}
-      {onBack && <span className="inline-flex items-center">{book.name}</span>}
-      <Link
-        to="/$bookNo"
-        params={{ bookNo: book.bookNo }}
-        onClick={onPick}
-        className="inline-flex items-center px-4 font-medium text-primary transition-colors hover:bg-muted"
-      >
-        綱目
-      </Link>
+          綱目
+        </Link>
+      </div>
     </div>
   )
 }
@@ -334,7 +340,7 @@ function AccordionHeader({
         onClick={() => anchorRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' })}
         className={cn(
           stickyCls,
-          'z-10 flex h-[var(--header-h)] w-full items-center justify-between border-b border-border bg-muted/80 px-4 text-base font-normal backdrop-blur transition-colors hover:bg-muted md:h-9 md:text-xs md:font-semibold',
+          'z-10 flex h-[var(--header-h)] w-full items-center justify-between border-b border-border bg-muted/80 px-4 text-base font-medium backdrop-blur transition-colors hover:bg-muted md:h-9 md:text-xs md:font-semibold',
           topBorder && 'border-t',
         )}
       >
