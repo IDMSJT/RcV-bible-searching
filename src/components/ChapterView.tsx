@@ -349,11 +349,22 @@ export function ChapterView({
     const el = panelRef.current
     if (!el) return
     const key = `rcv/scroll/${bookNo}/${chapterNo}`
+    const reapply: number[] = []
     if (!(active && isJumpView)) {
       const saved = sessionStorage.getItem(key)
-      el.scrollTop = saved !== null ? Number(saved) : 0
+      const target = saved !== null ? Number(saved) : 0
+      const apply = () => {
+        el.scrollTop = target
+      }
+      // Set before paint, then re-assert across the next couple of frames:
+      // iOS WKWebView (standalone PWA) restores a freshly-mounted scroll
+      // container to the old position AFTER our effect, so a one-shot set gets
+      // clobbered — hence the inheritance only showing up in the installed app.
+      apply()
+      reapply.push(requestAnimationFrame(apply))
+      reapply.push(requestAnimationFrame(() => reapply.push(requestAnimationFrame(apply))))
     }
-    if (!active) return
+    if (!active) return () => reapply.forEach(cancelAnimationFrame)
     let raf = 0
     const onScroll = () => {
       cancelAnimationFrame(raf)
@@ -361,6 +372,7 @@ export function ChapterView({
     }
     el.addEventListener('scroll', onScroll, { passive: true })
     return () => {
+      reapply.forEach(cancelAnimationFrame)
       el.removeEventListener('scroll', onScroll)
       cancelAnimationFrame(raf)
     }
@@ -544,7 +556,7 @@ export function ChapterView({
        * swipe live in the pager above; this is just the chapter body. */}
       <div
         ref={panelRef}
-        className="h-full overflow-y-auto overscroll-contain pb-[var(--nav-h)] md:pb-0"
+        className="h-full overflow-y-auto overscroll-contain pb-[var(--nav-h)] [overflow-anchor:none] md:pb-0"
       >
       <article
         className={cn(
