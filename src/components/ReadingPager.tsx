@@ -1,0 +1,233 @@
+import { useRef, useState, type ReactNode } from 'react'
+import {
+  Link,
+  useCanGoBack,
+  useNavigate,
+  useParams,
+  useRouter,
+  useSearch,
+} from '@tanstack/react-router'
+import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
+import { BOOK_BY_NO } from '@/data/canon'
+import { chapterUnit } from '@/lib/chinese'
+import { parseHighlight } from '@/lib/highlight'
+import { prevRef, nextRef, refKey, type ReadingRef } from '@/lib/readingRef'
+import { useCarousel } from '@/lib/useCarousel'
+import { useIsMobile } from '@/lib/useIsMobile'
+import { ChapterView } from '@/components/ChapterView'
+import { OutlineView } from '@/components/OutlineView'
+import { cn } from '@/lib/utils'
+
+function parseHeadingAnchor(oh: string | undefined): { verse: number; segment: number } | undefined {
+  if (!oh) return undefined
+  const m = oh.match(/^(\d+)(?:\.(\d+))?$/)
+  if (!m) return undefined
+  return { verse: Number(m[1]), segment: m[2] ? Number(m[2]) : 0 }
+}
+
+function titleOf(ref: ReadingRef): ReactNode {
+  const name = BOOK_BY_NO.get(ref.bookNo)?.name ?? ''
+  return ref.kind === 'outline' ? (
+    <>
+      {name} <span className="text-muted-foreground">綱目</span>
+    </>
+  ) : (
+    <>
+      {name}{' '}
+      <span className="text-muted-foreground">
+        第 {ref.chapterNo} {chapterUnit(ref.bookNo)}
+      </span>
+    </>
+  )
+}
+
+/** One reading surface (chapter or outline) for a ref. Only the active panel
+ * reacts to taps / highlights / the oh-scroll. */
+export function ReadingPanel({
+  refData,
+  active,
+  hl,
+  oh,
+  onSelectingChange,
+}: {
+  refData: ReadingRef
+  active: boolean
+  hl?: string
+  oh?: string
+  onSelectingChange?: (selecting: boolean) => void
+}) {
+  if (refData.kind === 'chapter') {
+    return (
+      <ChapterView
+        bookNo={refData.bookNo}
+        chapterNo={refData.chapterNo}
+        active={active}
+        highlights={active ? parseHighlight(hl) : []}
+        headingAnchor={active ? parseHeadingAnchor(oh) : undefined}
+        onSelectingChange={active ? onSelectingChange : undefined}
+      />
+    )
+  }
+  return <OutlineView bookNo={refData.bookNo} active={active} />
+}
+
+const NAV_CLS =
+  'inline-flex items-center px-4 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+
+function RefLink({ refData, children }: { refData: ReadingRef | null; children: ReactNode }) {
+  if (!refData) {
+    return <span className={cn(NAV_CLS, 'pointer-events-none text-muted-foreground/40')}>{children}</span>
+  }
+  if (refData.kind === 'outline') {
+    return (
+      <Link to="/$bookNo" params={{ bookNo: refData.bookNo }} className={NAV_CLS}>
+        {children}
+      </Link>
+    )
+  }
+  return (
+    <Link
+      to="/$bookNo/$chapterNo"
+      params={{ bookNo: refData.bookNo, chapterNo: refData.chapterNo }}
+      search={{}}
+      className={NAV_CLS}
+    >
+      {children}
+    </Link>
+  )
+}
+
+/**
+ * The reading surface, mounted once by the /$bookNo layout so it never remounts
+ * across chapter / outline / book navigation. Reads the current ref from the
+ * URL, renders the header, and (for now) the single current panel. The 3-up
+ * carousel motion lands here next.
+ */
+export function ReadingPager() {
+  const params = useParams({ strict: false }) as { bookNo: number; chapterNo?: number }
+  const search = useSearch({ strict: false }) as { hl?: string; oh?: string }
+  const router = useRouter()
+  const navigate = useNavigate()
+  const canGoBack = useCanGoBack()
+  const isMobile = useIsMobile()
+
+  const current: ReadingRef =
+    params.chapterNo != null
+      ? { kind: 'chapter', bookNo: params.bookNo, chapterNo: params.chapterNo }
+      : { kind: 'outline', bookNo: params.bookNo }
+  const prev = prevRef(current)
+  const next = nextRef(current)
+
+  const goTo = (ref: ReadingRef) => {
+    if (ref.kind === 'outline') {
+      navigate({ to: '/$bookNo', params: { bookNo: ref.bookNo } })
+    } else {
+      navigate({
+        to: '/$bookNo/$chapterNo',
+        params: { bookNo: ref.bookNo, chapterNo: ref.chapterNo },
+        search: {},
+      })
+    }
+  }
+
+  const [selecting, setSelecting] = useState(false)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const { dx, animating, targetDir, trackProps } = useCarousel({
+    containerRef: bodyRef,
+    hasPrev: prev != null,
+    hasNext: next != null,
+    onPrev: () => prev && goTo(prev),
+    onNext: () => next && goTo(next),
+    resetKey: refKey(current),
+    enabled: !selecting,
+  })
+
+  // Flip the title to wherever the swipe is heading — as soon as the drag passes
+  // the threshold (before the finger lifts), and through the commit slide.
+  const titleRef =
+    (targetDir === 'prev' ? prev : targetDir === 'next' ? next : null) ?? current
+
+  // 3-slot track: prev / current / next, current centred at translateX(-100%).
+  // Keyed by ref so the landed panel keeps its (fresh, top) scroll across a
+  // commit; empty slots hold the geometry at the canon's ends.
+  const slots: { ref: ReadingRef | null; active: boolean }[] = [
+    { ref: prev, active: false },
+    { ref: current, active: true },
+    { ref: next, active: false },
+  ]
+
+  return (
+    <>
+      <header className="border-b border-border bg-background">
+        {/* Mobile: back (when available) left, no chapter arrows (swipe pages).
+         * Desktop: prev left, next right (no back — the browser has one). */}
+        <div className="mx-auto grid h-[var(--header-h)] max-w-3xl grid-cols-[1fr_auto_1fr] items-stretch">
+          <div className="flex items-stretch">
+            {canGoBack && (
+              <button
+                type="button"
+                onClick={() => router.history.back()}
+                aria-label="返回"
+                className={cn(NAV_CLS, 'md:hidden')}
+              >
+                <ArrowLeft className="size-5 [stroke-width:1.8]" />
+              </button>
+            )}
+            <span className="hidden items-stretch md:flex">
+              <RefLink refData={prev}>
+                <ChevronLeft className="size-5 [stroke-width:1.8]" />
+              </RefLink>
+            </span>
+          </div>
+          <h1 className="self-center text-base font-medium tracking-tight">{titleOf(titleRef)}</h1>
+          <div className="hidden items-stretch justify-end md:flex">
+            <RefLink refData={next}>
+              <ChevronRight className="size-5 [stroke-width:1.8]" />
+            </RefLink>
+          </div>
+        </div>
+      </header>
+
+      {isMobile ? (
+        <div
+          ref={bodyRef}
+          {...trackProps}
+          className="relative min-h-0 flex-1 touch-pan-y overflow-hidden"
+        >
+          <div
+            className="flex h-full"
+            style={{
+              transform: `translateX(calc(-100% + ${dx}px))`,
+              transition: animating ? 'transform 250ms ease-out' : undefined,
+            }}
+          >
+            {slots.map(({ ref, active }, i) => (
+              // Slot wrapper is positional (fixed geometry); the panel inside is
+              // keyed by ref so a ref change always mounts a FRESH scroll
+              // container — it can never inherit a neighbour's scrollTop.
+              <div
+                key={`slot-${i}`}
+                className={cn('h-full w-full shrink-0', !active && 'pointer-events-none')}
+              >
+                {ref && (
+                  <ReadingPanel
+                    key={refKey(ref)}
+                    refData={ref}
+                    active={active}
+                    hl={active ? search.hl : undefined}
+                    oh={active ? search.oh : undefined}
+                    onSelectingChange={active ? setSelecting : undefined}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="relative min-h-0 flex-1">
+          <ReadingPanel refData={current} active hl={search.hl} oh={search.oh} />
+        </div>
+      )}
+    </>
+  )
+}

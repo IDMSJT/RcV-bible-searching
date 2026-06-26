@@ -1,114 +1,11 @@
-import { createFileRoute, notFound, Link, useNavigate } from '@tanstack/react-router'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { createFileRoute, notFound } from '@tanstack/react-router'
 import { BOOK_BY_NO } from '@/data/canon'
-import { BOOK_ABBREV } from '@/data/abbrev'
-import { useOutline } from '@/data/loadBible'
-import { formatOutlineRange, displayMarker } from '@/lib/chinese'
-import { ReaderFrame } from '@/components/ReaderFrame'
 
+// The book outline. Loader-only: the /$bookNo layout's ReadingPager renders the
+// content (an OutlineView panel) from the URL ref; this route just validates.
 export const Route = createFileRoute('/$bookNo/')({
-  parseParams: (raw) => ({ bookNo: Number(raw.bookNo) }),
-  stringifyParams: (p) => ({ bookNo: String(p.bookNo) }),
   loader: ({ params }) => {
-    const book = BOOK_BY_NO.get(params.bookNo)
-    if (!book) throw notFound()
-    return { book }
+    if (!BOOK_BY_NO.has(params.bookNo)) throw notFound()
   },
-  component: BookOutlinePage,
+  component: () => null,
 })
-
-const navLink =
-  'inline-flex items-center px-4 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
-
-function BookOutlinePage() {
-  const { bookNo } = Route.useParams()
-  const { book } = Route.useLoaderData()
-  const { data: outline } = useOutline()
-  const entries = outline?.books.find((b) => b.bookNo === bookNo)?.outline ?? []
-  const navigate = useNavigate()
-
-  // Symmetric to chapterN-next-is-next-book-outline: outline-prev is the
-  // previous book's last chapter, so the reader can walk backwards through
-  // the whole canon without ever hitting a dead end. Outline-next is this
-  // book's chapter 1.
-  const prevBook = BOOK_BY_NO.get(bookNo - 1)
-  const goPrev = prevBook
-    ? () =>
-        navigate({
-          to: '/$bookNo/$chapterNo',
-          params: { bookNo: prevBook.bookNo, chapterNo: prevBook.chapterCount },
-          search: {},
-        })
-    : undefined
-  const goNext = () =>
-    navigate({ to: '/$bookNo/$chapterNo', params: { bookNo, chapterNo: 1 }, search: {} })
-
-  return (
-    <ReaderFrame
-      title={
-        <>
-          {book.name} <span className="text-muted-foreground">綱目</span>
-        </>
-      }
-      leftAction={
-        prevBook ? (
-          <Link
-            to="/$bookNo/$chapterNo"
-            params={{ bookNo: prevBook.bookNo, chapterNo: prevBook.chapterCount }}
-            search={{}}
-            className={navLink}
-          >
-            <ChevronLeft className="size-5 [stroke-width:1.8]" />
-          </Link>
-        ) : (
-          <span className="inline-flex items-center px-4 text-muted-foreground/40">
-            <ChevronLeft className="size-5 [stroke-width:1.8]" />
-          </span>
-        )
-      }
-      rightAction={
-        <Link
-          to="/$bookNo/$chapterNo"
-          params={{ bookNo, chapterNo: 1 }}
-          search={{}}
-          className={navLink}
-        >
-          <ChevronRight className="size-5 [stroke-width:1.8]" />
-        </Link>
-      }
-      onSwipePrev={goPrev}
-      onSwipeNext={goNext}
-      prevLabel={prevBook ? `${BOOK_ABBREV[prevBook.bookNo]} ${prevBook.chapterCount}` : undefined}
-      nextLabel={`${BOOK_ABBREV[bookNo]} 1`}
-      swipeKey={`outline/${bookNo}`}
-    >
-      <article className="mx-auto max-w-3xl px-[2.8125rem] py-6 md:px-[3.8125rem] md:py-10">
-        <div className="flex flex-col gap-y-2.5 font-sans text-[length:calc(var(--reading-fs,1rem)*0.875)]">
-          {entries.map((e, i) => (
-            <Link
-              key={i}
-              to="/$bookNo/$chapterNo"
-              params={{ bookNo, chapterNo: e.anchor.chapter }}
-              search={
-                e.anchor.verse
-                  ? { oh: `${e.anchor.verse}${e.anchor.segment ? `.${e.anchor.segment}` : ''}` }
-                  : {}
-              }
-              style={{ paddingLeft: `${(e.level - 1) * 0.5}rem` }}
-              className="group block pr-2 text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <span className="inline-block rounded px-1 -mx-1 transition-colors group-hover:bg-muted">
-                {e.marker && <span className="mr-1.5">{displayMarker(e.marker)}</span>}
-                {e.title}
-                {e.continued && ' (續)'}
-                {e.range && (
-                  <span className="ml-1.5 text-muted-foreground/60">{formatOutlineRange(e.range)}</span>
-                )}
-              </span>
-            </Link>
-          ))}
-        </div>
-      </article>
-    </ReaderFrame>
-  )
-}

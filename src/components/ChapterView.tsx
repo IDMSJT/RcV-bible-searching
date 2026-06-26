@@ -6,8 +6,8 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode,
 } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import {
   useBible,
@@ -20,12 +20,11 @@ import {
 } from '@/data/loadBible'
 import { BOOK_BY_NO } from '@/data/canon'
 import { formatVerseRef, DEFAULT_CITE_FORMAT, type CiteFormat } from '@/lib/cite'
-import { chapterUnit, formatOutlineRange, displayMarker } from '@/lib/chinese'
+import { formatOutlineRange, displayMarker } from '@/lib/chinese'
 import { renderMarkedText, sliceMarks, NoteList } from '@/lib/renderVerse'
 import type { HlItem } from '@/lib/highlight'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
-import { ReaderFrame } from '@/components/ReaderFrame'
 import type { Annotation, Mark, OutlineEntry } from '@/types/bible'
 
 function OutlineHeading({
@@ -90,27 +89,20 @@ export function ChapterView({
   chapterNo,
   highlights = [],
   headingAnchor,
-  leftAction,
-  rightAction,
-  onSwipePrev,
-  onSwipeNext,
-  prevLabel,
-  nextLabel,
+  active = true,
+  onSelectingChange,
 }: {
   bookNo: number
   chapterNo: number
   /** Combined highlight list — verses to tint and / or notes to expand+tint. */
   highlights?: HlItem[]
   headingAnchor?: { verse: number; segment: number }
-  leftAction?: ReactNode
-  rightAction?: ReactNode
-  /** Mobile swipe-right / swipe-left chapter navigation (undefined = disabled
-   * for that direction, e.g. at the canon's edges). */
-  onSwipePrev?: () => void
-  onSwipeNext?: () => void
-  /** Labels of the swipe targets, peeked in from the edge while dragging. */
-  prevLabel?: string
-  nextLabel?: string
+  /** Carousel panels render three chapters; only the centred (active) one
+   * responds to verse taps, shows the selection bar, and runs the oh-scroll. */
+  active?: boolean
+  /** Reports whether the active panel has a verse selection, so the pager can
+   * pause the swipe gesture while selecting. */
+  onSelectingChange?: (selecting: boolean) => void
 }) {
   const { data, error } = useBible()
   const { data: outline } = useOutline()
@@ -272,6 +264,11 @@ export function ChapterView({
     setSelected(new Set())
   }, [bookNo, chapterNo])
 
+  // Let the pager pause the swipe while a selection is active.
+  useEffect(() => {
+    onSelectingChange?.(selected.size > 0)
+  }, [selected.size, onSelectingChange])
+
   // Every footnote in this chapter, keyed `verse:n`. Used by the「展開全部」
   // toggle below — empty when 顯示註釋 is off or the chapter has no notes.
   const allNoteKeys = useMemo(() => {
@@ -297,6 +294,7 @@ export function ChapterView({
   }, [allExpanded, allNoteKeys, notesKey, writeStorage])
   void toggleAll
   const book = BOOK_BY_NO.get(bookNo)
+  const panelRef = useRef<HTMLDivElement | null>(null)
   const scrollRef = useRef<HTMLElement | null>(null)
   const assignScroll = useCallback((el: HTMLElement | null) => {
     scrollRef.current = el
@@ -313,7 +311,7 @@ export function ChapterView({
 
   const prevChapterKey = useRef('')
   useEffect(() => {
-    if (!data || (firstHlVerse == null && !ohKey)) return
+    if (!active || !data || (firstHlVerse == null && !ohKey)) return
     // Did we land on a different chapter, or just change the hl within the
     // same one? A chapter change reuses this component, so the scroll
     // container can still hold the previous chapter's (possibly much larger)
@@ -338,7 +336,35 @@ export function ChapterView({
       })
     })
     return () => cancelAnimationFrame(id)
-  }, [data, bookNo, chapterNo, firstHlVerse, ohKey])
+  }, [active, data, bookNo, chapterNo, firstHlVerse, ohKey])
+
+  // Per-panel scroll restoration. EVERY panel (including the off-screen prev/
+  // next previews) is positioned to its saved offset up front, so a chapter is
+  // already where it should be before you swipe to it — no jump after landing —
+  // and it can't inherit a neighbour's scrollTop from a reused DOM node. Only
+  // the active panel writes back. The active verse-jump view (?hl / ?oh) opts
+  // out so the oh-scroll above can land on the verse instead.
+  const isJumpView = headingAnchor != null || firstHlVerse != null
+  useLayoutEffect(() => {
+    const el = panelRef.current
+    if (!el) return
+    const key = `rcv/scroll/${bookNo}/${chapterNo}`
+    if (!(active && isJumpView)) {
+      const saved = sessionStorage.getItem(key)
+      el.scrollTop = saved !== null ? Number(saved) : 0
+    }
+    if (!active) return
+    let raf = 0
+    const onScroll = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => sessionStorage.setItem(key, String(el.scrollTop)))
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      cancelAnimationFrame(raf)
+    }
+  }, [active, bookNo, chapterNo, isJumpView])
 
   if (error) {
     return <p className="p-8 text-sm text-destructive">資料載入失敗：{error}</p>
@@ -373,7 +399,8 @@ export function ChapterView({
   // the long-press timer (cancelled once the finger moves past a few px = a
   // scroll); a quick tap is handled on click. The `long` flag stops the trailing
   // click from toggling the verse straight back off after a long-press fired.
-  const versePress = (verse: number) => ({
+  const versePress = (verse: number): React.ComponentProps<'div'> =>
+    !active ? {} : {
     onPointerDown: (e: React.PointerEvent) => {
       const el = e.currentTarget
       const st = { x: e.clientX, y: e.clientY, long: false, timer: 0 }
@@ -405,7 +432,7 @@ export function ChapterView({
       if (st?.long) return // long-press already selected; ignore the click
       selectVerse(verse, e.currentTarget)
     },
-  })
+  }
 
   const selectedText = () =>
     (chapter?.verses ?? [])
@@ -513,23 +540,11 @@ export function ChapterView({
 
   return (
     <>
-      <ReaderFrame
-        title={
-          <>
-            {book.name}{' '}
-            <span className="text-muted-foreground">
-              第 {chapterNo} {chapterUnit(bookNo)}
-            </span>
-          </>
-        }
-        leftAction={leftAction}
-        rightAction={rightAction}
-        onSwipePrev={onSwipePrev}
-        onSwipeNext={onSwipeNext}
-        prevLabel={prevLabel}
-        nextLabel={nextLabel}
-        swipeKey={`${bookNo}/${chapterNo}`}
-        swipeEnabled={selected.size === 0}
+      {/* One carousel panel: its own vertical scroll. The header / paging /
+       * swipe live in the pager above; this is just the chapter body. */}
+      <div
+        ref={panelRef}
+        className="h-full overflow-y-auto overscroll-contain pb-[var(--nav-h)] md:pb-0"
       >
       <article
         className={cn(
@@ -624,14 +639,17 @@ export function ChapterView({
           </div>
         )}
       </article>
-      </ReaderFrame>
+      </div>
 
       {/* Non-modal selection card (no overlay) so the verses behind it stay
-       * tappable and you can keep adding to the selection. Floats above the
-       * bottom nav on mobile; a bottom-right toast on desktop (matching the
-       * update prompt). */}
-      {selected.size > 0 && (
-        <div className="fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-40 flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur md:inset-x-auto md:right-3 md:bottom-3 md:min-w-[320px] md:max-w-sm">
+       * tappable and you can keep adding to the selection. Portalled to <body>
+       * so it escapes the carousel track's transform / overflow-clip — a fixed
+       * child of a transformed element is positioned (and clipped) by it, not
+       * the viewport. Only the active panel owns it. */}
+      {active &&
+        selected.size > 0 &&
+        createPortal(
+          <div className="fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-40 flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur md:inset-x-auto md:right-3 md:bottom-3 md:min-w-[320px] md:max-w-sm">
           <span className="text-sm text-muted-foreground">已選 {selected.size} 節</span>
           <div className="ml-auto flex items-center gap-2">
             <button
@@ -659,8 +677,9 @@ export function ChapterView({
               <X className="size-4.5" />
             </button>
           </div>
-        </div>
-      )}
+        </div>,
+          document.body,
+        )}
     </>
   )
 }
