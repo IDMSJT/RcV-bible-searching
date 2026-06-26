@@ -505,7 +505,6 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
             <InputActions value={kw} onChange={setKw} focusRef={kwTextareaRef} />
           </div>
         )}
-        <CopyAllBar resolved={resolved} />
       </div>
 
       <div className="p-4 md:flex-1 md:overflow-y-auto">
@@ -539,6 +538,11 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
           </div>
         )}
       </div>
+
+      {/* Bottom action bar — a panel-level sibling, mirroring the sticky input
+       * above (sticky on mobile so it floats over the scrolling results, docked
+       * statically below the scroll pane on desktop). */}
+      <CopyAllBar resolved={resolved} />
     </div>
   )
 }
@@ -756,8 +760,9 @@ function CopyMenu({ resolved, onDone }: { resolved: ResolvedVerse; onDone: () =>
  * at once. Empty list / no English greys out the relevant buttons. */
 function CopyAllBar({ resolved }: { resolved: ResolvedVerse[] }) {
   const [cite] = useLocalStorage<CiteFormat>('rcv/cite-format', DEFAULT_CITE_FORMAT)
-  const empty = resolved.length === 0
-  const noEn = empty || !resolved.some((r) => r.enText)
+  // Nothing to copy → don't float an empty pill over the (also empty) results.
+  if (resolved.length === 0) return null
+  const noEn = !resolved.some((r) => r.enText)
 
   const copyAll = async (format: 'zh' | 'en' | 'both') => {
     const lines = resolved.map((r) => formatCopyText(r, format, cite)).filter(Boolean)
@@ -769,17 +774,25 @@ function CopyAllBar({ resolved }: { resolved: ResolvedVerse[] }) {
   const btn =
     'rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95 disabled:opacity-50'
 
+  // Bottom action bar — same shell as the verse-selection bar (rounded-xl /
+  // border / bg-popover/95 / shadow / blur), count label on the left and the
+  // copy buttons on the right. sticky on mobile floats it over the scrolling
+  // results; md:static docks it below the desktop scroll pane (mirrors the
+  // sticky-then-static input above).
   return (
-    <div className="flex flex-wrap items-center gap-2 border-t border-border p-2">
-      <button type="button" className={btn} onClick={() => copyAll('zh')} disabled={empty}>
-        複製中文
-      </button>
-      <button type="button" className={btn} onClick={() => copyAll('en')} disabled={noEn}>
-        複製英文
-      </button>
-      <button type="button" className={btn} onClick={() => copyAll('both')} disabled={noEn}>
-        複製中英文
-      </button>
+    <div className="sticky bottom-3 z-10 mx-3 mb-3 flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur md:static md:bottom-auto">
+      <span className="text-sm text-muted-foreground">共 {resolved.length} 節</span>
+      <div className="ml-auto flex items-center gap-2">
+        <button type="button" className={btn} onClick={() => copyAll('zh')}>
+          複製中文
+        </button>
+        <button type="button" className={btn} onClick={() => copyAll('en')} disabled={noEn}>
+          複製英文
+        </button>
+        <button type="button" className={btn} onClick={() => copyAll('both')} disabled={noEn}>
+          複製中英文
+        </button>
+      </div>
     </div>
   )
 }

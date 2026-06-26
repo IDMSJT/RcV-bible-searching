@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { X } from 'lucide-react'
 import {
   useBible,
   useBibleEn,
@@ -615,7 +616,7 @@ export function ChapterView({
        * bottom nav on mobile; a bottom-right toast on desktop (matching the
        * update prompt). */}
       {selected.size > 0 && (
-        <div className="fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-40 flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 text-sm shadow-lg backdrop-blur md:inset-x-auto md:right-4 md:bottom-4 md:max-w-sm">
+        <div className="fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-40 flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur md:inset-x-auto md:right-3 md:bottom-3 md:min-w-[320px] md:max-w-sm">
           <span className="text-sm text-muted-foreground">已選 {selected.size} 節</span>
           <div className="ml-auto flex items-center gap-2">
             <button
@@ -637,9 +638,10 @@ export function ChapterView({
             <button
               type="button"
               onClick={exitSelection}
-              className="rounded-lg px-3 py-2 text-sm text-muted-foreground transition-all duration-150 hover:text-foreground active:scale-95"
+              aria-label="取消"
+              className="rounded-lg px-2 py-2 text-muted-foreground transition-all duration-150 hover:text-foreground active:scale-95"
             >
-              取消
+              <X className="size-4.5" />
             </button>
           </div>
         </div>
