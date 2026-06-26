@@ -1,9 +1,10 @@
-import { createFileRoute, notFound, Link } from '@tanstack/react-router'
+import { createFileRoute, notFound, Link, useNavigate } from '@tanstack/react-router'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { BOOK_BY_NO } from '@/data/canon'
+import { BOOK_ABBREV } from '@/data/abbrev'
 import { useOutline } from '@/data/loadBible'
 import { formatOutlineRange, displayMarker } from '@/lib/chinese'
-import { ScrollBody } from '@/components/ScrollBody'
+import { ReaderFrame } from '@/components/ReaderFrame'
 
 export const Route = createFileRoute('/$bookNo/')({
   parseParams: (raw) => ({ bookNo: Number(raw.bookNo) }),
@@ -16,50 +17,71 @@ export const Route = createFileRoute('/$bookNo/')({
   component: BookOutlinePage,
 })
 
+const navLink =
+  'inline-flex items-center px-4 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+
 function BookOutlinePage() {
   const { bookNo } = Route.useParams()
   const { book } = Route.useLoaderData()
   const { data: outline } = useOutline()
   const entries = outline?.books.find((b) => b.bookNo === bookNo)?.outline ?? []
+  const navigate = useNavigate()
 
   // Symmetric to chapterN-next-is-next-book-outline: outline-prev is the
   // previous book's last chapter, so the reader can walk backwards through
-  // the whole canon without ever hitting a dead end.
+  // the whole canon without ever hitting a dead end. Outline-next is this
+  // book's chapter 1.
   const prevBook = BOOK_BY_NO.get(bookNo - 1)
+  const goPrev = prevBook
+    ? () =>
+        navigate({
+          to: '/$bookNo/$chapterNo',
+          params: { bookNo: prevBook.bookNo, chapterNo: prevBook.chapterCount },
+          search: {},
+        })
+    : undefined
+  const goNext = () =>
+    navigate({ to: '/$bookNo/$chapterNo', params: { bookNo, chapterNo: 1 }, search: {} })
 
   return (
-    <>
-      <header className="border-b border-border bg-background">
-        <div className="mx-auto flex h-[var(--header-h)] max-w-3xl items-stretch justify-between">
-          {prevBook ? (
-            <Link
-              to="/$bookNo/$chapterNo"
-              params={{ bookNo: prevBook.bookNo, chapterNo: prevBook.chapterCount }}
-              search={{}}
-              className="inline-flex items-center px-4 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <ChevronLeft className="size-5 [stroke-width:1.8]" />
-            </Link>
-          ) : (
-            <span className="inline-flex items-center px-4 text-muted-foreground/40">
-              <ChevronLeft className="size-5 [stroke-width:1.8]" />
-            </span>
-          )}
-          <h1 className="self-center text-base font-medium tracking-tight">
-            {book.name} <span className="text-muted-foreground">綱目</span>
-          </h1>
+    <ReaderFrame
+      title={
+        <>
+          {book.name} <span className="text-muted-foreground">綱目</span>
+        </>
+      }
+      leftAction={
+        prevBook ? (
           <Link
             to="/$bookNo/$chapterNo"
-            params={{ bookNo, chapterNo: 1 }}
+            params={{ bookNo: prevBook.bookNo, chapterNo: prevBook.chapterCount }}
             search={{}}
-            className="inline-flex items-center px-4 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className={navLink}
           >
-            <ChevronRight className="size-5 [stroke-width:1.8]" />
+            <ChevronLeft className="size-5 [stroke-width:1.8]" />
           </Link>
-        </div>
-      </header>
-
-      <ScrollBody>
+        ) : (
+          <span className="inline-flex items-center px-4 text-muted-foreground/40">
+            <ChevronLeft className="size-5 [stroke-width:1.8]" />
+          </span>
+        )
+      }
+      rightAction={
+        <Link
+          to="/$bookNo/$chapterNo"
+          params={{ bookNo, chapterNo: 1 }}
+          search={{}}
+          className={navLink}
+        >
+          <ChevronRight className="size-5 [stroke-width:1.8]" />
+        </Link>
+      }
+      onSwipePrev={goPrev}
+      onSwipeNext={goNext}
+      prevLabel={prevBook ? `${BOOK_ABBREV[prevBook.bookNo]} ${prevBook.chapterCount}` : undefined}
+      nextLabel={`${BOOK_ABBREV[bookNo]} 1`}
+      swipeKey={`outline/${bookNo}`}
+    >
       <article className="mx-auto max-w-3xl px-[2.8125rem] py-6 md:px-[3.8125rem] md:py-10">
         <div className="flex flex-col gap-y-2.5 font-sans text-[length:calc(var(--reading-fs,1rem)*0.875)]">
           {entries.map((e, i) => (
@@ -87,7 +109,6 @@ function BookOutlinePage() {
           ))}
         </div>
       </article>
-      </ScrollBody>
-    </>
+    </ReaderFrame>
   )
 }

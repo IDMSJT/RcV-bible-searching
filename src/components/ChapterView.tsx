@@ -25,7 +25,7 @@ import { renderMarkedText, sliceMarks, NoteList } from '@/lib/renderVerse'
 import type { HlItem } from '@/lib/highlight'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
-import { ScrollBody } from '@/components/ScrollBody'
+import { ReaderFrame } from '@/components/ReaderFrame'
 import type { Annotation, Mark, OutlineEntry } from '@/types/bible'
 
 function OutlineHeading({
@@ -92,6 +92,10 @@ export function ChapterView({
   headingAnchor,
   leftAction,
   rightAction,
+  onSwipePrev,
+  onSwipeNext,
+  prevLabel,
+  nextLabel,
 }: {
   bookNo: number
   chapterNo: number
@@ -100,6 +104,13 @@ export function ChapterView({
   headingAnchor?: { verse: number; segment: number }
   leftAction?: ReactNode
   rightAction?: ReactNode
+  /** Mobile swipe-right / swipe-left chapter navigation (undefined = disabled
+   * for that direction, e.g. at the canon's edges). */
+  onSwipePrev?: () => void
+  onSwipeNext?: () => void
+  /** Labels of the swipe targets, peeked in from the edge while dragging. */
+  prevLabel?: string
+  nextLabel?: string
 }) {
   const { data, error } = useBible()
   const { data: outline } = useOutline()
@@ -502,20 +513,24 @@ export function ChapterView({
 
   return (
     <>
-      <header className="border-b border-border bg-background">
-        <div className="mx-auto flex h-[var(--header-h)] max-w-3xl items-stretch justify-between">
-          {leftAction}
-          <h1 className="self-center text-base font-medium tracking-tight">
+      <ReaderFrame
+        title={
+          <>
             {book.name}{' '}
             <span className="text-muted-foreground">
               第 {chapterNo} {chapterUnit(bookNo)}
             </span>
-          </h1>
-          {rightAction}
-        </div>
-      </header>
-
-      <ScrollBody>
+          </>
+        }
+        leftAction={leftAction}
+        rightAction={rightAction}
+        onSwipePrev={onSwipePrev}
+        onSwipeNext={onSwipeNext}
+        prevLabel={prevLabel}
+        nextLabel={nextLabel}
+        swipeKey={`${bookNo}/${chapterNo}`}
+        swipeEnabled={selected.size === 0}
+      >
       <article
         className={cn(
           // Extra bottom room while selecting so the last verses can scroll
@@ -609,7 +624,7 @@ export function ChapterView({
           </div>
         )}
       </article>
-      </ScrollBody>
+      </ReaderFrame>
 
       {/* Non-modal selection card (no overlay) so the verses behind it stay
        * tappable and you can keep adding to the selection. Floats above the

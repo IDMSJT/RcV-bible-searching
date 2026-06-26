@@ -1,6 +1,7 @@
-import { createFileRoute, notFound, Link } from '@tanstack/react-router'
+import { createFileRoute, notFound, Link, useNavigate } from '@tanstack/react-router'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { BOOK_BY_NO } from '@/data/canon'
+import { BOOK_ABBREV } from '@/data/abbrev'
 import { ChapterView } from '@/components/ChapterView'
 import { parseHighlight, carryHlForChapter } from '@/lib/highlight'
 import { cn } from '@/lib/utils'
@@ -103,12 +104,36 @@ function ChapterPage() {
         ? { kind: 'outline', bookNo: bookNo + 1 }
         : null
 
+  // Programmatic equivalent of ArrowLink, for swipe navigation.
+  const navigate = useNavigate()
+  const go = (t: NavTarget) => {
+    if (!t) return
+    if (t.kind === 'outline') {
+      navigate({ to: '/$bookNo', params: { bookNo: t.bookNo } })
+    } else {
+      navigate({
+        to: '/$bookNo/$chapterNo',
+        params: { bookNo: t.bookNo, chapterNo: t.chapterNo },
+        search: t.hl ? { hl: t.hl } : {},
+      })
+    }
+  }
+  const labelFor = (t: NavTarget): string | undefined => {
+    if (!t) return undefined
+    const abbr = BOOK_ABBREV[t.bookNo] ?? ''
+    return t.kind === 'outline' ? `${abbr} 綱目` : `${abbr} ${t.chapterNo}`
+  }
+
   return (
     <ChapterView
       bookNo={bookNo}
       chapterNo={chapterNo}
       highlights={highlights}
       headingAnchor={headingAnchor}
+      onSwipePrev={prev ? () => go(prev) : undefined}
+      onSwipeNext={next ? () => go(next) : undefined}
+      prevLabel={labelFor(prev)}
+      nextLabel={labelFor(next)}
       leftAction={
         <ArrowLink target={prev}>
           <ChevronLeft className="size-5 [stroke-width:1.8]" />
