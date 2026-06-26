@@ -383,7 +383,7 @@ function ComposePage() {
         <button
           type="button"
           onClick={copyText}
-          className="rounded-lg border border-border bg-secondary px-5 py-2.5 text-base font-medium text-secondary-foreground shadow-lg transition-all duration-150 hover:bg-secondary/80 active:scale-95"
+          className="rounded-lg bg-secondary px-5 py-2.5 text-base font-medium text-secondary-foreground shadow-lg transition-all duration-150 hover:bg-secondary/80 active:scale-95"
         >
           複製
         </button>

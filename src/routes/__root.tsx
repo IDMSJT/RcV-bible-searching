@@ -517,11 +517,22 @@ function NavButton({
           active
             ? 'md:bg-secondary md:text-secondary-foreground'
             : 'md:group-hover:bg-muted md:group-hover:text-foreground',
+          // Mobile: bump the active icon's stroke so the selected tab reads
+          // bolder than colour alone. Desktop is left untouched (restore 1.8).
+          active && '[&_svg]:[stroke-width:2] md:[&_svg]:[stroke-width:1.8]',
         )}
       >
         {children}
       </span>
-      <span className="text-xs font-medium leading-none md:text-[11px]">{label}</span>
+      <span
+        className={cn(
+          'text-xs leading-none md:text-[11px] md:font-medium',
+          // Mobile: bolder label on the active tab; desktop keeps font-medium.
+          active ? 'font-semibold' : 'font-medium',
+        )}
+      >
+        {label}
+      </span>
     </button>
   )
 }
