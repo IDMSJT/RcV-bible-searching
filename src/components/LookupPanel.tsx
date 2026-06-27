@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useLocation } from '@tanstack/react-router'
 import { Drawer as VaulDrawer } from 'vaul'
 import { Copy } from 'lucide-react'
@@ -17,6 +17,7 @@ import { formatVerseRef, DEFAULT_CITE_FORMAT, type CiteFormat } from '@/lib/cite
 import { Popover, PopoverContent } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { useCarousel } from '@/lib/useCarousel'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { renderMarkedText, renderNoteText } from '@/lib/renderVerse'
 import { InputActions } from '@/components/InputActions'
@@ -160,6 +161,9 @@ function renderBackdrop(
 
 type LookupTab = 'ref' | 'kw'
 const KW_RESULT_CAP = 500
+// Stable empty-tokens reference so the 經節 panel's memoized ResultList isn't
+// invalidated by a fresh [] on every parent re-render (e.g. each swipe frame).
+const NO_TOKENS: string[] = []
 
 // Wrap every token occurrence (case-insensitive) in a highlighted <mark>. Used
 // by the keyword tab so the visible text shows the user *what* matched their
@@ -194,6 +198,61 @@ function highlightTokens(text: string, tokens: string[]): ReactNode {
   return out
 }
 
+/** The result rows for one tab, memoized so a swipe (which re-renders the
+ * parent every frame via `dx`) doesn't re-render the up-to-500-row list. All
+ * props are referentially stable during a drag, so the memo holds. */
+const ResultList = memo(function ResultList({
+  rows,
+  tokens,
+  error,
+  loading,
+  isEmpty,
+  hint,
+  activeBookNo,
+  activeChapterNo,
+  activeHl,
+  hovered,
+  onHover,
+  onOpen,
+}: {
+  rows: ResolvedVerse[]
+  tokens: string[]
+  error: string | null
+  loading: boolean
+  isEmpty: boolean
+  hint: string
+  activeBookNo: number | null
+  activeChapterNo: number | null
+  activeHl: string | undefined
+  hovered: number | null
+  onHover: (index: number, hovering: boolean) => void
+  onOpen: (r: ResolvedVerse) => void
+}) {
+  if (error) return <p className="text-sm text-destructive">資料載入失敗：{error}</p>
+  if (isEmpty) return <p className="text-sm text-muted-foreground">{hint}</p>
+  if (loading) return <p className="text-sm text-muted-foreground">載入中…</p>
+  if (rows.length === 0) return <p className="text-sm text-muted-foreground">找不到符合的經節</p>
+  return (
+    <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-2.5 font-serif text-[length:var(--reading-fs,1rem)] leading-normal md:text-[length:calc(var(--reading-fs,1rem)*0.9375)]">
+      {rows.map((r, i) => {
+        const active =
+          activeBookNo === r.bookNo && activeChapterNo === r.chapterNo && activeHl === refHl(r.ref)
+        return (
+          <ResultRow
+            key={`${r.bookNo}-${r.chapterNo}-${r.verse.verse}-${i}`}
+            resolved={r}
+            highlightTokens={tokens}
+            active={active}
+            hover={hovered === i}
+            onHover={(h) => onHover(i, h)}
+            onClick={() => onOpen(r)}
+          />
+        )
+      })}
+    </div>
+  )
+})
+
 export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   const [tab, setTab] = useLocalStorage<LookupTab>('rcv/lookup-tab', 'kw')
   const [q, setQ] = useLocalStorage('rcv/lookup-q', '')
@@ -225,6 +284,23 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   const [hovered, setHovered] = useState<number | null>(null)
   const isMobile = useIsMobile()
 
+  // Two-tab carousel: [關鍵字, 經節] sit side by side in a 200%-wide track on
+  // mobile; dragging slides between them and a release snaps to the nearer tab.
+  // Reuses the reading pager's gesture hook — prev = 關鍵字 (left), next = 經節.
+  const activeIndex = tab === 'kw' ? 0 : 1
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const { dx, animating, targetDir, trackProps } = useCarousel({
+    containerRef: bodyRef,
+    hasPrev: activeIndex > 0,
+    hasNext: activeIndex < 1,
+    onPrev: () => setTab('kw'),
+    onNext: () => setTab('ref'),
+    resetKey: tab,
+    enabled: isMobile,
+  })
+  // Light the tab the swipe is heading to as soon as it passes the threshold.
+  const visualTab: LookupTab = targetDir === 'prev' ? 'kw' : targetDir === 'next' ? 'ref' : tab
+
   // On the mobile drawer, auto-focus the active tab's textarea when its
   // input is empty so the soft keyboard opens immediately — saves a tap when
   // the user pulls up the panel intending to type. Skipped on desktop where
@@ -240,12 +316,10 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMobile, tab])
 
-  // Keep the highlight backdrop scrolled in lock-step with the textarea.
-  // Re-runs when the active tab changes — the textarea / backdrop only mount
-  // for the ref tab, so the listener has to attach to the freshly-mounted
-  // pair when we switch back to it.
+  // Keep the highlight backdrop scrolled in lock-step with the textarea. On
+  // mobile both tab panels are mounted (carousel), on desktop only the active
+  // one — either way this attaches once the ref textarea / backdrop exist.
   useEffect(() => {
-    if (tab !== 'ref') return
     const ta = textareaRef.current
     const bd = backdropRef.current
     if (!ta || !bd) return
@@ -256,7 +330,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     sync() // catch any initial offset
     ta.addEventListener('scroll', sync, { passive: true })
     return () => ta.removeEventListener('scroll', sync)
-  }, [tab])
+  }, [tab, isMobile])
 
   const resolvedRefs = useMemo<ResolvedVerse[]>(() => {
     if (!data) return []
@@ -412,137 +486,183 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     ? refKey(hoveredRef.bookNo, hoveredRef.chapter, refHl(hoveredRef))
     : null
 
-  const openRef = (r: ResolvedVerse) => {
-    // Jumping to a verse in the chapter already on screen: suppress the
-    // router's scroll-to-top so ChapterView glides straight to the target
-    // instead of bouncing off the top first. Cross-chapter keeps the default
-    // reset — the content fully changes there.
-    const sameChapter = r.bookNo === activeBookNo && r.chapterNo === activeChapterNo
-    navigate({
-      to: '/$bookNo/$chapterNo',
-      params: { bookNo: r.bookNo, chapterNo: r.chapterNo },
-      search: { hl: refHl(r.ref) },
-      resetScroll: sameChapter ? false : undefined,
-    })
-    // Called even when navigating to the same chapter (different verse): the
-    // pathname doesn't change so the drawer's pathname-effect wouldn't fire.
-    onNavigate?.()
-  }
-
-  const emptyInput = tab === 'ref' ? q.trim() === '' : kw.trim() === ''
-
-  // Tokens that the keyword search would highlight inside result rows.
-  // Empty on the ref tab so its rows fall through to the marks-based renderer.
-  const kwTokens = useMemo(
-    () => (tab === 'kw' ? kw.trim().toLowerCase().split(/\s+/).filter(Boolean) : []),
-    [tab, kw],
+  // Stable so the memoized ResultList isn't re-rendered every swipe frame.
+  const openRef = useCallback(
+    (r: ResolvedVerse) => {
+      // Jumping to a verse in the chapter already on screen: suppress the
+      // router's scroll-to-top so ChapterView glides straight to the target
+      // instead of bouncing off the top first. Cross-chapter keeps the default
+      // reset — the content fully changes there.
+      const sameChapter = r.bookNo === activeBookNo && r.chapterNo === activeChapterNo
+      navigate({
+        to: '/$bookNo/$chapterNo',
+        params: { bookNo: r.bookNo, chapterNo: r.chapterNo },
+        search: { hl: refHl(r.ref) },
+        resetScroll: sameChapter ? false : undefined,
+      })
+      // Called even when navigating to the same chapter (different verse): the
+      // pathname doesn't change so the drawer's pathname-effect wouldn't fire.
+      onNavigate?.()
+    },
+    [activeBookNo, activeChapterNo, navigate, onNavigate],
   )
-  const emptyHint =
-    tab === 'ref'
-      ? '輸入經文出處以查詢'
-      : '輸入關鍵字搜尋（中英文皆可，以空白分隔多個詞）'
+  const onHover = useCallback((i: number, h: boolean) => setHovered(h ? i : null), [])
+
+  // Tokens the keyword search highlights inside its result rows — always derived
+  // from kw because the keyword panel is mounted even while the 經節 tab is
+  // active (carousel). The ref panel passes [] so its rows use the mark renderer.
+  const kwTokens = useMemo(
+    () => kw.trim().toLowerCase().split(/\s+/).filter(Boolean),
+    [kw],
+  )
+
+  const refInput = (
+    <div className="relative">
+      {/* Backdrop: same text, failed tokens in red */}
+      <div
+        ref={backdropRef}
+        aria-hidden
+        className={cn(
+          FIELD_CLS,
+          'pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-words text-foreground [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+        )}
+      >
+        {renderBackdrop(segments, refFound, activeKey, hoveredKey)}
+      </div>
+      <Textarea
+        ref={textareaRef}
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder={PLACEHOLDER}
+        spellCheck={false}
+        // Edit surface owns its touches; don't fight the drawer / swipe drag.
+        data-vaul-no-drag
+        className={cn(
+          FIELD_CLS,
+          'relative block h-[120px] w-full resize-none break-words border-0 bg-transparent text-transparent caret-foreground shadow-none focus-visible:ring-0 [field-sizing:fixed]',
+        )}
+      />
+      <InputActions value={q} onChange={setQ} focusRef={textareaRef} />
+    </div>
+  )
+
+  const kwInput = (
+    <div className="relative">
+      <Textarea
+        ref={kwTextareaRef}
+        value={kw}
+        onChange={(e) => setKw(e.target.value)}
+        placeholder="搜尋關鍵字…（中英文皆可、空白分隔多詞）"
+        spellCheck={false}
+        data-vaul-no-drag
+        className={cn(
+          FIELD_CLS,
+          'relative block h-[120px] w-full resize-none break-words border-0 bg-transparent shadow-none focus-visible:ring-0 [field-sizing:fixed]',
+        )}
+      />
+      <InputActions value={kw} onChange={setKw} focusRef={kwTextareaRef} />
+    </div>
+  )
+
+  const kwPanel = (
+    <SearchTabPanel input={kwInput} resolved={resolvedKw}>
+      <ResultList
+        rows={resolvedKw}
+        tokens={kwTokens}
+        error={error}
+        loading={!data}
+        isEmpty={kw.trim() === ''}
+        hint="輸入關鍵字搜尋（中英文皆可，以空白分隔多個詞）"
+        activeBookNo={activeBookNo}
+        activeChapterNo={activeChapterNo}
+        activeHl={activeHl}
+        hovered={hovered}
+        onHover={onHover}
+        onOpen={openRef}
+      />
+    </SearchTabPanel>
+  )
+  const refPanel = (
+    <SearchTabPanel input={refInput} resolved={resolvedRefs}>
+      <ResultList
+        rows={resolvedRefs}
+        tokens={NO_TOKENS}
+        error={error}
+        loading={!data}
+        isEmpty={q.trim() === ''}
+        hint="輸入經文出處以查詢"
+        activeBookNo={activeBookNo}
+        activeChapterNo={activeChapterNo}
+        activeHl={activeHl}
+        hovered={hovered}
+        onHover={onHover}
+        onOpen={openRef}
+      />
+    </SearchTabPanel>
+  )
 
   return (
-    <div className="flex flex-col md:h-full">
+    <div className="flex h-full flex-col">
       {/* Tabs stretch full header height (items-stretch) and have no outer
        * padding so the hover/active bg fills cleanly to the edges — mirrors
-       * the 綱目 link style on the chapter header. */}
+       * the 綱目 link style on the chapter header. visualTab tracks the swipe so
+       * the highlight flips the moment a drag passes the threshold. */}
       <h2 className={cn(HEADER_CLS, 'items-stretch px-0 md:px-1.5')}>
-        <TabBtn active={tab === 'kw'} onClick={() => setTab('kw')}>關鍵字</TabBtn>
-        <TabBtn active={tab === 'ref'} onClick={() => setTab('ref')}>經節</TabBtn>
+        <TabBtn active={visualTab === 'kw'} onClick={() => setTab('kw')}>關鍵字</TabBtn>
+        <TabBtn active={visualTab === 'ref'} onClick={() => setTab('ref')}>經節</TabBtn>
       </h2>
-      {/* Sticky on mobile so the input stays reachable while scrolling the
-       * results below it. Desktop's aside already keeps the input visible by
-       * scrolling the results in their own pane, so the sticky is a no-op
-       * there. */}
-      <div className="sticky top-[var(--header-h)] z-10 border-b border-border bg-background md:static">
-        {tab === 'ref' ? (
-          <div className="relative">
-            {/* Backdrop: same text, failed tokens in red */}
-            <div
-              ref={backdropRef}
-              aria-hidden
-              className={cn(
-                FIELD_CLS,
-                'pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-words text-foreground [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-              )}
-            >
-              {renderBackdrop(segments, refFound, activeKey, hoveredKey)}
-            </div>
-            <Textarea
-              ref={textareaRef}
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={PLACEHOLDER}
-              spellCheck={false}
-              // Edit surface owns its touches; don't fight vaul's drawer drag.
-              data-vaul-no-drag
-              className={cn(
-                FIELD_CLS,
-                'relative block h-[120px] w-full resize-none break-words border-0 bg-transparent text-transparent caret-foreground shadow-none focus-visible:ring-0 [field-sizing:fixed]',
-              )}
-            />
-            <InputActions value={q} onChange={setQ} focusRef={textareaRef} />
-          </div>
-        ) : (
-          // Mirror the ref textarea's frame exactly so flipping tabs keeps
-          // the input region in the same place — same height, same FIELD_CLS,
-          // same border-less / shadow-less / fixed-sizing treatment.
-          <div className="relative">
-            <Textarea
-              ref={kwTextareaRef}
-              value={kw}
-              onChange={(e) => setKw(e.target.value)}
-              placeholder="搜尋關鍵字…（中英文皆可、空白分隔多詞）"
-              spellCheck={false}
-              // Edit surface owns its touches; don't fight vaul's drawer drag.
-              data-vaul-no-drag
-              className={cn(
-                FIELD_CLS,
-                'relative block h-[120px] w-full resize-none break-words border-0 bg-transparent shadow-none focus-visible:ring-0 [field-sizing:fixed]',
-              )}
-            />
-            <InputActions value={kw} onChange={setKw} focusRef={kwTextareaRef} />
-          </div>
-        )}
-      </div>
 
-      <div className="p-4 md:flex-1 md:overflow-y-auto">
-        {error ? (
-          <p className="text-sm text-destructive">資料載入失敗：{error}</p>
-        ) : emptyInput ? (
-          <p className="text-sm text-muted-foreground">{emptyHint}</p>
-        ) : !data ? (
-          <p className="text-sm text-muted-foreground">載入中…</p>
-        ) : resolved.length === 0 ? (
-          <p className="text-sm text-muted-foreground">找不到符合的經節</p>
-        ) : (
-          <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-2.5 font-serif text-[length:var(--reading-fs,1rem)] leading-normal md:text-[length:calc(var(--reading-fs,1rem)*0.9375)]">
-            {resolved.map((r, i) => {
-              const active =
-                activeBookNo === r.bookNo &&
-                activeChapterNo === r.chapterNo &&
-                activeHl === refHl(r.ref)
-              return (
-                <ResultRow
-                  key={`${r.bookNo}-${r.chapterNo}-${r.verse.verse}-${i}`}
-                  resolved={r}
-                  highlightTokens={kwTokens}
-                  active={active}
-                  hover={hovered === i}
-                  onHover={(h) => setHovered(h ? i : null)}
-                  onClick={() => openRef(r)}
-                />
-              )
-            })}
+      {isMobile ? (
+        // Mobile: both tabs ride a 200%-wide track; the gesture hook slides dx
+        // and a release snaps to the nearer tab. touch-pan-y lets vertical
+        // scrolling through while the hook locks + owns horizontal drags.
+        <div
+          ref={bodyRef}
+          {...trackProps}
+          className="relative min-h-0 flex-1 touch-pan-y overflow-hidden"
+        >
+          <div
+            className="flex h-full"
+            style={{
+              transform: `translateX(calc(${-activeIndex * 100}% + ${dx}px))`,
+              transition: animating ? 'transform 250ms ease-out' : undefined,
+            }}
+          >
+            <div className="h-full w-full shrink-0">{kwPanel}</div>
+            <div className="h-full w-full shrink-0">{refPanel}</div>
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        // Desktop: no swipe — render only the active tab's panel.
+        <div className="min-h-0 flex-1">{tab === 'kw' ? kwPanel : refPanel}</div>
+      )}
+    </div>
+  )
+}
 
-      {/* Bottom action bar — a panel-level sibling, mirroring the sticky input
-       * above (sticky on mobile so it floats over the scrolling results, docked
-       * statically below the scroll pane on desktop). */}
-      <CopyAllBar resolved={resolved} />
+/** One tab's surface: a fixed input header, a scrollable results body, and the
+ * copy bar stuck to the bottom (floats over the results while scrolling, sinks
+ * to the bottom when they're short). */
+function SearchTabPanel({
+  input,
+  children,
+  resolved,
+}: {
+  input: ReactNode
+  children: ReactNode
+  resolved: ResolvedVerse[]
+}) {
+  return (
+    <div className="flex h-full flex-col">
+      <div className="border-b border-border bg-background">{input}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {/* min-h-full + a flex-1 content row pushes the sticky copy bar to the
+         * bottom even when the results don't fill the pane. */}
+        <div className="flex min-h-full flex-col">
+          <div className="flex-1 p-4">{children}</div>
+          <CopyAllBar resolved={resolved} />
+        </div>
+      </div>
     </div>
   )
 }
@@ -776,11 +896,10 @@ function CopyAllBar({ resolved }: { resolved: ResolvedVerse[] }) {
 
   // Bottom action bar — same shell as the verse-selection bar (rounded-xl /
   // border / bg-popover/95 / shadow / blur), count label on the left and the
-  // copy buttons on the right. sticky on mobile floats it over the scrolling
-  // results; md:static docks it below the desktop scroll pane (mirrors the
-  // sticky-then-static input above).
+  // copy buttons on the right. Sticky to the bottom of the results pane: floats
+  // over them while scrolling, sinks to the bottom when they're short.
   return (
-    <div className="sticky bottom-3 z-10 mx-3 mb-3 flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur md:static md:bottom-auto">
+    <div className="sticky bottom-3 z-10 mx-3 mt-2 mb-3 flex h-14 shrink-0 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur">
       <span className="text-sm text-muted-foreground">共 {resolved.length} 節</span>
       <div className="ml-auto flex items-center gap-2">
         <button type="button" className={btn} onClick={() => copyAll('zh')}>
