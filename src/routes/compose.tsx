@@ -1,5 +1,5 @@
 import { Fragment, useMemo } from 'react'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import {
   useBible,
   useAnnotations,
@@ -268,7 +268,6 @@ function VerseList({
 }
 
 function VerseRowItem({ row }: { row: VerseRow }) {
-  const navigate = useNavigate()
   // URL hl form mirrors the LookupPanel:
   //   collapsed range → 「v-v」 (same chapter) or 「chA:vA-chB:vB」 (cross-chapter)
   //   direct note     → 「verse:n」      (only the note tinted+expanded)
@@ -285,19 +284,14 @@ function VerseRowItem({ row }: { row: VerseRow }) {
         : String(row.verse)
   return (
     <Fragment>
-      <button
-        type="button"
-        onClick={() =>
-          navigate({
-            to: '/$bookNo/$chapterNo',
-            params: { bookNo: row.bookNo, chapterNo: row.chapter },
-            search: { hl },
-          })
-        }
-        className="cursor-pointer self-start whitespace-nowrap pt-0.5 text-left text-[0.75em] font-sans text-muted-foreground transition-colors hover:text-foreground"
+      <Link
+        to="/$bookNo/$chapterNo"
+        params={{ bookNo: row.bookNo, chapterNo: row.chapter }}
+        search={{ hl }}
+        className="self-start whitespace-nowrap pt-0.5 text-left text-[0.75em] font-sans text-muted-foreground transition-colors hover:text-foreground"
       >
         {row.range ? rangeLabel(row) : verseLabel(row)}
-      </button>
+      </Link>
       {row.range ? (
         <p className="text-muted-foreground">（共 {row.range.count} 節，點擊閱讀）</p>
       ) : row.noteOnly && row.noteToShow ? (
