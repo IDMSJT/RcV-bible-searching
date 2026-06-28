@@ -74,13 +74,18 @@ export function ReadingPanel({
 const NAV_CLS =
   'inline-flex items-center px-4 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
 
+// Desktop prev/next chapter arrows: a normal centered icon button, not the
+// full-height bar the mobile back button uses.
+const ARROW_CLS =
+  'inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+
 function RefLink({ refData, children }: { refData: ReadingRef | null; children: ReactNode }) {
   if (!refData) {
-    return <span className={cn(NAV_CLS, 'pointer-events-none text-muted-foreground/40')}>{children}</span>
+    return <span className={cn(ARROW_CLS, 'pointer-events-none text-muted-foreground/40')}>{children}</span>
   }
   if (refData.kind === 'outline') {
     return (
-      <Link to="/$bookNo" params={{ bookNo: refData.bookNo }} className={NAV_CLS}>
+      <Link to="/$bookNo" params={{ bookNo: refData.bookNo }} className={ARROW_CLS}>
         {children}
       </Link>
     )
@@ -90,7 +95,7 @@ function RefLink({ refData, children }: { refData: ReadingRef | null; children: 
       to="/$bookNo/$chapterNo"
       params={{ bookNo: refData.bookNo, chapterNo: refData.chapterNo }}
       search={{}}
-      className={NAV_CLS}
+      className={ARROW_CLS}
     >
       {children}
     </Link>
@@ -173,14 +178,14 @@ export function ReadingPager() {
                 <ArrowLeft className="size-5 [stroke-width:1.8]" />
               </button>
             )}
-            <span className="hidden items-stretch md:flex">
+            <span className="hidden items-center md:flex md:pl-1">
               <RefLink refData={prev}>
                 <ChevronLeft className="size-5 [stroke-width:1.8]" />
               </RefLink>
             </span>
           </div>
           <h1 className="self-center text-base font-medium tracking-tight">{titleOf(titleRef)}</h1>
-          <div className="hidden items-stretch justify-end md:flex">
+          <div className="hidden items-center justify-end md:flex md:pr-1">
             <RefLink refData={next}>
               <ChevronRight className="size-5 [stroke-width:1.8]" />
             </RefLink>
