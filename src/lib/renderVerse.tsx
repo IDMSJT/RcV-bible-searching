@@ -227,7 +227,7 @@ export function NoteList({
             className={
               'space-y-2 rounded-md px-3 py-2 ' +
               (hit
-                ? 'bg-highlight/50 text-foreground'
+                ? 'bg-highlight/80 text-foreground'
                 : 'bg-muted/40 text-muted-foreground')
             }
           >

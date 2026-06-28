@@ -125,11 +125,22 @@ function formatCopyText(
   return r.enText ? `${zh}\n${en}` : zh
 }
 
+/** Does a parsed ref's (possibly cross-chapter) range cover this verse? Lets a
+ * hovered result row — including the note rows a 與註 expands into — light its
+ * source token in the input. */
+function refCoversVerse(ref: VerseRef, bookNo: number, chapter: number, verse: number): boolean {
+  if (ref.bookNo !== bookNo) return false
+  if (chapter < ref.chapter || chapter > ref.endChapter) return false
+  if (chapter === ref.chapter && verse < ref.verseStart) return false
+  if (chapter === ref.endChapter && verse > ref.verseEnd) return false
+  return true
+}
+
 function renderBackdrop(
   segments: Segment[],
   refFound: boolean[],
   activeKey: string | null,
-  hoveredKey: string | null,
+  hoveredVerse: { bookNo: number; chapter: number; verse: number } | null,
 ) {
   // Segments are emitted in input order; ref segments carry the resolved
   // VerseRefs while everything else (prose, separators) renders plain. We
@@ -148,8 +159,15 @@ function renderBackdrop(
     for (let j = 0; j < seg.refs.length; j++) {
       if (refFound[startIdx + j] === false) allResolved = false
       const ref = seg.refs[j]
-      const key = refKey(ref.bookNo, ref.chapter, refHl(ref))
-      if (key === activeKey || key === hoveredKey) lit = true
+      // active = the exact open ref; hover lights any token whose range covers
+      // the hovered row's verse, so 與註-expanded note rows light it too.
+      if (refKey(ref.bookNo, ref.chapter, refHl(ref)) === activeKey) lit = true
+      if (
+        hoveredVerse &&
+        refCoversVerse(ref, hoveredVerse.bookNo, hoveredVerse.chapter, hoveredVerse.verse)
+      ) {
+        lit = true
+      }
     }
     if (!allResolved) {
       return (
@@ -254,7 +272,13 @@ const ResultList = memo(function ResultList({
   if (loading) return <p className="text-sm text-muted-foreground">載入中…</p>
   if (rows.length === 0) return <p className="text-sm text-muted-foreground">找不到符合的經節</p>
   return (
-    <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-2.5 font-serif text-[length:var(--reading-fs,1rem)] leading-normal md:text-[length:calc(var(--reading-fs,1rem)*0.9375)]">
+    <div
+      // Clear hover when leaving the list. Row spacing is each row's own py (not
+      // a grid gap) so there's no dead strip between rows — hover always tracks
+      // the row under the cursor without flicker.
+      onMouseLeave={() => onHover(-1, false)}
+      className="grid grid-cols-[auto_1fr] gap-x-2 font-serif text-[length:var(--reading-fs,1rem)] leading-normal md:text-[length:calc(var(--reading-fs,1rem)*0.9375)]"
+    >
       {rows.map((r, i) => {
         const active =
           activeBookNo === r.bookNo && activeChapterNo === r.chapterNo && activeHl === refHl(r.ref)
@@ -390,7 +414,16 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
             const enText = showEnglish
               ? findChapter(bibleEn, ref.bookNo, vCh)?.verses.find((x) => x.verse === v.verse)?.text
               : undefined
-            out.push({ bookNo: ref.bookNo, chapterNo: vCh, verse: v, enText, ref: { ...ref, noteAll: undefined } })
+            // Keep noteAll (narrowed to this verse) so clicking the verse row
+            // opens the verse + all its notes in reading (hl 「v,v:*」), like the
+            // 與註1 connected form does for a single note.
+            out.push({
+              bookNo: ref.bookNo,
+              chapterNo: vCh,
+              verse: v,
+              enText,
+              ref: { ...ref, chapter: vCh, endChapter: vCh, verseStart: v.verse, verseEnd: v.verse },
+            })
           }
           for (const note of vNotes) {
             out.push({
@@ -399,7 +432,13 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
               verse: v,
               noteToShow: note,
               noteOnly: true,
-              ref: { ...ref, noteAll: undefined, note: note.n, noteDirect: true },
+              // 與註 (non-direct): every listed row — verse and each note —
+              // targets the whole verse + all its notes (7,7:*), so clicking any
+              // of them lights the same set in reading. Direct 註 keeps the note
+              // alone as the target.
+              ref: ref.noteDirect
+                ? { ...ref, noteAll: undefined, note: note.n, noteDirect: true }
+                : { ...ref, chapter: vCh, endChapter: vCh, verseStart: v.verse, verseEnd: v.verse },
             })
           }
           continue
@@ -505,9 +544,9 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
 
   // Key of the result row currently under the mouse — so its source token in
   // the input backdrop highlights along with the row's own lit state.
-  const hoveredRef = hovered != null ? resolved[hovered]?.ref : null
-  const hoveredKey = hoveredRef != null
-    ? refKey(hoveredRef.bookNo, hoveredRef.chapter, refHl(hoveredRef))
+  const hoveredRow = hovered != null ? resolved[hovered] : null
+  const hoveredVerse = hoveredRow
+    ? { bookNo: hoveredRow.bookNo, chapter: hoveredRow.chapterNo, verse: hoveredRow.verse.verse }
     : null
 
   // Stable so the memoized ResultList isn't re-rendered every swipe frame.
@@ -575,7 +614,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
           'pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-words text-foreground [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
         )}
       >
-        {renderBackdrop(segments, refFound, activeKey, hoveredKey)}
+        {renderBackdrop(segments, refFound, activeKey, hoveredVerse)}
       </div>
       <Textarea
         ref={textareaRef}
@@ -792,7 +831,6 @@ function ResultRow({
       else onOpen()
     },
     onMouseEnter: () => onHover(true),
-    onMouseLeave: () => onHover(false),
     // Mobile long-press enters selection mode + selects this row. After that a
     // tap toggles; only a tap while nothing is selected still navigates.
     onPointerDown: () => {
@@ -817,7 +855,7 @@ function ResultRow({
       // `select-none` suppresses the native blue text-selection that appears
       // under a long press; `[-webkit-touch-callout:none]` kills iOS Safari's
       // grey selection callout the same gesture triggers.
-      className="col-span-2 grid cursor-pointer grid-cols-subgrid items-baseline rounded transition-colors select-none [-webkit-touch-callout:none]"
+      className="col-span-2 grid cursor-pointer grid-cols-subgrid items-baseline rounded py-[0.3125rem] transition-colors select-none [-webkit-touch-callout:none]"
     >
       <span
         className={cn(
