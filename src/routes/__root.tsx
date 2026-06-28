@@ -10,7 +10,6 @@ import { SettingsPanel } from '@/components/SettingsPanel'
 import { ReadingPreferences } from '@/components/ReadingPreferences'
 import { ReloadPrompt } from '@/components/ReloadPrompt'
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
 
@@ -212,9 +211,8 @@ function RootComponent() {
   // size-5 / 1.8 stroke (stroke-width via CSS so it can be responsive — the
   // lucide strokeWidth prop can't be).
   const navIcon = 'size-6 [stroke-width:1.6] md:size-5 md:[stroke-width:1.8]'
-  // The first three buttons are identical on both viewports; settings differs
-  // — on desktop it opens a Popover anchored to the button, on mobile it stays
-  // a regular nav that swaps the drawer into settings mode.
+  // All four nav buttons behave the same on both viewports: swap the active
+  // panel (desktop aside / mobile drawer) into that mode.
   const goToLastChapter = () => {
     // Only the chapter view is "what they're reading" — outline (/$bookNo) and
     // /compose are meta routes, so 閱讀 should still navigate the user into an
@@ -286,8 +284,6 @@ function RootComponent() {
     </>
   )
 
-  const [settingsOpen, setSettingsOpen] = useState(false)
-
   // Stable callback so CatalogPanel's memoized BookPicker / ChapterPicker
   // children don't re-render on every root render — without this every prev/
   // next chapter URL change cascades through the 66 Tooltip wrappers.
@@ -311,8 +307,9 @@ function RootComponent() {
       />
     )
 
-  const sidebarWidth =
-    effectiveMode === 'settings' ? 'md:w-[213px]' : 'md:w-[426px]'
+  // Settings is a single narrow column of rows, so it gets a tighter width than
+  // the content-heavy panels (catalog / lookup / compose).
+  const sidebarWidth = effectiveMode === 'settings' ? 'md:w-[320px]' : 'md:w-[426px]'
   const sidebarFlexCol = effectiveMode === 'compose' || effectiveMode === 'settings'
 
   return (
@@ -322,29 +319,23 @@ function RootComponent() {
       {/* Desktop: left vertical rail */}
       <nav className="hidden w-16 shrink-0 flex-col items-center border-r border-border bg-background p-2 md:flex print:hidden">
         {sharedNavButtons((m) => effectiveMode === m, '閱讀')}
-        <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
-          <PopoverTrigger
-            render={
-              <NavButton active={settingsOpen} label="設定" className="mt-auto">
-                <Settings className={navIcon} />
-              </NavButton>
-            }
-          />
-          <PopoverContent
-            side="right"
-            align="end"
-            sideOffset={14}
-            className="w-72 gap-0 overflow-hidden p-0"
-          >
-            <SettingsPanel />
-          </PopoverContent>
-        </Popover>
+        <NavButton
+          active={effectiveMode === 'settings'}
+          label="設定"
+          className="mt-auto"
+          onClick={() => openMode('settings', onCompose ? goToLastChapter : undefined)}
+        >
+          <Settings className={navIcon} />
+        </NavButton>
       </nav>
 
       {/* Desktop: inline sidebar; hidden below md */}
       <aside
         className={cn(
-          'hidden shrink-0 overflow-y-auto border-r border-border bg-background md:block print:hidden',
+          // overflow-x-hidden clips the fixed-width inner while the aside's width
+          // animates, so the content lands at its final layout immediately and
+          // only the box glides.
+          'hidden shrink-0 overflow-x-hidden overflow-y-auto border-r border-border bg-background transition-[width] duration-200 ease-out md:block print:hidden',
           sidebarFlexCol && 'md:flex md:flex-col',
           effectiveMode === 'lookup' && 'md:overflow-hidden',
           sidebarWidth,
@@ -354,9 +345,11 @@ function RootComponent() {
          * the fade lives (see DrawerContent below). On the wide layout the
          * sidebar is always visible and the user is usually clicking from
          * one panel directly into another, so a fade reads as a delay. */}
+        {/* Fixed to the mode's width (no transition) so the content doesn't
+         * reflow while the aside box animates around it. */}
         <div
           key={effectiveMode}
-          className={cn('h-full', sidebarFlexCol && 'flex flex-col')}
+          className={cn('h-full', sidebarFlexCol && 'flex flex-col', sidebarWidth)}
         >
           {sidebarBody}
         </div>

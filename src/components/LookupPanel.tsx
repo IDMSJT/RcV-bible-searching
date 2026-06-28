@@ -1,7 +1,6 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useLocation } from '@tanstack/react-router'
-import { Drawer as VaulDrawer } from 'vaul'
-import { Copy } from 'lucide-react'
+import { X } from 'lucide-react'
 import { parseRefs, type Segment, type VerseRef } from '@/lib/parseRefs'
 import {
   useBible,
@@ -13,8 +12,16 @@ import {
 } from '@/data/loadBible'
 import { BOOK_ABBREV } from '@/data/abbrev'
 import { BOOK_ABBREV_EN } from '@/data/abbrevEn'
-import { formatVerseRef, DEFAULT_CITE_FORMAT, type CiteFormat } from '@/lib/cite'
-import { Popover, PopoverContent } from '@/components/ui/popover'
+import {
+  formatVerseRef,
+  formatCitation,
+  DEFAULT_CITE_FORMAT,
+  DEFAULT_CITE_POSITION,
+  DEFAULT_COPY_LANG,
+  type CiteFormat,
+  type CitePosition,
+  type CopyLang,
+} from '@/lib/cite'
 import { Textarea } from '@/components/ui/textarea'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { useCarousel } from '@/lib/useCarousel'
@@ -100,20 +107,22 @@ function formatCopyText(
   r: ResolvedVerse,
   format: 'zh' | 'en' | 'both',
   cite: CiteFormat,
+  pos: CitePosition,
 ): string {
   // Note-only rows have no verse text and no English source — fold every
   // format down to the note body with a 註N-suffixed label.
   if (r.noteOnly && r.noteToShow) {
     if (format === 'en') return ''
     const label = `${formatVerseRef(r.bookNo, r.chapterNo, r.verse.verse, cite)}註${r.noteToShow.n}`
-    return `${label}『${r.noteToShow.text}』`
+    return formatCitation(label, `『${r.noteToShow.text}』`, pos)
   }
   const zhLabel = formatVerseRef(r.bookNo, r.chapterNo, r.verse.verse, cite)
   const enLabel = `${BOOK_ABBREV_EN[r.bookNo] ?? ''} ${r.chapterNo}:${r.verse.verse}`
-  if (format === 'zh') return `${zhLabel}『${r.verse.text}』`
-  if (format === 'en') return r.enText ? `${enLabel} "${r.enText}"` : ''
-  const zh = `${zhLabel}『${r.verse.text}』`
-  return r.enText ? `${zh}\n${enLabel} "${r.enText}"` : zh
+  const zh = formatCitation(zhLabel, `『${r.verse.text}』`, pos)
+  if (format === 'zh') return zh
+  const en = r.enText ? formatCitation(enLabel, `"${r.enText}"`, pos, ' ') : ''
+  if (format === 'en') return en
+  return r.enText ? `${zh}\n${en}` : zh
 }
 
 function renderBackdrop(
@@ -164,6 +173,10 @@ const KW_RESULT_CAP = 500
 // Stable empty-tokens reference so the 經節 panel's memoized ResultList isn't
 // invalidated by a fresh [] on every parent re-render (e.g. each swipe frame).
 const NO_TOKENS: string[] = []
+// Stable empties for the inactive tab's panel (keeps the memoized ResultList /
+// CopyAllBar from re-rendering during a swipe).
+const EMPTY_SELECTION: ReadonlySet<number> = new Set()
+const noop = () => {}
 
 // Wrap every token occurrence (case-insensitive) in a highlighted <mark>. Used
 // by the keyword tab so the visible text shows the user *what* matched their
@@ -212,8 +225,11 @@ const ResultList = memo(function ResultList({
   activeChapterNo,
   activeHl,
   hovered,
+  selected,
+  selecting,
   onHover,
   onOpen,
+  onToggle,
 }: {
   rows: ResolvedVerse[]
   tokens: string[]
@@ -225,8 +241,13 @@ const ResultList = memo(function ResultList({
   activeChapterNo: number | null
   activeHl: string | undefined
   hovered: number | null
+  /** Indices of the currently selected rows (multi-select). */
+  selected: ReadonlySet<number>
+  /** True while a selection exists — tap toggles instead of navigating. */
+  selecting: boolean
   onHover: (index: number, hovering: boolean) => void
   onOpen: (r: ResolvedVerse) => void
+  onToggle: (index: number) => void
 }) {
   if (error) return <p className="text-sm text-destructive">資料載入失敗：{error}</p>
   if (isEmpty) return <p className="text-sm text-muted-foreground">{hint}</p>
@@ -244,8 +265,11 @@ const ResultList = memo(function ResultList({
             highlightTokens={tokens}
             active={active}
             hover={hovered === i}
+            selected={selected.has(i)}
+            selecting={selecting}
             onHover={(h) => onHover(i, h)}
-            onClick={() => onOpen(r)}
+            onOpen={() => onOpen(r)}
+            onToggle={() => onToggle(i)}
           />
         )
       })}
@@ -508,6 +532,30 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   )
   const onHover = useCallback((i: number, h: boolean) => setHovered(h ? i : null), [])
 
+  // Multi-select: long-press a result to start, then tap toggles instead of
+  // navigating. Indices into the active tab's result list; reset on tab change
+  // or query edit (so stale indices never linger).
+  const [selected, setSelected] = useState<Set<number>>(() => new Set())
+  const selecting = selected.size > 0
+  const toggleSel = useCallback((i: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i)
+      else next.add(i)
+      return next
+    })
+  }, [])
+  const clearSel = useCallback(() => setSelected(new Set()), [])
+  // Reset the selection when the active tab or its query changes — stale indices
+  // would point at the wrong rows. Done during render (React's "adjust state when
+  // an input changes" pattern), not an effect.
+  const selScope = `${tab} ${tab === 'kw' ? kw : q}`
+  const [prevSelScope, setPrevSelScope] = useState(selScope)
+  if (prevSelScope !== selScope) {
+    setPrevSelScope(selScope)
+    setSelected(new Set())
+  }
+
   // Tokens the keyword search highlights inside its result rows — always derived
   // from kw because the keyword panel is mounted even while the 經節 tab is
   // active (carousel). The ref panel passes [] so its rows use the mark renderer.
@@ -565,7 +613,12 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   )
 
   const kwPanel = (
-    <SearchTabPanel input={kwInput} resolved={resolvedKw}>
+    <SearchTabPanel
+      input={kwInput}
+      resolved={resolvedKw}
+      selected={tab === 'kw' ? selected : EMPTY_SELECTION}
+      onClear={clearSel}
+    >
       <ResultList
         rows={resolvedKw}
         tokens={kwTokens}
@@ -577,13 +630,21 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
         activeChapterNo={activeChapterNo}
         activeHl={activeHl}
         hovered={hovered}
+        selected={tab === 'kw' ? selected : EMPTY_SELECTION}
+        selecting={tab === 'kw' && selecting}
         onHover={onHover}
         onOpen={openRef}
+        onToggle={tab === 'kw' ? toggleSel : noop}
       />
     </SearchTabPanel>
   )
   const refPanel = (
-    <SearchTabPanel input={refInput} resolved={resolvedRefs}>
+    <SearchTabPanel
+      input={refInput}
+      resolved={resolvedRefs}
+      selected={tab === 'ref' ? selected : EMPTY_SELECTION}
+      onClear={clearSel}
+    >
       <ResultList
         rows={resolvedRefs}
         tokens={NO_TOKENS}
@@ -595,8 +656,11 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
         activeChapterNo={activeChapterNo}
         activeHl={activeHl}
         hovered={hovered}
+        selected={tab === 'ref' ? selected : EMPTY_SELECTION}
+        selecting={tab === 'ref' && selecting}
         onHover={onHover}
         onOpen={openRef}
+        onToggle={tab === 'ref' ? toggleSel : noop}
       />
     </SearchTabPanel>
   )
@@ -647,10 +711,14 @@ function SearchTabPanel({
   input,
   children,
   resolved,
+  selected,
+  onClear,
 }: {
   input: ReactNode
   children: ReactNode
   resolved: ResolvedVerse[]
+  selected: ReadonlySet<number>
+  onClear: () => void
 }) {
   return (
     <div className="flex h-full flex-col">
@@ -660,7 +728,7 @@ function SearchTabPanel({
          * bottom even when the results don't fill the pane. */}
         <div className="flex min-h-full flex-col">
           <div className="flex-1 p-4">{children}</div>
-          <CopyAllBar resolved={resolved} />
+          <CopyAllBar resolved={resolved} selected={selected} onClear={onClear} />
         </div>
       </div>
     </div>
@@ -672,8 +740,11 @@ function ResultRow({
   highlightTokens: hlTokens,
   active,
   hover,
+  selected,
+  selecting,
   onHover,
-  onClick,
+  onOpen,
+  onToggle,
 }: {
   resolved: ResolvedVerse
   /** Lowercased query tokens — when non-empty, verse / English text in the
@@ -682,12 +753,13 @@ function ResultRow({
   highlightTokens: string[]
   active: boolean
   hover: boolean
+  selected: boolean
+  selecting: boolean
   onHover: (hovering: boolean) => void
-  onClick: () => void
+  onOpen: () => void
+  onToggle: () => void
 }) {
   const isMobile = useIsMobile()
-  const [menuOpen, setMenuOpen] = useState(false)
-  const rowRef = useRef<HTMLDivElement>(null)
   const pressTimerRef = useRef<number | null>(null)
   const longPressedRef = useRef(false)
 
@@ -710,31 +782,26 @@ function ResultRow({
   const lit = active || hover
 
   const handlers = {
-    // Swallow the click that immediately follows a long-press — the press
-    // already opened the menu, the click would re-trigger navigation.
+    // A long-press already toggled selection; swallow the click that follows.
     onClick: () => {
       if (longPressedRef.current) {
         longPressedRef.current = false
         return
       }
-      onClick()
-    },
-    // Desktop right-click opens the copy menu. preventDefault suppresses the
-    // browser's own context menu so it doesn't show on top of ours.
-    onContextMenu: (e: React.MouseEvent) => {
-      if (isMobile) return
-      e.preventDefault()
-      setMenuOpen(true)
+      if (selecting) onToggle()
+      else onOpen()
     },
     onMouseEnter: () => onHover(true),
     onMouseLeave: () => onHover(false),
+    // Mobile long-press enters selection mode + selects this row. After that a
+    // tap toggles; only a tap while nothing is selected still navigates.
     onPointerDown: () => {
       if (!isMobile) return
       longPressedRef.current = false
       clearPressTimer()
       pressTimerRef.current = window.setTimeout(() => {
         longPressedRef.current = true
-        setMenuOpen(true)
+        onToggle()
         if ('vibrate' in navigator) navigator.vibrate(40)
       }, 500)
     },
@@ -745,172 +812,131 @@ function ResultRow({
   }
 
   return (
-    <>
-      <div
-        ref={rowRef}
-        {...handlers}
-        // `select-none` suppresses the native blue text-selection that
-        // appears under a long press; `[-webkit-touch-callout:none]` kills
-        // iOS Safari's grey selection callout the same gesture triggers.
-        className="col-span-2 grid cursor-pointer grid-cols-subgrid items-baseline rounded transition-colors select-none [-webkit-touch-callout:none]"
-      >
-        <span
-          className={cn(
-            'self-start whitespace-nowrap pt-1 text-left text-xs font-sans transition-colors',
-            active && 'font-medium',
-            lit ? 'text-foreground' : 'text-muted-foreground',
-          )}
-        >
-          {label}
-        </span>
-        <div>
-          {noteToShow ? (
-            // Note row — render the note body in the same column where verse
-            // text normally goes, so a note result lays out identically to a
-            // verse result. Paragraphs follow the EPUB's restored breaks.
-            // Click bubbles up to the row's onClick so tapping anywhere on
-            // the note still navigates to the source chapter (embedded refs
-            // inside renderNoteText stop propagation on themselves so their
-            // own Link navigation wins instead).
-            noteToShow.text.split('\n').map((para, i) => (
-              <p
-                key={i}
-                className={cn('transition-colors', lit ? 'text-foreground' : 'text-foreground/90')}
-              >
-                {renderNoteText(para, { book: bookNo, chapter: chapterNo })}
-              </p>
-            ))
-          ) : (
-            <>
-              <p className={cn('transition-colors', lit ? 'text-foreground' : 'text-foreground/90')}>
-                {hlTokens.length > 0
-                  ? highlightTokens(verse.text, hlTokens)
-                  : renderMarkedText(verse.text, verse.marks)}
-              </p>
-              {enText && (
-                // Match ChapterView's English styling so the lookup result feels
-                // of-a-piece with the reading surface for the same verse.
-                <p className="mt-0.5 font-sans text-[0.9em] text-muted-foreground">
-                  {hlTokens.length > 0 ? highlightTokens(enText, hlTokens) : enText}
-                </p>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      {isMobile ? (
-        // NestedRoot so vaul doesn't stack-collapse the surrounding sidebar
-        // drawer when we open this one on top of it.
-        <VaulDrawer.NestedRoot open={menuOpen} onOpenChange={setMenuOpen}>
-          <VaulDrawer.Portal>
-            <VaulDrawer.Overlay className="fixed inset-0 z-[80] bg-black/40" />
-            <VaulDrawer.Content className="fixed inset-x-0 bottom-0 z-[80] flex flex-col gap-1 rounded-t-xl border border-border bg-popover p-2 text-popover-foreground shadow-lg">
-              <VaulDrawer.Handle className="mx-auto my-2 h-1 w-10 rounded-full bg-muted-foreground/30" />
-              <VaulDrawer.Title className="sr-only">複製選項</VaulDrawer.Title>
-              <CopyMenu resolved={resolved} onDone={() => setMenuOpen(false)} />
-            </VaulDrawer.Content>
-          </VaulDrawer.Portal>
-        </VaulDrawer.NestedRoot>
-      ) : (
-        <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-          <PopoverContent
-            anchor={rowRef}
-            side="right"
-            align="start"
-            sideOffset={8}
-            className="w-44 gap-1 rounded-xl p-1.5"
-          >
-            <CopyMenu resolved={resolved} onDone={() => setMenuOpen(false)} />
-          </PopoverContent>
-        </Popover>
-      )}
-    </>
-  )
-}
-
-/** Clear + paste affordances pinned to the bottom-right of a search field.
- * Paste reads the clipboard (needs a user gesture; hidden where the read API
- * isn't available); clear only shows when there's text. */
-/** Three buttons that copy a single verse in different formats. The English
- * citation falls back to the Chinese abbreviation when 顯示英文 is off (no
- * `enText` available) by simply hiding the en / both options. */
-function CopyMenu({ resolved, onDone }: { resolved: ResolvedVerse; onDone: () => void }) {
-  const { enText } = resolved
-  const [cite] = useLocalStorage<CiteFormat>('rcv/cite-format', DEFAULT_CITE_FORMAT)
-
-  const copy = async (format: 'zh' | 'en' | 'both') => {
-    const text = formatCopyText(resolved, format, cite)
-    if (!text) return
-    try { await navigator.clipboard.writeText(text) } catch { /* clipboard denied */ }
-    onDone()
-  }
-
-  const Item = ({ children, onSelect }: { children: React.ReactNode; onSelect: () => void }) => (
-    <button
-      type="button"
-      onClick={onSelect}
-      // Mobile gets a taller hit-target (py-3) since the drawer is reached by
-      // long-press and the buttons need to feel tappable. Desktop tightens
-      // back to py-1.5 because the popover is cursor-driven.
-      // active: covers touch press + desktop click — gives the tactile bg +
-      // shrink feedback. transition-all so colors and transform animate
-      // together; duration-150 keeps it snappy.
-      className="flex items-center gap-3 rounded-md px-3 py-2 text-left text-base transition-all duration-150 hover:bg-muted active:scale-95 active:bg-muted md:py-1.5 md:text-sm"
+    <div
+      {...handlers}
+      // `select-none` suppresses the native blue text-selection that appears
+      // under a long press; `[-webkit-touch-callout:none]` kills iOS Safari's
+      // grey selection callout the same gesture triggers.
+      className="col-span-2 grid cursor-pointer grid-cols-subgrid items-baseline rounded transition-colors select-none [-webkit-touch-callout:none]"
     >
-      <Copy className="size-5 shrink-0 text-muted-foreground md:size-4" strokeWidth={1.8} />
-      {children}
-    </button>
-  )
-
-  return (
-    <div className="flex flex-col gap-0.5">
-      <Item onSelect={() => copy('zh')}>複製中文</Item>
-      {enText && (
-        <>
-          <Item onSelect={() => copy('en')}>複製英文</Item>
-          <Item onSelect={() => copy('both')}>複製雙語</Item>
-        </>
-      )}
+      <span
+        className={cn(
+          'self-start whitespace-nowrap pt-1 text-left text-xs font-sans transition-colors',
+          active && 'font-medium',
+          lit ? 'text-foreground' : 'text-muted-foreground',
+        )}
+      >
+        {label}
+      </span>
+      <div className={cn(selected && 'rounded bg-blue-500/15 px-1 -mx-1 dark:bg-blue-400/20')}>
+        {noteToShow ? (
+          // Note row — render the note body where verse text normally goes, so a
+          // note result lays out identically to a verse result.
+          noteToShow.text.split('\n').map((para, i) => (
+            <p
+              key={i}
+              className={cn('transition-colors', lit ? 'text-foreground' : 'text-foreground/90')}
+            >
+              {renderNoteText(para, { book: bookNo, chapter: chapterNo })}
+            </p>
+          ))
+        ) : (
+          <>
+            <p className={cn('transition-colors', lit ? 'text-foreground' : 'text-foreground/90')}>
+              {hlTokens.length > 0
+                ? highlightTokens(verse.text, hlTokens)
+                : renderMarkedText(verse.text, verse.marks)}
+            </p>
+            {enText && (
+              // Match ChapterView's English styling so the lookup result feels
+              // of-a-piece with the reading surface for the same verse.
+              <p className="mt-0.5 font-sans text-[0.9em] text-muted-foreground">
+                {hlTokens.length > 0 ? highlightTokens(enText, hlTokens) : enText}
+              </p>
+            )}
+          </>
+        )}
+      </div>
     </div>
   )
 }
 
-/** Bulk copy bar — sits just below the input and copies every resolved verse
- * at once. Empty list / no English greys out the relevant buttons. */
-function CopyAllBar({ resolved }: { resolved: ResolvedVerse[] }) {
+/** Bottom action bar for the results. Copies / shares either the current
+ * selection (long-press a row to start selecting) or, when nothing is selected,
+ * every result. The language (中文 / 英文 / 中英文) is a setting, so 複製 / 分享 are
+ * plain buttons. Same pill shell as the chapter selection bar. Returns null when
+ * there's nothing. */
+function CopyAllBar({
+  resolved,
+  selected,
+  onClear,
+}: {
+  resolved: ResolvedVerse[]
+  selected: ReadonlySet<number>
+  onClear: () => void
+}) {
   const [cite] = useLocalStorage<CiteFormat>('rcv/cite-format', DEFAULT_CITE_FORMAT)
+  const [pos] = useLocalStorage<CitePosition>('rcv/cite-position', DEFAULT_CITE_POSITION)
+  const [copyLang] = useLocalStorage<CopyLang>('rcv/copy-lang', DEFAULT_COPY_LANG)
+  const [showEnglish] = useLocalStorage('rcv/show-english', false)
   // Nothing to copy → don't float an empty pill over the (also empty) results.
   if (resolved.length === 0) return null
-  const noEn = !resolved.some((r) => r.enText)
 
-  const copyAll = async (format: 'zh' | 'en' | 'both') => {
-    const lines = resolved.map((r) => formatCopyText(r, format, cite)).filter(Boolean)
-    if (!lines.length) return
-    const sep = format === 'both' ? '\n\n' : '\n'
-    try { await navigator.clipboard.writeText(lines.join(sep)) } catch { /* denied */ }
+  // en / both only make sense with English loaded; otherwise force 中文.
+  const lang: CopyLang = showEnglish ? copyLang : 'zh'
+  const sep = lang === 'both' ? '\n\n' : '\n'
+  const selecting = selected.size > 0
+  const target = selecting ? resolved.filter((_, i) => selected.has(i)) : resolved
+  const text = () => target.map((r) => formatCopyText(r, lang, cite, pos)).filter(Boolean).join(sep)
+
+  const copy = async () => {
+    const t = text()
+    if (!t) return
+    try { await navigator.clipboard.writeText(t) } catch { /* denied */ }
+    onClear()
+  }
+  const share = async () => {
+    const t = text()
+    if (!t) return
+    try {
+      if (navigator.share) await navigator.share({ text: t })
+      else await navigator.clipboard.writeText(t)
+      onClear()
+    } catch {
+      /* share sheet dismissed — keep the selection */
+    }
   }
 
-  const btn =
-    'rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95 disabled:opacity-50'
-
-  // Bottom action bar — same shell as the verse-selection bar (rounded-xl /
-  // border / bg-popover/95 / shadow / blur), count label on the left and the
-  // copy buttons on the right. Sticky to the bottom of the results pane: floats
-  // over them while scrolling, sinks to the bottom when they're short.
   return (
     <div className="sticky bottom-3 z-10 mx-3 mt-2 mb-3 flex h-14 shrink-0 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur">
-      <span className="text-sm text-muted-foreground">共 {resolved.length} 節</span>
+      <span className="whitespace-nowrap text-sm text-muted-foreground">
+        {selecting ? `選取 ${selected.size} 節` : `共 ${resolved.length} 節`}
+      </span>
       <div className="ml-auto flex items-center gap-2">
-        <button type="button" className={btn} onClick={() => copyAll('zh')}>
-          複製中文
+        <button
+          type="button"
+          onClick={share}
+          className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95"
+        >
+          分享
         </button>
-        <button type="button" className={btn} onClick={() => copyAll('en')} disabled={noEn}>
-          複製英文
+        <button
+          type="button"
+          onClick={copy}
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-95"
+        >
+          複製
         </button>
-        <button type="button" className={btn} onClick={() => copyAll('both')} disabled={noEn}>
-          複製中英文
-        </button>
+        {selecting && (
+          <button
+            type="button"
+            onClick={onClear}
+            aria-label="取消選取"
+            className="rounded-lg px-2 py-2 text-muted-foreground transition-all duration-150 hover:text-foreground active:scale-95"
+          >
+            <X className="size-4.5" />
+          </button>
+        )}
       </div>
     </div>
   )

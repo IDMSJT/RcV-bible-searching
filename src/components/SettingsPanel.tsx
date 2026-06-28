@@ -2,7 +2,17 @@ import { Check } from 'lucide-react'
 import { Slider as SliderPrimitive } from '@base-ui/react/slider'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
-import { CITE_FORMATS, DEFAULT_CITE_FORMAT, type CiteFormat } from '@/lib/cite'
+import {
+  CITE_FORMATS,
+  CITE_POSITIONS,
+  COPY_LANGS,
+  DEFAULT_CITE_FORMAT,
+  DEFAULT_CITE_POSITION,
+  DEFAULT_COPY_LANG,
+  type CiteFormat,
+  type CitePosition,
+  type CopyLang,
+} from '@/lib/cite'
 
 type Theme = 'light' | 'dark' | 'system'
 
@@ -19,6 +29,12 @@ export function SettingsPanel() {
   const [showNotes, setShowNotes] = useLocalStorage('rcv/show-notes', true)
   const [fontSize, setFontSize] = useLocalStorage('rcv/font-size', 16)
   const [citeFormat, setCiteFormat] = useLocalStorage<CiteFormat>('rcv/cite-format', DEFAULT_CITE_FORMAT)
+  const [citePosition, setCitePosition] = useLocalStorage<CitePosition>('rcv/cite-position', DEFAULT_CITE_POSITION)
+  const [copyLang, setCopyLang] = useLocalStorage<CopyLang>('rcv/copy-lang', DEFAULT_COPY_LANG)
+  // With 顯示英文 off, 英文/中英文 can't apply, so the *shown* selection follows the
+  // effective language (中文); the stored copyLang is kept for when English comes
+  // back on.
+  const effCopyLang: CopyLang = showEnglish ? copyLang : 'zh'
 
   return (
     <>
@@ -45,29 +61,89 @@ export function SettingsPanel() {
         </SettingRow>
         <SettingRow label="複製格式" stack>
           <div className="flex flex-col gap-3 pt-1">
-            {CITE_FORMATS.map((f) => (
-              <button
-                key={f.value}
-                type="button"
-                onClick={() => setCiteFormat(f.value)}
-                className={cn(
-                  'flex items-center justify-between rounded-lg px-3 py-2.5 text-left text-base transition-all duration-150 select-none active:scale-95 md:py-2 md:text-sm',
-                  citeFormat === f.value
-                    ? 'text-foreground ring-2 ring-primary'
-                    : 'text-muted-foreground ring-1 ring-border hover:bg-muted/40',
-                )}
-              >
-                <span>
-                  {f.example}
-                  <span className="text-muted-foreground">『經文』</span>
-                </span>
-                {citeFormat === f.value && (
-                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
-                    <Check className="size-3 [stroke-width:3]" />
+            {/* 語言 — when 顯示英文 is off, only 英文 / 中英文 are disabled (they
+             * need the English text); 中文 stays selectable. */}
+            <div className="grid grid-cols-3 gap-3">
+              {COPY_LANGS.map((l) => (
+                <button
+                  key={l.value}
+                  type="button"
+                  disabled={!showEnglish && l.value !== 'zh'}
+                  onClick={() => setCopyLang(l.value)}
+                  className={cn(
+                    'flex items-center justify-between rounded-lg px-3 py-2.5 text-left text-base transition-all duration-150 select-none active:scale-95 disabled:pointer-events-none disabled:opacity-40 md:py-2 md:text-sm',
+                    effCopyLang === l.value
+                      ? 'text-foreground ring-2 ring-primary'
+                      : 'text-muted-foreground ring-1 ring-border hover:bg-muted/40',
+                  )}
+                >
+                  <span>{l.label}</span>
+                  {effCopyLang === l.value && (
+                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
+                      <Check className="size-3 [stroke-width:3]" />
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+            {/* 經文 vs 標籤 order — two side-by-side toggles. */}
+            <div className="grid grid-cols-2 gap-3 border-t border-dashed border-border pt-3">
+              {CITE_POSITIONS.map((p) => (
+                <button
+                  key={p.value}
+                  type="button"
+                  onClick={() => setCitePosition(p.value)}
+                  className={cn(
+                    'flex items-center justify-between rounded-lg px-3 py-2.5 text-left text-base transition-all duration-150 select-none active:scale-95 md:py-2 md:text-sm',
+                    citePosition === p.value
+                      ? 'text-foreground ring-2 ring-primary'
+                      : 'text-muted-foreground ring-1 ring-border hover:bg-muted/40',
+                  )}
+                >
+                  <span>{p.label}</span>
+                  {citePosition === p.value && (
+                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
+                      <Check className="size-3 [stroke-width:3]" />
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+            {/* dashed divider, then the cite-format options — their 『經文』
+             * preview flips to match the position selected above. */}
+            <div className="flex flex-col gap-3 border-t border-dashed border-border pt-3">
+              {CITE_FORMATS.map((f) => (
+                <button
+                  key={f.value}
+                  type="button"
+                  onClick={() => setCiteFormat(f.value)}
+                  className={cn(
+                    'flex items-center justify-between rounded-lg px-3 py-2.5 text-left text-base transition-all duration-150 select-none active:scale-95 md:py-2 md:text-sm',
+                    citeFormat === f.value
+                      ? 'text-foreground ring-2 ring-primary'
+                      : 'text-muted-foreground ring-1 ring-border hover:bg-muted/40',
+                  )}
+                >
+                  <span>
+                    {/* 『經文』 goes before or after the ref by position. The
+                     * leading form gets -ml so the full-width 『 (which sits in
+                     * the right half of its em box) lines up with the text edge. */}
+                    {citePosition === 'text-first' && (
+                      <span className="-ml-[0.5em] text-muted-foreground">『經文』</span>
+                    )}
+                    {f.example}
+                    {citePosition === 'ref-first' && (
+                      <span className="text-muted-foreground">『經文』</span>
+                    )}
                   </span>
-                )}
-              </button>
-            ))}
+                  {citeFormat === f.value && (
+                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
+                      <Check className="size-3 [stroke-width:3]" />
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
         </SettingRow>
       </div>

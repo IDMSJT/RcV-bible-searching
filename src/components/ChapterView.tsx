@@ -19,7 +19,17 @@ import {
   chapterOutlineByAnchor,
 } from '@/data/loadBible'
 import { BOOK_BY_NO } from '@/data/canon'
-import { formatVerseRef, DEFAULT_CITE_FORMAT, type CiteFormat } from '@/lib/cite'
+import { BOOK_ABBREV_EN } from '@/data/abbrevEn'
+import {
+  formatVerseRef,
+  formatCitation,
+  DEFAULT_CITE_FORMAT,
+  DEFAULT_CITE_POSITION,
+  DEFAULT_COPY_LANG,
+  type CiteFormat,
+  type CitePosition,
+  type CopyLang,
+} from '@/lib/cite'
 import { formatOutlineRange, displayMarker } from '@/lib/chinese'
 import { renderMarkedText, sliceMarks, NoteList } from '@/lib/renderVerse'
 import type { HlItem } from '@/lib/highlight'
@@ -110,6 +120,8 @@ export function ChapterView({
   const [showEnglish] = useLocalStorage('rcv/show-english', false)
   const [showNotes] = useLocalStorage('rcv/show-notes', true)
   const [citeFormat] = useLocalStorage<CiteFormat>('rcv/cite-format', DEFAULT_CITE_FORMAT)
+  const [citePosition] = useLocalStorage<CitePosition>('rcv/cite-position', DEFAULT_CITE_POSITION)
+  const [copyLang] = useLocalStorage<CopyLang>('rcv/copy-lang', DEFAULT_COPY_LANG)
   const { data: bibleEn } = useBibleEn(showEnglish)
   const { data: annotations } = useAnnotations(showNotes)
   const enChapter = showEnglish ? findChapter(bibleEn, bookNo, chapterNo) : null
@@ -446,11 +458,34 @@ export function ChapterView({
     },
   }
 
-  const selectedText = () =>
-    (chapter?.verses ?? [])
+  // en / both only apply with English loaded; otherwise force 中文.
+  const copyLangEff: CopyLang = showEnglish ? copyLang : 'zh'
+  const selectedText = () => {
+    const sep = copyLangEff === 'both' ? '\n\n' : '\n'
+    return (chapter?.verses ?? [])
       .filter((v) => selected.has(v.verse))
-      .map((v) => `${formatVerseRef(bookNo, chapterNo, v.verse, citeFormat)}『${v.text}』`)
-      .join('\n')
+      .map((v) => {
+        const zh = formatCitation(
+          formatVerseRef(bookNo, chapterNo, v.verse, citeFormat),
+          `『${v.text}』`,
+          citePosition,
+        )
+        if (copyLangEff === 'zh') return zh
+        const enText = enChapter?.verses.find((x) => x.verse === v.verse)?.text
+        const en = enText
+          ? formatCitation(
+              `${BOOK_ABBREV_EN[bookNo] ?? ''} ${chapterNo}:${v.verse}`,
+              `"${enText}"`,
+              citePosition,
+              ' ',
+            )
+          : ''
+        if (copyLangEff === 'en') return en
+        return enText ? `${zh}\n${en}` : zh
+      })
+      .filter(Boolean)
+      .join(sep)
+  }
 
   const exitSelection = () => {
     setSelected(new Set())
@@ -601,26 +636,35 @@ export function ChapterView({
                   {...versePress(r.verse)}
                   className="select-none [-webkit-touch-callout:none]"
                 >
-                  <p
+                  {/* One continuous selection tint over the verse + its English,
+                   * like the search results. The navigate (r.hl) tint stays on
+                   * the Chinese line, and yields to the selection tint. */}
+                  <div
                     className={cn(
-                      'rounded px-1 -mx-1 font-medium leading-relaxed',
-                      r.hl && 'bg-highlight',
+                      'rounded px-1 -mx-1',
                       selected.has(r.verse) && 'bg-blue-500/20 dark:bg-blue-400/25',
                     )}
                   >
-                    {renderMarkedText(r.text, r.marks, r.notes, (n) => {
-                      // A long-press over a note already selected the verse —
-                      // don't also open the note.
-                      if (pressRef.current?.long) {
-                        pressRef.current = null
-                        return
-                      }
-                      toggleNote(r.verse, n)
-                    })}
-                  </p>
-                  {r.en && (
-                    <p className="mt-0.5 font-sans text-[0.9em] text-muted-foreground">{r.en}</p>
-                  )}
+                    <p
+                      className={cn(
+                        'px-1 -mx-1 font-medium leading-relaxed',
+                        r.hl && !selected.has(r.verse) && 'rounded bg-highlight',
+                      )}
+                    >
+                      {renderMarkedText(r.text, r.marks, r.notes, (n) => {
+                        // A long-press over a note already selected the verse —
+                        // don't also open the note.
+                        if (pressRef.current?.long) {
+                          pressRef.current = null
+                          return
+                        }
+                        toggleNote(r.verse, n)
+                      })}
+                    </p>
+                    {r.en && (
+                      <p className="mt-0.5 font-sans text-[0.9em] text-muted-foreground">{r.en}</p>
+                    )}
+                  </div>
                   {/* Only the notes the user has actually expanded via sup
                    * tap are rendered inline — keeps the reading surface clean
                    * until they ask for the detail. */}
@@ -666,19 +710,19 @@ export function ChapterView({
           <div className="ml-auto flex items-center gap-2">
             <button
               type="button"
-              onClick={copySelected}
-              disabled={selected.size === 0}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-95 disabled:opacity-50"
-            >
-              複製
-            </button>
-            <button
-              type="button"
               onClick={shareSelected}
               disabled={selected.size === 0}
               className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95 disabled:opacity-50"
             >
               分享
+            </button>
+            <button
+              type="button"
+              onClick={copySelected}
+              disabled={selected.size === 0}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-95 disabled:opacity-50"
+            >
+              複製
             </button>
             <button
               type="button"
