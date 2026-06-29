@@ -24,9 +24,13 @@ export function formatVerseRef(
   const abbrev = BOOK_ABBREV[bookNo] ?? ''
   if (fmt === 'cn-ch') return `${abbrev}${chapterNumeral(chapter)}${verse}`
   if (fmt === 'full-cn') {
-    // Prefer the mid-form (馬太); fall back to the full name where there isn't
-    // one (詩篇, the paired 撒上/撒下 … books).
-    const name = MID_FORM[bookNo] ?? BOOK_BY_NO.get(bookNo)?.name ?? abbrev
+    // Prefer the mid-form (馬太). Books without one split two ways: paired /
+    // numbered books (撒母耳記上, 哥林多前書, 約翰一書) keep their compact abbrev so
+    // the 上/下/前/後/一二三 distinguisher stays clear (林前十五章…), while the
+    // remaining standalone books read fine with the full name (詩篇三篇…).
+    const full = BOOK_BY_NO.get(bookNo)?.name ?? abbrev
+    const paired = /[上下前後]|[一二三]書$/.test(full)
+    const name = MID_FORM[bookNo] ?? (paired ? abbrev : full)
     return `${name}${toChineseNumber(chapter)}${chapterUnit(bookNo)}${toChineseNumber(verse)}節`
   }
   return `${abbrev}${chapter}:${verse}` // 'colon' (default)
