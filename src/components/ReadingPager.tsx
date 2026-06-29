@@ -13,7 +13,7 @@ import { chapterUnit } from '@/lib/chinese'
 import { parseHighlight } from '@/lib/highlight'
 import { prevRef, nextRef, refKey, type ReadingRef } from '@/lib/readingRef'
 import { useCarousel } from '@/lib/useCarousel'
-import { useIsMobile } from '@/lib/useIsMobile'
+import { useIsTouch } from '@/lib/useIsTouch'
 import { ChapterView } from '@/components/ChapterView'
 import { OutlineView } from '@/components/OutlineView'
 import { cn } from '@/lib/utils'
@@ -71,11 +71,11 @@ export function ReadingPanel({
   return <OutlineView bookNo={refData.bookNo} active={active} />
 }
 
+// Touch back button — a full-height bar at the header's edge.
 const NAV_CLS =
   'inline-flex items-center px-4 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
 
-// Desktop prev/next chapter arrows: a normal centered icon button, not the
-// full-height bar the mobile back button uses.
+// Desktop prev/next chapter arrows: a centered icon button.
 const ARROW_CLS =
   'inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
 
@@ -114,7 +114,7 @@ export function ReadingPager() {
   const router = useRouter()
   const navigate = useNavigate()
   const canGoBack = useCanGoBack()
-  const isMobile = useIsMobile()
+  const isTouch = useIsTouch()
 
   const current: ReadingRef =
     params.chapterNo != null
@@ -164,36 +164,43 @@ export function ReadingPager() {
   return (
     <>
       <header className="border-b border-border bg-background">
-        {/* Mobile: back (when available) left, no chapter arrows (swipe pages).
-         * Desktop: prev left, next right (no back — the browser has one). */}
+        {/* Touch (incl. an installed PWA with no browser chrome): a back button,
+         * no chapter arrows (swipe pages). Desktop / mouse: prev + next chapter
+         * arrows — the browser already has back. Gated on touch, not width, so a
+         * tablet behaves like a phone. */}
         <div className="mx-auto grid h-[var(--header-h)] max-w-3xl grid-cols-[1fr_auto_1fr] items-stretch">
           <div className="flex items-stretch">
-            {canGoBack && (
-              <button
-                type="button"
-                onClick={() => router.history.back()}
-                aria-label="返回"
-                className={cn(NAV_CLS, 'md:hidden')}
-              >
-                <ArrowLeft className="size-5 [stroke-width:1.8]" />
-              </button>
+            {isTouch ? (
+              canGoBack && (
+                <button
+                  type="button"
+                  onClick={() => router.history.back()}
+                  aria-label="返回"
+                  className={NAV_CLS}
+                >
+                  <ArrowLeft className="size-5 [stroke-width:1.8]" />
+                </button>
+              )
+            ) : (
+              <span className="flex items-center pl-1">
+                <RefLink refData={prev}>
+                  <ChevronLeft className="size-5 [stroke-width:1.8]" />
+                </RefLink>
+              </span>
             )}
-            <span className="hidden items-center md:flex md:pl-1">
-              <RefLink refData={prev}>
-                <ChevronLeft className="size-5 [stroke-width:1.8]" />
-              </RefLink>
-            </span>
           </div>
           <h1 className="self-center text-base font-medium tracking-tight">{titleOf(titleRef)}</h1>
-          <div className="hidden items-center justify-end md:flex md:pr-1">
-            <RefLink refData={next}>
-              <ChevronRight className="size-5 [stroke-width:1.8]" />
-            </RefLink>
+          <div className="flex items-center justify-end pr-1">
+            {!isTouch && (
+              <RefLink refData={next}>
+                <ChevronRight className="size-5 [stroke-width:1.8]" />
+              </RefLink>
+            )}
           </div>
         </div>
       </header>
 
-      {isMobile ? (
+      {isTouch ? (
         <div
           ref={bodyRef}
           {...trackProps}
