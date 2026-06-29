@@ -71,9 +71,11 @@ function scanBook(text: string, ctx: ParseCtx): void {
 
 // A reference region: refs after a dash, OR refs inside a (…) group.
 // `normalizeOutlineText` collapses 全形（）→ 半形(); the regex needs to match
-// the half-width form because that's what the scanner actually sees.
+// the half-width form because that's what the scanner actually sees. The dash
+// marker is `+` so a double-dash (「基業--11節」, common in pasted outlines) is
+// consumed whole, instead of leaving a stray `-` glued to the ref.
 const DASH_CLASS = '—─－\\-―'
-const REGION_RE = new RegExp(`([${DASH_CLASS}])([^()：:。」\\n]+)|\\(([^()]*)\\)`, 'g')
+const REGION_RE = new RegExp(`([${DASH_CLASS}]+)([^()：:。」\\n]+)|\\(([^()]*)\\)`, 'g')
 const LAST_DASH_RE = new RegExp(`[${DASH_CLASS}](?=[^${DASH_CLASS}]*$)`)
 // A dash inside a heading is appositive punctuation (not a range mark) when a
 // prose word — a CJK char that isn't a numeral — sits before it:
