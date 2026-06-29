@@ -377,6 +377,12 @@ export function ChapterView({
       reapply.push(requestAnimationFrame(() => reapply.push(requestAnimationFrame(apply))))
     }
     if (!active) return () => reapply.forEach(cancelAnimationFrame)
+    // A verse/heading-focused view (?hl / ?oh) is transient: it skips restore
+    // (above) and must also skip write-back. Otherwise scrolling to the target
+    // verse would overwrite the plain reading position stored under the same
+    // chapter key, so 返回 to /book/chapter would land on the verse instead of
+    // where you were reading.
+    if (isJumpView) return
     let raf = 0
     const onScroll = () => {
       cancelAnimationFrame(raf)
