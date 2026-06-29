@@ -16,8 +16,8 @@ export interface VerseRef {
   endChapter: number
   verseStart: number
   verseEnd: number
-  /** 0 = 上, 1 = 下, null = whole verse or range. Only meaningful when the
-   * spec is a single verse (no range). */
+  /** 0 = 上, 1 = 下, 2 = 中, null = whole verse or range. Only meaningful when
+   * the spec is a single verse (no range). */
   seg: number | null
   source: string
   /** Footnote index when the source ref carries a 「注N」 / 「註N」 suffix
@@ -48,11 +48,11 @@ const CHAPTER_COLON_RE = new RegExp(`^(${NUM})[:：]`)
 const CHAPTER_CN_BEFORE_ARABIC_RE = new RegExp(`^(${CN})(?=\\d)`)
 
 // One vspec inside the verse list (after the chapter is consumed):
-//   <num>[上下]?(<rangeMark>(<endCN>)?<num>[上下]?)?
+//   <num>[上下中]?(<rangeMark>(<endCN>)?<num>[上下中]?)?
 // The range end may carry its own CN endChapter prefix to express a
 // cross-chapter range (十一36～十二5 → end chapter 12, end verse 5).
 const VERSE_SPEC_RE = new RegExp(
-  `^(${NUM})([上下])?(?:[${RANGE_CHARS}]([${CN_NUMERAL_CHARS}]+)?(${NUM})([上下])?)?$`,
+  `^(${NUM})([上下中])?(?:[${RANGE_CHARS}]([${CN_NUMERAL_CHARS}]+)?(${NUM})([上下中])?)?$`,
 )
 
 const STARTS_WITH_CN_RE = new RegExp(`^${CN}`)
@@ -198,7 +198,7 @@ export function parseToken(token: string, ctx: ParseCtx): ParseTokenResult {
       endChapter,
       verseStart: vStart,
       verseEnd: vEnd,
-      seg: isRange ? null : vm[2] === '上' ? 0 : vm[2] === '下' ? 1 : null,
+      seg: isRange ? null : vm[2] === '上' ? 0 : vm[2] === '下' ? 1 : vm[2] === '中' ? 2 : null,
       source: vspec,
     }
     if (noteChain.length > 0) {

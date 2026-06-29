@@ -41,7 +41,7 @@ const BOOK_PATTERN = ALL_BOOK_NAMES.map(escapeRe).join('|')
 // matched as the anchor 「創一1」 and the continuation loop picks up 「5」
 // separately — that way each verse becomes its own segment and can be
 // individually hovered / highlighted in the backdrop.
-const REF_CHARS = `0-9${CN_NUMERAL_CHARS}上下章篇節:：~～\\-至到—–－`
+const REF_CHARS = `0-9${CN_NUMERAL_CHARS}上下中章篇節:：~～\\-至到—–－`
 
 // Optional trailing chain of 「注N」 / 「註N」 footnote pointers. Eaten by the
 // match so parseRefs consumes the full 「太一21注3」 / 「二1注3與注4」 as one

@@ -41,14 +41,23 @@ interface VerseRow {
 }
 
 function segmentText(text: string, seg: number): string {
-  // Prefer the semantic clause separators 。/；; fall back to ！/! for verses
-  // whose 上/下 boundary is a shout ("起來！我們走吧。" only has ！ before the
-  // period). Only commit when the split yields exactly 2 parts — otherwise we
-  // can't reliably say which half the marker means, so return the whole verse.
-  const primary = text.split(/(?<=[。；])/).filter((s) => s.trim())
-  if (primary.length === 2) return primary[seg] ?? text
-  const fallback = text.split(/(?<=[！!])/).filter((s) => s.trim())
-  if (fallback.length === 2) return fallback[seg] ?? text
+  // 上 / 下 split the verse in two on a clause separator; 中 expects three parts
+  // and takes the middle. Prefer the semantic separators 。/；, fall back to ！/!
+  // for verses whose boundary is a shout. An ellipsis marks whichever side was
+  // clipped — trailing after 上, leading before 下, both around 中 — so the reader
+  // sees it's a fragment. If the split doesn't yield the expected part count the
+  // boundary is unknown, so return the whole verse unmarked.
+  const want = seg === 2 ? 3 : 2 // 中 needs three parts, 上/下 need two
+  const idx = seg === 2 ? 1 : seg // 中 → middle of 3; 上/下 → 0/1 of 2
+  for (const re of [/(?<=[。；])/, /(?<=[！!])/]) {
+    const parts = text.split(re).filter((s) => s.trim())
+    if (parts.length !== want) continue
+    const piece = parts[idx]
+    if (piece == null) return text
+    const head = idx > 0 ? '…' : ''
+    const tail = idx < parts.length - 1 ? '…' : ''
+    return head + piece + tail
+  }
   return text
 }
 
@@ -176,7 +185,7 @@ function expandRef(bible: Bible, annotations: AnnotationData | null, r: VerseRef
 
 function verseLabel(row: VerseRow): string {
   const ab = BOOK_ABBREV[row.bookNo] ?? ''
-  const s = row.seg === 0 ? '上' : row.seg === 1 ? '下' : ''
+  const s = row.seg === 0 ? '上' : row.seg === 1 ? '下' : row.seg === 2 ? '中' : ''
   const noteSuffix = row.noteOnly && row.noteToShow ? `註${row.noteToShow.n}` : ''
   return `${ab}${row.chapter}:${row.verse}${s}${noteSuffix}`
 }
