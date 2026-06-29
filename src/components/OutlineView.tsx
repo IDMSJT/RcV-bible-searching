@@ -44,7 +44,7 @@ export function OutlineView({ bookNo, active = false }: { bookNo: number; active
   return (
     <div
       ref={panelRef}
-      className="h-full overflow-y-auto overscroll-contain pb-[var(--nav-h)] [overflow-anchor:none] md:pb-0"
+      className="h-full overflow-y-auto overscroll-y-contain pb-[var(--nav-h)] [overflow-anchor:none] md:pb-0"
     >
       <article className="mx-auto max-w-3xl px-[2.8125rem] py-6 md:px-[3.8125rem] md:py-10">
         <div className="flex flex-col gap-y-2.5 font-sans text-[length:calc(var(--reading-fs,1rem)*0.875)]">

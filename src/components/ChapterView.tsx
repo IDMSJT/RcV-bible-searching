@@ -597,7 +597,7 @@ export function ChapterView({
        * swipe live in the pager above; this is just the chapter body. */}
       <div
         ref={panelRef}
-        className="h-full overflow-y-auto overscroll-contain pb-[var(--nav-h)] [overflow-anchor:none] md:pb-0"
+        className="h-full overflow-y-auto overscroll-y-contain pb-[var(--nav-h)] [overflow-anchor:none] md:pb-0"
       >
       <article
         className={cn(
