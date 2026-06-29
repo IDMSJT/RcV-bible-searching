@@ -40,6 +40,13 @@ interface VerseRow {
   range?: { endChapter: number; endVerse: number; count: number }
 }
 
+// A clause split can strand a quotation mark whose partner sits in the cut-off
+// half (林前15:45下 starts with the 」 that closed 「…活的魂」). Strip quote /
+// bracket punctuation flush against a clipped edge — closing marks at a front
+// cut, opening marks at a back cut — so the fragment reads cleanly.
+const LEAD_CLIP_RE = /^[）)」』》〉”’"']+/
+const TAIL_CLIP_RE = /[（(「『《〈“‘"']+$/
+
 function segmentText(text: string, seg: number): string {
   // 上 / 下 split the verse in two on a clause separator; 中 expects three parts
   // and takes the middle. Prefer the semantic separators 。/；, fall back to ！/!
@@ -56,7 +63,10 @@ function segmentText(text: string, seg: number): string {
     if (piece == null) return text
     const head = idx > 0 ? '…' : ''
     const tail = idx < parts.length - 1 ? '…' : ''
-    return head + piece + tail
+    let body = piece
+    if (head) body = body.replace(LEAD_CLIP_RE, '')
+    if (tail) body = body.replace(TAIL_CLIP_RE, '')
+    return head + body + tail
   }
   return text
 }
