@@ -22,7 +22,7 @@ const HEADER_CLS =
 // All settings state lives here. The values themselves are picked up by other
 // consumers (ChapterView, ReadingPreferences, …) via useLocalStorage on the
 // same keys, so moving the state out of the root doesn't change behavior.
-export function SettingsPanel() {
+export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => void }) {
   const [theme, setTheme] = useLocalStorage<Theme>('rcv/theme', 'system')
   const [showOutline, setShowOutline] = useLocalStorage('rcv/show-outline', true)
   const [showEnglish, setShowEnglish] = useLocalStorage('rcv/show-english', false)
@@ -147,9 +147,13 @@ export function SettingsPanel() {
           </div>
         </SettingRow>
       </div>
-      <p className="mt-auto shrink-0 px-4 py-4 text-center text-xs text-muted-foreground">
+      <button
+        type="button"
+        onClick={onShowChangelog}
+        className="mt-auto w-full shrink-0 px-4 py-4 text-center text-xs text-muted-foreground transition-colors hover:text-foreground"
+      >
         v{__APP_VERSION__}
-      </p>
+      </button>
     </>
   )
 }

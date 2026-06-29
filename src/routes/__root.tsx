@@ -10,6 +10,7 @@ import { SettingsPanel } from '@/components/SettingsPanel'
 import { ReadingPreferences } from '@/components/ReadingPreferences'
 import { ReloadPrompt } from '@/components/ReloadPrompt'
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer'
+import { ChangelogDrawer } from '@/components/ChangelogDrawer'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
 
@@ -62,6 +63,7 @@ function RootComponent() {
   // the aside is permanently visible and this flag is ignored.
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerSnap, setDrawerSnap] = useState<number | string | null>(1)
+  const [changelogOpen, setChangelogOpen] = useState(false)
   const navigate = useNavigate()
 
   // Vaul's `onOpenChange` is just `(open: boolean) => void` — it doesn't tell
@@ -297,7 +299,7 @@ function RootComponent() {
     ) : effectiveMode === 'compose' ? (
       <ComposePanel onDone={closeDrawer} />
     ) : effectiveMode === 'settings' ? (
-      <SettingsPanel />
+      <SettingsPanel onShowChangelog={() => setChangelogOpen(true)} />
     ) : (
       <CatalogPanel
         activeBookNo={activeBookNo}
@@ -463,6 +465,8 @@ function RootComponent() {
           </div>
         </DrawerContent>
       </Drawer>
+
+      <ChangelogDrawer open={changelogOpen} onOpenChange={setChangelogOpen} />
 
       {/* <TanStackRouterDevtools position="bottom-right" /> */}
     </div>
