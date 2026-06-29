@@ -4,3 +4,5 @@ lxml>=5.0.0
 tqdm>=4.66.0
 # Simplified→Traditional normalisation for EPUB-sourced annotations
 opencc-python-reimplemented>=0.1.7
+# PWA icon generation (gen_icons.py)
+Pillow>=10.0.0
