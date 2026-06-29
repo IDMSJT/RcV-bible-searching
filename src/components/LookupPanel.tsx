@@ -478,11 +478,11 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   // Keyword-search results. Same shape as ref results so the renderer / copy
   // machinery don't care which tab is active. Caps at KW_RESULT_CAP so a
   // 1-char query doesn't dump every verse into the DOM at once.
-  const resolvedKw = useMemo<ResolvedVerse[]>(() => {
+  const resolvedKw = useMemo<{ rows: ResolvedVerse[]; total: number }>(() => {
     const query = kw.trim()
-    if (!data || !query) return []
+    if (!data || !query) return { rows: [], total: 0 }
     const tokens = query.toLowerCase().split(/\s+/).filter(Boolean)
-    if (!tokens.length) return []
+    if (!tokens.length) return { rows: [], total: 0 }
     // Per-token zh matcher: a variant-expanded regex (吃 also matches 喫) when the
     // token carries a variant char, otherwise the plain fast `includes`. Built
     // once per query and reused across every verse.
@@ -493,8 +493,12 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
       }
       return { t, zh: (h: string) => h.includes(t) }
     })
+    // Count every match for an accurate total, but only build rows up to the
+    // cap — so a broad query reports "共 N 節" honestly without dumping N rows
+    // into the unvirtualized list.
     const out: ResolvedVerse[] = []
-    outer: for (const book of data.books) {
+    let total = 0
+    for (const book of data.books) {
       for (const chapter of book.chapters) {
         const enChapter = showEnglish ? findChapter(bibleEn, book.bookNo, chapter.chapterNo) : null
         for (const v of chapter.verses) {
@@ -507,6 +511,8 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
             (m) => m.zh(haystackZh) || haystackEnLower.includes(m.t),
           )
           if (!matched) continue
+          total++
+          if (out.length >= KW_RESULT_CAP) continue
           out.push({
             bookNo: book.bookNo,
             chapterNo: chapter.chapterNo,
@@ -522,14 +528,13 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
               source: '',
             },
           })
-          if (out.length >= KW_RESULT_CAP) break outer
         }
       }
     }
-    return out
+    return { rows: out, total }
   }, [kw, data, bibleEn, showEnglish])
 
-  const resolved = tab === 'ref' ? resolvedRefs : resolvedKw
+  const resolved = tab === 'ref' ? resolvedRefs : resolvedKw.rows
 
   // Per-ref: did it resolve to at least one real verse? (parsed but not found → error)
   const refFound = useMemo<boolean[]>(() => {
@@ -666,12 +671,13 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   const kwPanel = (
     <SearchTabPanel
       input={kwInput}
-      resolved={resolvedKw}
+      resolved={resolvedKw.rows}
+      total={resolvedKw.total}
       selected={tab === 'kw' ? selected : EMPTY_SELECTION}
       onClear={clearSel}
     >
       <ResultList
-        rows={resolvedKw}
+        rows={resolvedKw.rows}
         tokens={kwTokens}
         error={error}
         loading={!data}
@@ -693,6 +699,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     <SearchTabPanel
       input={refInput}
       resolved={resolvedRefs}
+      total={resolvedRefs.length}
       selected={tab === 'ref' ? selected : EMPTY_SELECTION}
       onClear={clearSel}
     >
@@ -762,12 +769,14 @@ function SearchTabPanel({
   input,
   children,
   resolved,
+  total,
   selected,
   onClear,
 }: {
   input: ReactNode
   children: ReactNode
   resolved: ResolvedVerse[]
+  total: number
   selected: ReadonlySet<number>
   onClear: () => void
 }) {
@@ -779,7 +788,7 @@ function SearchTabPanel({
          * bottom even when the results don't fill the pane. */}
         <div className="flex min-h-full flex-col">
           <div className="flex-1 p-4">{children}</div>
-          <CopyAllBar resolved={resolved} selected={selected} onClear={onClear} />
+          <CopyAllBar resolved={resolved} total={total} selected={selected} onClear={onClear} />
         </div>
       </div>
     </div>
@@ -918,10 +927,12 @@ function ResultRow({
  * there's nothing. */
 function CopyAllBar({
   resolved,
+  total,
   selected,
   onClear,
 }: {
   resolved: ResolvedVerse[]
+  total: number
   selected: ReadonlySet<number>
   onClear: () => void
 }) {
@@ -960,7 +971,11 @@ function CopyAllBar({
   return (
     <div className="sticky bottom-3 z-10 mx-3 mt-2 mb-3 flex h-14 shrink-0 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur">
       <span className="whitespace-nowrap text-sm text-muted-foreground">
-        {selecting ? `選取 ${selected.size} 節` : `共 ${resolved.length} 節`}
+        {selecting
+          ? `選取 ${selected.size} 節`
+          : total > resolved.length
+            ? `共 ${total} 節（顯示前 ${resolved.length}）`
+            : `共 ${total} 節`}
       </span>
       <div className="ml-auto flex items-center gap-2">
         <button
