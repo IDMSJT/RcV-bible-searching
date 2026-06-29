@@ -2,6 +2,7 @@ import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type
 import { useNavigate, useLocation } from '@tanstack/react-router'
 import { X } from 'lucide-react'
 import { parseRefs, type Segment, type VerseRef } from '@/lib/parseRefs'
+import { hasVariant, tokenPattern } from '@/lib/variants'
 import {
   useBible,
   useBibleEn,
@@ -205,9 +206,9 @@ function highlightTokens(text: string, tokens: string[]): ReactNode {
   // were in the query. RegExp's `g` walks left-to-right and the alternation
   // engine commits the first matching arm, so the order matters.
   const sorted = [...tokens].sort((a, b) => b.length - a.length)
-  const pattern = sorted
-    .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    .join('|')
+  // Each char expands to its variant class (吃 → [吃喫]) so the mark lands on
+  // whichever form the verse actually uses, not just the typed glyph.
+  const pattern = sorted.map(tokenPattern).join('|')
   const re = new RegExp(`(${pattern})`, 'gi')
   const out: ReactNode[] = []
   let last = 0
@@ -482,6 +483,16 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     if (!data || !query) return []
     const tokens = query.toLowerCase().split(/\s+/).filter(Boolean)
     if (!tokens.length) return []
+    // Per-token zh matcher: a variant-expanded regex (吃 also matches 喫) when the
+    // token carries a variant char, otherwise the plain fast `includes`. Built
+    // once per query and reused across every verse.
+    const matchers = tokens.map((t) => {
+      if (hasVariant(t)) {
+        const re = new RegExp(tokenPattern(t))
+        return { t, zh: (h: string) => re.test(h) }
+      }
+      return { t, zh: (h: string) => h.includes(t) }
+    })
     const out: ResolvedVerse[] = []
     outer: for (const book of data.books) {
       for (const chapter of book.chapters) {
@@ -491,8 +502,9 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
           const haystackEn = enChapter?.verses.find((x) => x.verse === v.verse)?.text ?? ''
           // Each token must appear in either zh or en — gives a forgiving
           // mixed-language search without needing a language toggle.
-          const matched = tokens.every(
-            (t) => haystackZh.includes(t) || haystackEn.toLowerCase().includes(t),
+          const haystackEnLower = haystackEn.toLowerCase()
+          const matched = matchers.every(
+            (m) => m.zh(haystackZh) || haystackEnLower.includes(m.t),
           )
           if (!matched) continue
           out.push({

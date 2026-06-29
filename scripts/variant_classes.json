@@ -1,0 +1,1022 @@
+{
+ "_comment": "搜尋容錯用異體字等價類。候選對取自 variant_glyphs.json,以 Unihan 變體欄位 + OpenCC 變體字典驗證(非靠 count)。重現:python build_variant_classes.py",
+ "unicode_version": "16.0.0",
+ "include_semantic": false,
+ "class_count": 96,
+ "char_count": 192,
+ "classes": [
+  "了瞭",
+  "于於",
+  "什甚",
+  "仆僕",
+  "仿倣",
+  "伙夥",
+  "佈布",
+  "佔占",
+  "侖崙",
+  "傢家",
+  "僱雇",
+  "兇凶",
+  "克剋",
+  "冑胄",
+  "刮颳",
+  "剪翦",
+  "台臺",
+  "吃喫",
+  "向嚮",
+  "咸鹹",
+  "咽嚥",
+  "哄鬨",
+  "唇脣",
+  "唸念",
+  "喂餧",
+  "嘆歎",
+  "回迴",
+  "困睏",
+  "塗涂",
+  "夠彀",
+  "它牠",
+  "岩巖",
+  "岳嶽",
+  "帘簾",
+  "庵菴",
+  "弦絃",
+  "彩綵",
+  "御禦",
+  "愈癒",
+  "慄栗",
+  "慾欲",
+  "才纔",
+  "扎紮",
+  "托託",
+  "折摺",
+  "挂掛",
+  "挽輓",
+  "捨舍",
+  "採采",
+  "朱硃",
+  "杆桿",
+  "杠槓",
+  "杯盃",
+  "柜櫃",
+  "梁樑",
+  "櫺欞",
+  "氾泛",
+  "沾霑",
+  "泄洩",
+  "注註",
+  "游遊",
+  "煅鍛",
+  "熔鎔",
+  "症癥",
+  "痴癡",
+  "盪蕩",
+  "着著",
+  "矇蒙",
+  "祕秘",
+  "絕絶",
+  "綉繡",
+  "綫線",
+  "羈覊",
+  "羡羨",
+  "聯連",
+  "舖鋪",
+  "芸蕓",
+  "裏裡",
+  "謠謡",
+  "豫預",
+  "踰逾",
+  "辟闢",
+  "鈎鉤",
+  "銳鋭",
+  "銹鏽",
+  "錘鎚",
+  "閙鬧",
+  "閱閲",
+  "隷隸",
+  "雕鵰",
+  "雞鷄",
+  "面麵",
+  "須须",
+  "領领",
+  "飢饑",
+  "餽饋"
+ ],
+ "map": {
+  "了": "了瞭",
+  "瞭": "了瞭",
+  "于": "于於",
+  "於": "于於",
+  "什": "什甚",
+  "甚": "什甚",
+  "仆": "仆僕",
+  "僕": "仆僕",
+  "仿": "仿倣",
+  "倣": "仿倣",
+  "伙": "伙夥",
+  "夥": "伙夥",
+  "佈": "佈布",
+  "布": "佈布",
+  "佔": "佔占",
+  "占": "佔占",
+  "侖": "侖崙",
+  "崙": "侖崙",
+  "傢": "傢家",
+  "家": "傢家",
+  "僱": "僱雇",
+  "雇": "僱雇",
+  "兇": "兇凶",
+  "凶": "兇凶",
+  "克": "克剋",
+  "剋": "克剋",
+  "冑": "冑胄",
+  "胄": "冑胄",
+  "刮": "刮颳",
+  "颳": "刮颳",
+  "剪": "剪翦",
+  "翦": "剪翦",
+  "台": "台臺",
+  "臺": "台臺",
+  "吃": "吃喫",
+  "喫": "吃喫",
+  "向": "向嚮",
+  "嚮": "向嚮",
+  "咸": "咸鹹",
+  "鹹": "咸鹹",
+  "咽": "咽嚥",
+  "嚥": "咽嚥",
+  "哄": "哄鬨",
+  "鬨": "哄鬨",
+  "唇": "唇脣",
+  "脣": "唇脣",
+  "唸": "唸念",
+  "念": "唸念",
+  "喂": "喂餧",
+  "餧": "喂餧",
+  "嘆": "嘆歎",
+  "歎": "嘆歎",
+  "回": "回迴",
+  "迴": "回迴",
+  "困": "困睏",
+  "睏": "困睏",
+  "塗": "塗涂",
+  "涂": "塗涂",
+  "夠": "夠彀",
+  "彀": "夠彀",
+  "它": "它牠",
+  "牠": "它牠",
+  "岩": "岩巖",
+  "巖": "岩巖",
+  "岳": "岳嶽",
+  "嶽": "岳嶽",
+  "帘": "帘簾",
+  "簾": "帘簾",
+  "庵": "庵菴",
+  "菴": "庵菴",
+  "弦": "弦絃",
+  "絃": "弦絃",
+  "彩": "彩綵",
+  "綵": "彩綵",
+  "御": "御禦",
+  "禦": "御禦",
+  "愈": "愈癒",
+  "癒": "愈癒",
+  "慄": "慄栗",
+  "栗": "慄栗",
+  "慾": "慾欲",
+  "欲": "慾欲",
+  "才": "才纔",
+  "纔": "才纔",
+  "扎": "扎紮",
+  "紮": "扎紮",
+  "托": "托託",
+  "託": "托託",
+  "折": "折摺",
+  "摺": "折摺",
+  "挂": "挂掛",
+  "掛": "挂掛",
+  "挽": "挽輓",
+  "輓": "挽輓",
+  "捨": "捨舍",
+  "舍": "捨舍",
+  "採": "採采",
+  "采": "採采",
+  "朱": "朱硃",
+  "硃": "朱硃",
+  "杆": "杆桿",
+  "桿": "杆桿",
+  "杠": "杠槓",
+  "槓": "杠槓",
+  "杯": "杯盃",
+  "盃": "杯盃",
+  "柜": "柜櫃",
+  "櫃": "柜櫃",
+  "梁": "梁樑",
+  "樑": "梁樑",
+  "櫺": "櫺欞",
+  "欞": "櫺欞",
+  "氾": "氾泛",
+  "泛": "氾泛",
+  "沾": "沾霑",
+  "霑": "沾霑",
+  "泄": "泄洩",
+  "洩": "泄洩",
+  "注": "注註",
+  "註": "注註",
+  "游": "游遊",
+  "遊": "游遊",
+  "煅": "煅鍛",
+  "鍛": "煅鍛",
+  "熔": "熔鎔",
+  "鎔": "熔鎔",
+  "症": "症癥",
+  "癥": "症癥",
+  "痴": "痴癡",
+  "癡": "痴癡",
+  "盪": "盪蕩",
+  "蕩": "盪蕩",
+  "着": "着著",
+  "著": "着著",
+  "矇": "矇蒙",
+  "蒙": "矇蒙",
+  "祕": "祕秘",
+  "秘": "祕秘",
+  "絕": "絕絶",
+  "絶": "絕絶",
+  "綉": "綉繡",
+  "繡": "綉繡",
+  "綫": "綫線",
+  "線": "綫線",
+  "羈": "羈覊",
+  "覊": "羈覊",
+  "羡": "羡羨",
+  "羨": "羡羨",
+  "聯": "聯連",
+  "連": "聯連",
+  "舖": "舖鋪",
+  "鋪": "舖鋪",
+  "芸": "芸蕓",
+  "蕓": "芸蕓",
+  "裏": "裏裡",
+  "裡": "裏裡",
+  "謠": "謠謡",
+  "謡": "謠謡",
+  "豫": "豫預",
+  "預": "豫預",
+  "踰": "踰逾",
+  "逾": "踰逾",
+  "辟": "辟闢",
+  "闢": "辟闢",
+  "鈎": "鈎鉤",
+  "鉤": "鈎鉤",
+  "銳": "銳鋭",
+  "鋭": "銳鋭",
+  "銹": "銹鏽",
+  "鏽": "銹鏽",
+  "錘": "錘鎚",
+  "鎚": "錘鎚",
+  "閙": "閙鬧",
+  "鬧": "閙鬧",
+  "閱": "閱閲",
+  "閲": "閱閲",
+  "隷": "隷隸",
+  "隸": "隷隸",
+  "雕": "雕鵰",
+  "鵰": "雕鵰",
+  "雞": "雞鷄",
+  "鷄": "雞鷄",
+  "面": "面麵",
+  "麵": "面麵",
+  "須": "須须",
+  "须": "須须",
+  "領": "領领",
+  "领": "領领",
+  "飢": "飢饑",
+  "饑": "飢饑",
+  "餽": "餽饋",
+  "饋": "餽饋"
+ },
+ "kept": [
+  {
+   "epub": "裡",
+   "yv": "裏",
+   "count": 5081,
+   "example": "創世記1:26",
+   "source": "opencc:TWVariants"
+  },
+  {
+   "epub": "着",
+   "yv": "著",
+   "count": 2705,
+   "example": "創世記1:11",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "什",
+   "yv": "甚",
+   "count": 1120,
+   "example": "創世記2:19",
+   "source": "manual"
+  },
+  {
+   "epub": "吃",
+   "yv": "喫",
+   "count": 1010,
+   "example": "創世記2:16",
+   "source": "opencc:TWVariants"
+  },
+  {
+   "epub": "絶",
+   "yv": "絕",
+   "count": 433,
+   "example": "創世記9:11",
+   "source": "unihan:kZVariant"
+  },
+  {
+   "epub": "于",
+   "yv": "於",
+   "count": 412,
+   "example": "創世記1:30",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "預",
+   "yv": "豫",
+   "count": 366,
+   "example": "創世記18:7",
+   "source": "unihan:kSemanticVariant"
+  },
+  {
+   "epub": "它",
+   "yv": "牠",
+   "count": 259,
+   "example": "創世記1:30",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "才",
+   "yv": "纔",
+   "count": 236,
+   "example": "創世記3:7",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "仆",
+   "yv": "僕",
+   "count": 224,
+   "example": "創世記20:8",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "侖",
+   "yv": "崙",
+   "count": 156,
+   "example": "創世記13:18",
+   "source": "unihan:kSemanticVariant"
+  },
+  {
+   "epub": "台",
+   "yv": "臺",
+   "count": 152,
+   "example": "創世記35:21",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "翦",
+   "yv": "剪",
+   "count": 131,
+   "example": "創世記17:14",
+   "source": "unihan:kSemanticVariant"
+  },
+  {
+   "epub": "面",
+   "yv": "麵",
+   "count": 98,
+   "example": "創世記18:6",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "踰",
+   "yv": "逾",
+   "count": 81,
+   "example": "出埃及記12:11",
+   "source": "opencc:TSCharacters"
+  },
+  {
+   "epub": "秘",
+   "yv": "祕",
+   "count": 59,
+   "example": "出埃及記7:11",
+   "source": "opencc:TWVariants"
+  },
+  {
+   "epub": "唇",
+   "yv": "脣",
+   "count": 58,
+   "example": "利未記13:45",
+   "source": "opencc:TWVariants"
+  },
+  {
+   "epub": "夠",
+   "yv": "彀",
+   "count": 57,
+   "example": "創世記33:9",
+   "source": "unihan:kSemanticVariant"
+  },
+  {
+   "epub": "綫",
+   "yv": "線",
+   "count": 56,
+   "example": "創世記14:23",
+   "source": "unihan:kSemanticVariant"
+  },
+  {
+   "epub": "饑",
+   "yv": "飢",
+   "count": 54,
+   "example": "申命記8:3",
+   "source": "unihan:kSemanticVariant"
+  },
+  {
+   "epub": "迴",
+   "yv": "回",
+   "count": 53,
+   "example": "出埃及記14:26",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "嘆",
+   "yv": "歎",
+   "count": 52,
+   "example": "出埃及記2:23",
+   "source": "unihan:kSemanticVariant"
+  },
+  {
+   "epub": "僱",
+   "yv": "雇",
+   "count": 51,
+   "example": "創世記30:16",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "鈎",
+   "yv": "鉤",
+   "count": 47,
+   "example": "出埃及記26:6",
+   "source": "opencc:HKVariants"
+  },
+  {
+   "epub": "硃",
+   "yv": "朱",
+   "count": 43,
+   "example": "出埃及記25:4",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "杠",
+   "yv": "槓",
+   "count": 38,
+   "example": "出埃及記25:13",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "唸",
+   "yv": "念",
+   "count": 37,
+   "example": "出埃及記17:14",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "冑",
+   "yv": "胄",
+   "count": 32,
+   "example": "士師記5:13",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "凶",
+   "yv": "兇",
+   "count": 28,
+   "example": "出埃及記33:4",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "托",
+   "yv": "託",
+   "count": 24,
+   "example": "創世記38:20",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "閙",
+   "yv": "鬧",
+   "count": 23,
+   "example": "創世記26:20",
+   "source": "unihan:kSemanticVariant"
+  },
+  {
+   "epub": "睏",
+   "yv": "困",
+   "count": 22,
+   "example": "申命記25:18",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "癒",
+   "yv": "愈",
+   "count": 21,
+   "example": "利未記13:37",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "占",
+   "yv": "佔",
+   "count": 19,
+   "example": "出埃及記10:6",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "帘",
+   "yv": "簾",
+   "count": 19,
+   "example": "出埃及記26:36",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "羡",
+   "yv": "羨",
+   "count": 19,
+   "example": "歷代志上7:24",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "鷄",
+   "yv": "雞",
+   "count": 19,
+   "example": "箴言30:31",
+   "source": "unihan:kSemanticVariant"
+  },
+  {
+   "epub": "岩",
+   "yv": "巖",
+   "count": 17,
+   "example": "撒母耳記下22:2",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "舍",
+   "yv": "捨",
+   "count": 17,
+   "example": "馬太福音20:28",
+   "source": "unihan:kSimplifiedVariant"
+  },
+  {
+   "epub": "喂",
+   "yv": "餧",
+   "count": 16,
+   "example": "創世記24:32",
+   "source": "unihan:kSemanticVariant"
+  },
+  {
+   "epub": "闢",
+   "yv": "辟",
+   "count": 15,
+   "example": "創世記29:29",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "矇",
+   "yv": "蒙",
+   "count": 15,
+   "example": "列王紀下8:15",
+   "source": "unihan:kSimplifiedVariant"
+  },
+  {
+   "epub": "泄",
+   "yv": "洩",
+   "count": 14,
+   "example": "利未記15:2",
+   "source": "opencc:TWVariants"
+  },
+  {
+   "epub": "熔",
+   "yv": "鎔",
+   "count": 14,
+   "example": "約伯記28:2",
+   "source": "unihan:kSemanticVariant"
+  },
+  {
+   "epub": "刮",
+   "yv": "颳",
+   "count": 13,
+   "example": "出埃及記10:13",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "桿",
+   "yv": "杆",
+   "count": 13,
+   "example": "出埃及記27:10",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "嚮",
+   "yv": "向",
+   "count": 13,
+   "example": "民數記2:3",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "哄",
+   "yv": "鬨",
+   "count": 13,
+   "example": "申命記28:26",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "樑",
+   "yv": "梁",
+   "count": 13,
+   "example": "列王紀上6:9",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "紮",
+   "yv": "扎",
+   "count": 12,
+   "example": "列王紀下19:30",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "游",
+   "yv": "遊",
+   "count": 12,
+   "example": "歷代志上16:20",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "麵",
+   "yv": "面",
+   "count": 10,
+   "example": "出埃及記34:29",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "閲",
+   "yv": "閱",
+   "count": 9,
+   "example": "撒母耳記上11:8",
+   "source": "opencc:HKVariants"
+  },
+  {
+   "epub": "饋",
+   "yv": "餽",
+   "count": 9,
+   "example": "列王紀上10:13",
+   "source": "unihan:kSemanticVariant"
+  },
+  {
+   "epub": "柜",
+   "yv": "櫃",
+   "count": 8,
+   "example": "出埃及記26:34",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "雕",
+   "yv": "鵰",
+   "count": 8,
+   "example": "利未記11:13",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "欞",
+   "yv": "櫺",
+   "count": 8,
+   "example": "士師記5:28",
+   "source": "unihan:kSemanticVariant"
+  },
+  {
+   "epub": "鎚",
+   "yv": "錘",
+   "count": 7,
+   "example": "士師記4:21",
+   "source": "unihan:kSemanticVariant"
+  },
+  {
+   "epub": "咸",
+   "yv": "鹹",
+   "count": 7,
+   "example": "約伯記30:4",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "綵",
+   "yv": "彩",
+   "count": 6,
+   "example": "創世記37:3",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "掛",
+   "yv": "挂",
+   "count": 6,
+   "example": "創世記40:10",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "禦",
+   "yv": "御",
+   "count": 6,
+   "example": "以斯帖記1:7",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "蒙",
+   "yv": "矇",
+   "count": 6,
+   "example": "詩篇69:23",
+   "source": "unihan:kSimplifiedVariant"
+  },
+  {
+   "epub": "綉",
+   "yv": "繡",
+   "count": 5,
+   "example": "出埃及記26:1",
+   "source": "unihan:kSemanticVariant"
+  },
+  {
+   "epub": "伙",
+   "yv": "夥",
+   "count": 5,
+   "example": "民數記26:9",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "注",
+   "yv": "註",
+   "count": 5,
+   "example": "申命記32:35",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "布",
+   "yv": "佈",
+   "count": 5,
+   "example": "撒母耳記下5:18",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "仿",
+   "yv": "倣",
+   "count": 5,
+   "example": "歷代志下2:17",
+   "source": "unihan:kSemanticVariant"
+  },
+  {
+   "epub": "欲",
+   "yv": "慾",
+   "count": 5,
+   "example": "傳道書6:7",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "聯",
+   "yv": "連",
+   "count": 4,
+   "example": "出埃及記27:17",
+   "source": "opencc:JPVariants"
+  },
+  {
+   "epub": "庵",
+   "yv": "菴",
+   "count": 4,
+   "example": "士師記4:6",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "鋭",
+   "yv": "銳",
+   "count": 3,
+   "example": "創世記14:2",
+   "source": "unihan:kZVariant"
+  },
+  {
+   "epub": "摺",
+   "yv": "折",
+   "count": 3,
+   "example": "撒母耳記上5:4",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "嚥",
+   "yv": "咽",
+   "count": 3,
+   "example": "約伯記7:19",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "了",
+   "yv": "瞭",
+   "count": 3,
+   "example": "約伯記26:14",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "采",
+   "yv": "採",
+   "count": 3,
+   "example": "約伯記30:4",
+   "source": "unihan:kSimplifiedVariant"
+  },
+  {
+   "epub": "弦",
+   "yv": "絃",
+   "count": 3,
+   "example": "詩篇33:2",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "癥",
+   "yv": "症",
+   "count": 3,
+   "example": "馬太福音4:23",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "鏽",
+   "yv": "銹",
+   "count": 3,
+   "example": "馬太福音6:19",
+   "source": "unihan:kSemanticVariant"
+  },
+  {
+   "epub": "蕓",
+   "yv": "芸",
+   "count": 2,
+   "example": "創世記46:16",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "佈",
+   "yv": "布",
+   "count": 2,
+   "example": "列王紀上4:5",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "涂",
+   "yv": "塗",
+   "count": 2,
+   "example": "列王紀下9:30",
+   "source": "unihan:kSimplifiedVariant"
+  },
+  {
+   "epub": "领",
+   "yv": "領",
+   "count": 2,
+   "example": "尼希米記11:17",
+   "source": "unihan:kSimplifiedVariant"
+  },
+  {
+   "epub": "覊",
+   "yv": "羈",
+   "count": 2,
+   "example": "約伯記18:10",
+   "source": "unihan:kSemanticVariant"
+  },
+  {
+   "epub": "剋",
+   "yv": "克",
+   "count": 2,
+   "example": "箴言17:27",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "輓",
+   "yv": "挽",
+   "count": 2,
+   "example": "箴言18:19",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "慄",
+   "yv": "栗",
+   "count": 2,
+   "example": "以賽亞書6:13",
+   "source": "unihan:kSimplifiedVariant"
+  },
+  {
+   "epub": "盃",
+   "yv": "杯",
+   "count": 2,
+   "example": "耶利米書51:7",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "傢",
+   "yv": "家",
+   "count": 2,
+   "example": "馬太福音12:29",
+   "source": "unihan:kSimplifiedVariant"
+  },
+  {
+   "epub": "须",
+   "yv": "須",
+   "count": 2,
+   "example": "馬太福音24:6",
+   "source": "unihan:kSimplifiedVariant"
+  },
+  {
+   "epub": "隷",
+   "yv": "隸",
+   "count": 2,
+   "example": "哥林多後書11:20",
+   "source": "unihan:kZVariant"
+  },
+  {
+   "epub": "謡",
+   "yv": "謠",
+   "count": 1,
+   "example": "出埃及記23:1",
+   "source": "unihan:kZVariant"
+  },
+  {
+   "epub": "捨",
+   "yv": "舍",
+   "count": 1,
+   "example": "申命記19:5",
+   "source": "unihan:kSimplifiedVariant"
+  },
+  {
+   "epub": "嶽",
+   "yv": "岳",
+   "count": 1,
+   "example": "士師記4:11",
+   "source": "opencc:JPVariants"
+  },
+  {
+   "epub": "回",
+   "yv": "迴",
+   "count": 1,
+   "example": "撒母耳記上4:5",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "痴",
+   "yv": "癡",
+   "count": 1,
+   "example": "約伯記5:2",
+   "source": "opencc:TWVariants"
+  },
+  {
+   "epub": "沾",
+   "yv": "霑",
+   "count": 1,
+   "example": "約伯記29:19",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "遊",
+   "yv": "游",
+   "count": 1,
+   "example": "約伯記37:12",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "泛",
+   "yv": "氾",
+   "count": 1,
+   "example": "詩篇32:6",
+   "source": "opencc:STCharacters"
+  },
+  {
+   "epub": "朱",
+   "yv": "硃",
+   "count": 1,
+   "example": "以賽亞書1:18",
+   "source": "unihan:kTraditionalVariant"
+  },
+  {
+   "epub": "舖",
+   "yv": "鋪",
+   "count": 1,
+   "example": "以賽亞書14:11",
+   "source": "unihan:kSemanticVariant"
+  },
+  {
+   "epub": "蕩",
+   "yv": "盪",
+   "count": 1,
+   "example": "以賽亞書33:21",
+   "source": "unihan:kSemanticVariant"
+  },
+  {
+   "epub": "鍛",
+   "yv": "煅",
+   "count": 1,
+   "example": "啟示錄1:15",
+   "source": "unihan:kSemanticVariant"
+  }
+ ]
+}
