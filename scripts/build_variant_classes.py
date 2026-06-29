@@ -101,6 +101,12 @@ SEMANTIC_ALLOW = {
 # Unihan/OpenCC variant, so it'd otherwise fall to 'unconfirmed'. e.g. 什麼/甚麼 —
 # 什 and 甚 aren't variants in general, only swapped in this word (text uses 甚麼).
 MANUAL_ALLOW = {frozenset(p) for p in ["什甚"]}
+# Hand-added equivalence classes that DON'T appear as epub↔yv diffs in the corpus
+# (so the candidate loop never sees them), but ARE used interchangeably in the
+# text and aren't formally linked in Unihan/OpenCC. Each string is one class.
+# e.g. the text mixes 繙 (繙出來) and 翻 (推翻) — the same character historically —
+# so typing 翻 should also find the verses spelled 繙.
+MANUAL_EXTRA = ["繙翻"]
 
 
 def log(*a):
@@ -276,6 +282,12 @@ def main():
                 review.append({**rec, "reason": "semantic", "source": w})
             continue
         review.append({**rec, "reason": "unconfirmed", "source": None})
+
+    # Hand-added classes that never appeared as corpus diffs.
+    for cls in MANUAL_EXTRA:
+        chars = list(cls)
+        for c in chars[1:]:
+            uf.union(chars[0], c)
 
     # Equivalence classes from the kept (directly-confirmed) pairs.
     members: dict[str, set] = {}
