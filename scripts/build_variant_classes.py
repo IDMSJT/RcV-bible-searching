@@ -106,7 +106,7 @@ MANUAL_ALLOW = {frozenset(p) for p in ["什甚"]}
 # text and aren't formally linked in Unihan/OpenCC. Each string is one class.
 # e.g. the text mixes 繙 (繙出來) and 翻 (推翻) — the same character historically —
 # so typing 翻 should also find the verses spelled 繙.
-MANUAL_EXTRA = ["繙翻"]
+MANUAL_EXTRA = ["繙翻", "衞衛"]
 
 
 def log(*a):
