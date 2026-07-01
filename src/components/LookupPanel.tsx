@@ -178,7 +178,7 @@ function renderBackdrop(
       )
     }
     return lit ? (
-      <span key={i} className="rounded-sm bg-highlight">
+      <span key={i} className="rounded-sm bg-highlight/30">
         {seg.text}
       </span>
     ) : (
@@ -217,7 +217,7 @@ function highlightTokens(text: string, tokens: string[]): ReactNode {
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) out.push(text.slice(last, m.index))
     out.push(
-      <mark key={`k${key++}`} className="rounded-sm bg-highlight text-inherit">
+      <mark key={`k${key++}`} className="rounded-sm bg-highlight/30 text-inherit">
         {m[0]}
       </mark>,
     )

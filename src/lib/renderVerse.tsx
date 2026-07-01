@@ -206,11 +206,18 @@ export function NoteList({
   bookNo,
   chapterNo,
   highlightedNs,
+  selectedNs,
+  onSelectNote,
 }: {
   notes: Annotation[]
   bookNo: number
   chapterNo: number
   highlightedNs?: Set<number>
+  /** Note numbers currently selected (for copy/share) — tinted blue. */
+  selectedNs?: Set<number>
+  /** Tap a note to toggle its selection. When set, notes become tappable and
+   * embedded ref links still win via their own stopPropagation. */
+  onSelectNote?: (n: number) => void
 }): ReactNode {
   if (notes.length === 0) return null
   return (
@@ -221,14 +228,30 @@ export function NoteList({
         // would collapse the inter-paragraph gap too tight.
         const paras = n.text.split('\n')
         const hit = highlightedNs?.has(n.n)
+        const sel = selectedNs?.has(n.n)
         return (
           <li
             key={n.n}
+            // stopPropagation on pointerdown keeps the surrounding verse's
+            // long-press from firing; onClick selects the note (ref links inside
+            // stop their own propagation, so they still navigate).
+            onPointerDown={onSelectNote ? (e) => e.stopPropagation() : undefined}
+            onClick={
+              onSelectNote
+                ? (e) => {
+                    e.stopPropagation()
+                    onSelectNote(n.n)
+                  }
+                : undefined
+            }
             className={
               'space-y-2 rounded-md px-3 py-2 ' +
-              (hit
-                ? 'bg-highlight/80 text-foreground'
-                : 'bg-muted/40 text-muted-foreground')
+              (onSelectNote ? 'select-none ' : '') +
+              (sel
+                ? 'bg-blue-500/20 text-foreground dark:bg-blue-400/25'
+                : hit
+                  ? 'bg-highlight/30 text-foreground'
+                  : 'bg-muted/40 text-muted-foreground')
             }
           >
             {paras.map((para, i) => (

@@ -85,8 +85,9 @@
   --color-input: oklch(0.884 0.028 78.2);
   --color-ring: oklch(0.598 0.110 85.7);
 
-  /* Verse / outline jump highlight — soft gold tint (replaces yellow-400/25). */
-  --color-highlight: oklch(0.82 0.16 87 / 0.35);
+  /* Verse / outline jump highlight — solid gold; opacity is applied at the
+   * usage site (bg-highlight/35 etc.) so it isn't baked into the token. */
+  --color-highlight: oklch(0.82 0.16 87);
 
   --radius: 0.5rem;
 
@@ -125,8 +126,8 @@
   --color-input: oklch(0.322 0.036 249.0);
   --color-ring: oklch(0.743 0.117 89.5);
 
-  /* Slightly less alpha against the darker bg so it still reads clearly. */
-  --color-highlight: oklch(0.78 0.15 87 / 0.30);
+  /* Solid; opacity comes from the class (bg-highlight/35 etc.). */
+  --color-highlight: oklch(0.78 0.15 87);
 }
 
 :root {

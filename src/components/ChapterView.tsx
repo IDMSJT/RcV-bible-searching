@@ -55,7 +55,7 @@ function OutlineHeading({
   const cls =
     'col-start-2 justify-self-start flex gap-1.5 font-sans text-[0.875em] text-muted-foreground ' +
     (tight ? '' : 'mt-2 first:mt-0 ') +
-    (highlight ? 'rounded bg-highlight px-1' : '')
+    (highlight ? 'rounded bg-highlight/30 px-1' : '')
   const style = highlight
     ? { marginLeft: `calc(${indent}rem - 0.25rem)`, marginRight: '-0.25rem' }
     : { marginLeft: `${indent}rem` }
@@ -266,6 +266,20 @@ export function ChapterView({
     })
   }, [])
 
+  // Notes are selectable independently of their verse, keyed `${verse}:${n}`,
+  // so 經文 and 註釋 can be picked / copied separately.
+  const [selectedNotes, setSelectedNotes] = useState<Set<string>>(() => new Set())
+  const toggleNoteSelect = useCallback((verse: number, n: number) => {
+    const key = `${verse}:${n}`
+    setSelectedNotes((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
+  const hasSelection = selected.size > 0 || selectedNotes.size > 0
+
   // In-flight press: the long-press timer, the start point (to cancel on
   // scroll), and whether the long-press already fired (so the trailing click
   // doesn't toggle the verse back off).
@@ -274,12 +288,13 @@ export function ChapterView({
   // Clear selection whenever the chapter changes.
   useEffect(() => {
     setSelected(new Set())
+    setSelectedNotes(new Set())
   }, [bookNo, chapterNo])
 
   // Let the pager pause the swipe while a selection is active.
   useEffect(() => {
-    onSelectingChange?.(selected.size > 0)
-  }, [selected.size, onSelectingChange])
+    onSelectingChange?.(hasSelection)
+  }, [hasSelection, onSelectingChange])
 
   // Every footnote in this chapter, keyed `verse:n`. Used by the「展開全部」
   // toggle below — empty when 顯示註釋 is off or the chapter has no notes.
@@ -416,7 +431,7 @@ export function ChapterView({
   // is deferred a frame so the extra bottom padding (added on this same render)
   // exists first — otherwise the last verses have no room to move up.
   const selectVerse = (verse: number, el: Element | null) => {
-    const wasEmpty = selected.size === 0
+    const wasEmpty = !hasSelection
     toggleSelect(verse)
     if (wasEmpty && el) {
       requestAnimationFrame(() => {
@@ -468,33 +483,50 @@ export function ChapterView({
   const copyLangEff: CopyLang = showEnglish ? copyLang : 'zh'
   const selectedText = () => {
     const sep = copyLangEff === 'both' ? '\n\n' : '\n'
-    return (chapter?.verses ?? [])
-      .filter((v) => selected.has(v.verse))
-      .map((v) => {
+    const parts: string[] = []
+    for (const v of chapter?.verses ?? []) {
+      if (selected.has(v.verse)) {
         const zh = formatCitation(
           formatVerseRef(bookNo, chapterNo, v.verse, citeFormat),
           `『${v.text}』`,
           citePosition,
         )
-        if (copyLangEff === 'zh') return zh
-        const enText = enChapter?.verses.find((x) => x.verse === v.verse)?.text
-        const en = enText
-          ? formatCitation(
-              `${BOOK_ABBREV_EN[bookNo] ?? ''} ${chapterNo}:${v.verse}`,
-              `"${enText}"`,
-              citePosition,
-              ' ',
-            )
-          : ''
-        if (copyLangEff === 'en') return en
-        return enText ? `${zh}\n${en}` : zh
-      })
-      .filter(Boolean)
-      .join(sep)
+        if (copyLangEff === 'zh') {
+          parts.push(zh)
+        } else {
+          const enText = enChapter?.verses.find((x) => x.verse === v.verse)?.text
+          const en = enText
+            ? formatCitation(
+                `${BOOK_ABBREV_EN[bookNo] ?? ''} ${chapterNo}:${v.verse}`,
+                `"${enText}"`,
+                citePosition,
+                ' ',
+              )
+            : ''
+          if (copyLangEff === 'en') {
+            if (en) parts.push(en)
+          } else {
+            parts.push(enText ? `${zh}\n${en}` : zh)
+          }
+        }
+      }
+      // Selected notes on this verse (Chinese only), kept in note order.
+      if (selectedNotes.size > 0) {
+        const vNotes = annChapter?.verses.find((x) => x.verse === v.verse)?.notes ?? []
+        for (const n of vNotes) {
+          if (selectedNotes.has(`${v.verse}:${n.n}`)) {
+            const label = `${formatVerseRef(bookNo, chapterNo, v.verse, citeFormat)}註${n.n}`
+            parts.push(formatCitation(label, `『${n.text}』`, citePosition))
+          }
+        }
+      }
+    }
+    return parts.filter(Boolean).join(sep)
   }
 
   const exitSelection = () => {
     setSelected(new Set())
+    setSelectedNotes(new Set())
   }
 
   const copySelected = async () => {
@@ -610,7 +642,7 @@ export function ChapterView({
           // away, but eased (duration-300) when it collapses so the margin
           // shrinks smoothly on exit.
           'mx-auto max-w-3xl px-4 py-6 transition-[padding-bottom] md:px-8 md:py-10',
-          selected.size > 0
+          hasSelection
             ? 'pb-[calc(1.5rem+3.5rem+0.75rem)] duration-0'
             : 'duration-300',
         )}
@@ -654,7 +686,7 @@ export function ChapterView({
                     <p
                       className={cn(
                         'px-1 -mx-1 font-medium leading-relaxed',
-                        r.hl && !selected.has(r.verse) && 'rounded bg-highlight',
+                        r.hl && !selected.has(r.verse) && 'rounded bg-highlight/30',
                       )}
                     >
                       {renderMarkedText(r.text, r.marks, r.notes, (n) => {
@@ -688,6 +720,16 @@ export function ChapterView({
                             .map((n) => n.n),
                         )
                       }
+                      selectedNs={
+                        selectedNotes.size > 0
+                          ? new Set(
+                              r.notes
+                                .filter((n) => selectedNotes.has(`${r.verse}:${n.n}`))
+                                .map((n) => n.n),
+                            )
+                          : undefined
+                      }
+                      onSelectNote={active ? (n) => toggleNoteSelect(r.verse, n) : undefined}
                     />
                   )}
                 </div>
@@ -709,24 +751,30 @@ export function ChapterView({
        * child of a transformed element is positioned (and clipped) by it, not
        * the viewport. Only the active panel owns it. */}
       {active &&
-        selected.size > 0 &&
+        hasSelection &&
         createPortal(
           <div className="fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-40 flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur md:inset-x-auto md:right-3 md:bottom-3 md:min-w-[320px] md:max-w-sm">
-          <span className="text-sm text-muted-foreground">已選 {selected.size} 節</span>
+          <span className="text-sm text-muted-foreground">
+            已選{' '}
+            {[
+              selected.size > 0 ? `${selected.size} 節` : null,
+              selectedNotes.size > 0 ? `${selectedNotes.size} 註` : null,
+            ]
+              .filter(Boolean)
+              .join('、')}
+          </span>
           <div className="ml-auto flex items-center gap-2">
             <button
               type="button"
               onClick={shareSelected}
-              disabled={selected.size === 0}
-              className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95 disabled:opacity-50"
+              className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95"
             >
               分享
             </button>
             <button
               type="button"
               onClick={copySelected}
-              disabled={selected.size === 0}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-95 disabled:opacity-50"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-95"
             >
               複製
             </button>
