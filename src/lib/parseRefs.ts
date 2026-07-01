@@ -128,6 +128,31 @@ export function parseRefs(input: string, initial?: ParseCtx): ParseResult {
     const ch = text[i]
     if (ch === '(' || ch === ')') resetCtx()
 
+    // 「本書」 = the book this note belongs to — the *initial* context book, not
+    // whatever book was last cited (「…來十三16，與本書十二13…」 means Romans, the
+    // note's own book, not Hebrews). Standalone 書 is 約書亞記's abbreviation, so
+    // 「本書十二13」 would otherwise anchor as Joshua. Read the ref run after 本書 in
+    // the note's book and link the whole 「本書…」 phrase.
+    if (initial?.book != null && text.startsWith('本書', i)) {
+      const m = CONT_FULL_RE.exec(text.slice(i + 2))
+      if (m && m.index === 0 && /[0-9章篇節]/.test(m[0])) {
+        const benCtx: ParseCtx = { book: initial.book, chapter: null }
+        const out = parseToken(m[0], benCtx)
+        if (out.ok && out.refs.length > 0) {
+          flushProse(i)
+          const len = 2 + m[0].length
+          segments.push({ text: input.slice(i, i + len), refs: out.refs })
+          refs.push(...out.refs)
+          // Following continuations now flow in the 本書 book/chapter.
+          ctx.book = benCtx.book
+          ctx.chapter = benCtx.chapter
+          i += len
+          lastProseStart = i
+          continue
+        }
+      }
+    }
+
     // 1. Anchor — alias-led ref. Same digit / unit-marker guard as the
     // continuation branch: 「出一」 in 「伸出一隻手」 looks like
     // alias-Exo + CN-one to the matcher but the 「一」 is the prose word

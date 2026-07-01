@@ -206,4 +206,14 @@ describe('parseRefs — normalisation', () => {
     ).refs.map(sig)
     expect(refs).toEqual(['42:3:23', '40:1:1'])
   })
+
+  it('本書 = the note\'s own book, not the last-cited one (書 ≠ 約書亞記)', () => {
+    // A Romans 15 note: 本書 must resolve to Romans (45), even though Hebrews
+    // (來) was cited just before, and 書 alone must not anchor as 約書亞記 (6).
+    const refs = parseRefs('與來十三16，與本書十二13者同字根', {
+      book: 45,
+      chapter: 15,
+    }).refs.map(sig)
+    expect(refs).toEqual(['58:13:16', '45:12:13'])
+  })
 })
