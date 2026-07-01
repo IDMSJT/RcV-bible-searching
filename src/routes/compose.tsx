@@ -396,14 +396,14 @@ function ComposePage() {
         <button
           type="button"
           onClick={copyText}
-          className="rounded-lg bg-secondary px-5 py-2.5 text-base font-medium text-secondary-foreground shadow-lg transition-all duration-150 hover:bg-secondary/80 active:scale-95"
+          className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground shadow-lg transition-all duration-150 hover:bg-secondary/80 active:scale-95"
         >
           複製
         </button>
         <button
           type="button"
           onClick={() => window.print()}
-          className="rounded-lg bg-primary px-5 py-2.5 text-base font-medium text-primary-foreground shadow-lg transition-all duration-150 hover:bg-primary/90 active:scale-95"
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg transition-all duration-150 hover:bg-primary/90 active:scale-95"
         >
           列印
         </button>
