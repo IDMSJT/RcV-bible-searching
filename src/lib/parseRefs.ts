@@ -51,9 +51,14 @@ const REF_CHARS = `0-9${CN_NUMERAL_CHARS}上下中章篇節:：~～\\-至到—�
 // NOT followed by a CJK char — so prose like 「太八2註解」 doesn't get eaten.
 const NOTE_TAIL_PAT = `(?:[\\s、，,與和及]*[注註]\\s*(?:\\d+|(?![一-鿿\\d])))*`
 
-// `^alias` followed by any run of ref-chars. The match string is then handed to
-// parseToken, which decides whether the whole thing is actually a valid ref.
-const ANCHOR_FULL_RE = new RegExp(`^(?:${BOOK_PATTERN})[${REF_CHARS}]*${NOTE_TAIL_PAT}`)
+// `^alias` then an optional English-style gap (a period and/or spaces, as in
+// 「Matt. 5:1」) then any run of ref-chars. Case-insensitive so English aliases
+// match any casing. The match string is handed to parseToken, which decides
+// whether the whole thing is actually a valid ref.
+const ANCHOR_FULL_RE = new RegExp(
+  `^(?:${BOOK_PATTERN})[.\\s]*[${REF_CHARS}]*${NOTE_TAIL_PAT}`,
+  'i',
+)
 
 // Continuation: same kind of run, but must start with a digit or CN numeral so
 // stray 上/下/章 chars don't get matched as ref starts.

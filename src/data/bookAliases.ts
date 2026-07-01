@@ -1,5 +1,6 @@
 import { CANON } from './canon'
 import { BOOK_ABBREV } from './abbrev'
+import { BOOK_ABBREV_EN } from './abbrevEn'
 
 /**
  * Mid-form names (full name with the trailing 記/書/福音/… dropped), keyed by bookNo.
@@ -36,6 +37,13 @@ function buildAliasMap(): Map<string, number> {
   }
   // Mid-forms last (lowest priority).
   for (const [no, mid] of Object.entries(MID_FORM)) add(mid, Number(no))
+  // English RcV abbreviations (Matt, 1 Cor, 1 Pet, S.S. …), keyed lowercase so
+  // BOOK_ALIAS_RE's case-insensitive flag can match any casing. Latin keys never
+  // collide with the CJK ones above.
+  for (const b of CANON) {
+    const en = BOOK_ABBREV_EN[b.bookNo]
+    if (en) add(en.toLowerCase(), b.bookNo)
+  }
   return map
 }
 
@@ -49,4 +57,5 @@ export const BOOK_ALIAS_RE = new RegExp(
       .map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
       .join('|') +
     ')',
+  'i',
 )

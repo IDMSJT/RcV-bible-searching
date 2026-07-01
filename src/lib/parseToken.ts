@@ -87,8 +87,13 @@ export function parseToken(token: string, ctx: ParseCtx): ParseTokenResult {
   let book = ctx.book
   const bm = rest.match(BOOK_ALIAS_RE)
   if (bm) {
-    book = BOOK_ALIASES.get(bm[1]) ?? book
+    // Lowercase fallback for the case-insensitively matched English aliases,
+    // whose map keys are stored lowercase (「Matt」→「matt」).
+    book = BOOK_ALIASES.get(bm[1]) ?? BOOK_ALIASES.get(bm[1].toLowerCase()) ?? book
     rest = rest.slice(bm[1].length)
+    // English refs put a period and/or space between the book and the numbers
+    // (「Matt. 5:1」, 「2 Cor. 6:14」); drop it so chapter parsing sees the digits.
+    rest = rest.replace(/^[.\s]+/, '')
     // Book alias not followed by a CN chapter → assume chapter 1. Handles
     // single-chapter books written without a chapter number (猶24 = Jude 1:24)
     // and also the natural "default to chapter 1" shorthand.

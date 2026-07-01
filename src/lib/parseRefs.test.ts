@@ -207,6 +207,20 @@ describe('parseRefs — normalisation', () => {
     expect(refs).toEqual(['42:3:23', '40:1:1'])
   })
 
+  it('English RcV abbreviations, with period + space, ; separators, continuation', () => {
+    expect(sigs('Matt. 5:1; 28:19; 2 Cor. 6:14-16; 1 Cor. 1:2; 1 Pet. 4:16')).toEqual([
+      '40:5:1',
+      '40:28:19', // continuation inherits Matthew
+      '47:6:14-16',
+      '46:1:2',
+      '60:4:16',
+    ])
+  })
+
+  it('English aliases are case-insensitive', () => {
+    expect(sigs('rom 8:28; JOHN 3:16')).toEqual(['45:8:28', '43:3:16'])
+  })
+
   it('本書 = the note\'s own book, not the last-cited one (書 ≠ 約書亞記)', () => {
     // A Romans 15 note: 本書 must resolve to Romans (45), even though Hebrews
     // (來) was cited just before, and 書 alone must not anchor as 約書亞記 (6).
