@@ -268,10 +268,10 @@ const ResultList = memo(function ResultList({
   onOpen: (r: ResolvedVerse) => void
   onToggle: (index: number) => void
 }) {
-  if (error) return <p className="text-sm text-destructive">資料載入失敗：{error}</p>
-  if (isEmpty) return <p className="text-sm text-muted-foreground">{hint}</p>
-  if (loading) return <p className="text-sm text-muted-foreground">載入中…</p>
-  if (rows.length === 0) return <p className="text-sm text-muted-foreground">找不到符合的經節</p>
+  if (error) return <p className="text-base text-destructive">資料載入失敗：{error}</p>
+  if (isEmpty) return hint ? <p className="text-base text-muted-foreground">{hint}</p> : null
+  if (loading) return <p className="text-base text-muted-foreground">載入中…</p>
+  if (rows.length === 0) return <p className="text-base text-muted-foreground">找不到符合的經節</p>
   return (
     <div
       // Clear hover when leaving the list. Row spacing is each row's own py (not
@@ -656,7 +656,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
         ref={kwTextareaRef}
         value={kw}
         onChange={(e) => setKw(e.target.value)}
-        placeholder="搜尋關鍵字…（中英文皆可、空白分隔多詞）"
+        placeholder="搜尋關鍵字（空白分隔多詞）"
         spellCheck={false}
         data-vaul-no-drag
         className={cn(
@@ -682,7 +682,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
         error={error}
         loading={!data}
         isEmpty={kw.trim() === ''}
-        hint="輸入關鍵字搜尋（中英文皆可，以空白分隔多個詞）"
+        hint=""
         activeBookNo={activeBookNo}
         activeChapterNo={activeChapterNo}
         activeHl={activeHl}
@@ -709,7 +709,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
         error={error}
         loading={!data}
         isEmpty={q.trim() === ''}
-        hint="輸入經文出處以查詢"
+        hint=""
         activeBookNo={activeBookNo}
         activeChapterNo={activeChapterNo}
         activeHl={activeHl}
