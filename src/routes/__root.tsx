@@ -8,9 +8,9 @@ import { CatalogPanel } from '@/components/CatalogPanel'
 import { ComposePanel } from '@/components/ComposePanel'
 import { SettingsPanel } from '@/components/SettingsPanel'
 import { ReadingPreferences } from '@/components/ReadingPreferences'
-import { ReloadPrompt } from '@/components/ReloadPrompt'
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer'
 import { ChangelogDrawer } from '@/components/ChangelogDrawer'
+import { SwUpdate } from '@/components/SwUpdate'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
 
@@ -365,7 +365,7 @@ function RootComponent() {
         <Outlet />
       </main>
 
-      <ReloadPrompt />
+      <SwUpdate />
 
       {/* Mobile: bottom nav bar; hidden on md and above. Buttons stretch evenly
        * across the full width so taps are easy with a thumb. */}

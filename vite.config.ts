@@ -70,7 +70,10 @@ export default defineConfig(({ command }) => ({
       ? [pwaRegisterDevStub()]
       : [
     VitePWA({
-      // 'prompt' → the app asks before reloading to a new version.
+      // 'prompt' keeps the new SW parked in `waiting` (so `needRefresh` fires);
+      // <SwUpdate> then applies it *silently* — no prompt, no manual close. The
+      // check runs on app launch (SPA route changes don't trigger it), so the
+      // reload lands at startup, not mid-read.
       registerType: 'prompt',
       includeAssets: ['favicon-64x64.png', 'apple-touch-icon-180x180.png'],
       manifest: {
