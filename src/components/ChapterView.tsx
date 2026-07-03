@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from '@tanstack/react-router'
 import { X } from 'lucide-react'
 import {
   useBible,
@@ -93,6 +94,35 @@ type Row =
       ref: boolean
       key: string
     }
+
+/** Collapse sorted verse numbers into 「1~2」/「5」 range strings, keeping each
+ * range's start verse for ordering. */
+function collapseRanges(nums: number[]): { start: number; text: string }[] {
+  const sorted = [...nums].sort((a, b) => a - b)
+  const out: { start: number; text: string }[] = []
+  for (let i = 0; i < sorted.length; ) {
+    let j = i
+    while (j + 1 < sorted.length && sorted[j + 1] === sorted[j] + 1) j++
+    out.push({ start: sorted[i], text: i === j ? `${sorted[i]}` : `${sorted[i]}~${sorted[j]}` })
+    i = j + 1
+  }
+  return out
+}
+
+/** A one-line list of a selection: verses collapsed into ranges, notes as
+ * 「5註1」, everything ordered by verse (verse before its note). e.g. 「1~2，5，5註1」 */
+function summarizeSelection(verseSet: Set<number>, noteSet: Set<string>): string {
+  const entries: { v: number; note: number; text: string }[] = []
+  for (const r of collapseRanges([...verseSet])) {
+    entries.push({ v: r.start, note: 0, text: r.text })
+  }
+  for (const key of noteSet) {
+    const [v, n] = key.split(':').map(Number)
+    entries.push({ v, note: 1, text: `${v}註${n}` })
+  }
+  entries.sort((a, b) => a.v - b.v || a.note - b.note)
+  return entries.map((e) => e.text).join('，')
+}
 
 export function ChapterView({
   bookNo,
@@ -279,6 +309,7 @@ export function ChapterView({
     })
   }, [])
   const hasSelection = selected.size > 0 || selectedNotes.size > 0
+  const navigate = useNavigate()
 
   // In-flight press: the long-press timer, the start point (to cancel on
   // scroll), and whether the long-press already fired (so the trailing click
@@ -481,11 +512,13 @@ export function ChapterView({
 
   // en / both only apply with English loaded; otherwise force 中文.
   const copyLangEff: CopyLang = showEnglish ? copyLang : 'zh'
-  const selectedText = () => {
+  // Shared by the blue selection bar (verseSet=selected) and the yellow hl bar
+  // (verseSet=highlighted verses) — same citation format either way.
+  const buildCopyText = (verseSet: Set<number>, noteSet: Set<string>) => {
     const sep = copyLangEff === 'both' ? '\n\n' : '\n'
     const parts: string[] = []
     for (const v of chapter?.verses ?? []) {
-      if (selected.has(v.verse)) {
+      if (verseSet.has(v.verse)) {
         const zh = formatCitation(
           formatVerseRef(bookNo, chapterNo, v.verse, citeFormat),
           `『${v.text}』`,
@@ -510,11 +543,11 @@ export function ChapterView({
           }
         }
       }
-      // Selected notes on this verse (Chinese only), kept in note order.
-      if (selectedNotes.size > 0) {
+      // Notes on this verse (Chinese only), kept in note order.
+      if (noteSet.size > 0) {
         const vNotes = annChapter?.verses.find((x) => x.verse === v.verse)?.notes ?? []
         for (const n of vNotes) {
-          if (selectedNotes.has(`${v.verse}:${n.n}`)) {
+          if (noteSet.has(`${v.verse}:${n.n}`)) {
             const label = `${formatVerseRef(bookNo, chapterNo, v.verse, citeFormat)}註${n.n}`
             parts.push(formatCitation(label, `『${n.text}』`, citePosition))
           }
@@ -523,6 +556,7 @@ export function ChapterView({
     }
     return parts.filter(Boolean).join(sep)
   }
+  const selectedText = () => buildCopyText(selected, selectedNotes)
 
   const exitSelection = () => {
     setSelected(new Set())
@@ -551,6 +585,54 @@ export function ChapterView({
       // selection if the user backs out of the share sheet.
     } catch {
       /* cancelled / denied — leave the selection so they can retry */
+    }
+  }
+
+  // Yellow (?hl=) action bar: the verses / notes the URL is tinting. Only shown
+  // when there's no manual (blue) selection.
+  const hlVerseSet = new Set<number>()
+  for (const v of chapter?.verses ?? []) {
+    if (v.verse !== 0 && verseRanges.some((r) => v.verse >= r.start && v.verse <= r.end)) {
+      hlVerseSet.add(v.verse)
+    }
+  }
+  const hlNoteSet = noteHighlights
+  const hlActive = active && !hasSelection && (hlVerseSet.size > 0 || hlNoteSet.size > 0)
+  const hlText = () => buildCopyText(hlVerseSet, hlNoteSet)
+  // ✕ removes the highlight by stripping ?hl= from the URL — so re-clicking the
+  // same search result re-adds it and re-lights the verse (a local dismiss
+  // wouldn't, since the URL never changed). Persist the current scroll first so
+  // the restore that fires when hl clears keeps us on the verse instead of
+  // jumping back to the old reading position.
+  const clearHl = () => {
+    const el = panelRef.current
+    if (el) sessionStorage.setItem(`rcv/scroll/${bookNo}/${chapterNo}`, String(el.scrollTop))
+    navigate({
+      to: '/$bookNo/$chapterNo',
+      params: { bookNo, chapterNo },
+      search: {},
+      replace: true,
+      resetScroll: false,
+    })
+  }
+  const copyHl = async () => {
+    const text = hlText()
+    if (text) {
+      try {
+        await navigator.clipboard.writeText(text)
+      } catch {
+        /* clipboard denied */
+      }
+    }
+  }
+  const shareHl = async () => {
+    const text = hlText()
+    if (!text) return
+    try {
+      if (navigator.share) await navigator.share({ text })
+      else await navigator.clipboard.writeText(text)
+    } catch {
+      /* cancelled / denied */
     }
   }
 
@@ -642,7 +724,7 @@ export function ChapterView({
           // away, but eased (duration-300) when it collapses so the margin
           // shrinks smoothly on exit.
           'mx-auto max-w-3xl px-4 py-6 transition-[padding-bottom] md:px-8 md:py-10',
-          hasSelection
+          hasSelection || hlActive
             ? 'pb-[calc(1.5rem+3.5rem+0.75rem)] duration-0'
             : 'duration-300',
         )}
@@ -754,16 +836,17 @@ export function ChapterView({
         hasSelection &&
         createPortal(
           <div className="fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-40 flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur md:inset-x-auto md:right-3 md:bottom-3 md:min-w-[320px] md:max-w-sm">
-          <span className="text-sm text-muted-foreground">
-            已選{' '}
-            {[
-              selected.size > 0 ? `${selected.size} 節` : null,
-              selectedNotes.size > 0 ? `${selectedNotes.size} 註` : null,
-            ]
-              .filter(Boolean)
-              .join('、')}
+          <span className="flex min-w-0 flex-1 items-center gap-2 text-sm text-muted-foreground">
+            <span
+              aria-hidden
+              className="size-3 shrink-0 rounded-sm bg-blue-500/20 dark:bg-blue-400/25"
+            />
+            <span className="truncate">
+              已選 {selected.size > 0 ? `${selected.size} 節` : `${selectedNotes.size} 註`}：
+              {summarizeSelection(selected, selectedNotes)}
+            </span>
           </span>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={shareSelected}
@@ -782,6 +865,48 @@ export function ChapterView({
               type="button"
               onClick={exitSelection}
               aria-label="取消"
+              className="rounded-lg px-2 py-2 text-muted-foreground transition-all duration-150 hover:text-foreground active:scale-95"
+            >
+              <X className="size-4.5" />
+            </button>
+          </div>
+        </div>,
+          document.body,
+        )}
+
+      {/* Yellow (?hl=) action bar — copy/share what you jumped to; X removes the
+       * tint (locally, without touching the URL). Hidden once a manual (blue)
+       * selection begins. The gold swatch signals it's the highlight, not a
+       * selection. */}
+      {hlActive &&
+        createPortal(
+          <div className="fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-40 flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur md:inset-x-auto md:right-3 md:bottom-3 md:min-w-[320px] md:max-w-sm">
+          <span className="flex min-w-0 flex-1 items-center gap-2 text-sm text-muted-foreground">
+            <span aria-hidden className="size-3 shrink-0 rounded-sm bg-highlight/30" />
+            <span className="truncate">
+              已標示 {hlVerseSet.size > 0 ? `${hlVerseSet.size} 節` : `${hlNoteSet.size} 註`}：
+              {summarizeSelection(hlVerseSet, hlNoteSet)}
+            </span>
+          </span>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={shareHl}
+              className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95"
+            >
+              分享
+            </button>
+            <button
+              type="button"
+              onClick={copyHl}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-95"
+            >
+              複製
+            </button>
+            <button
+              type="button"
+              onClick={clearHl}
+              aria-label="移除標示"
               className="rounded-lg px-2 py-2 text-muted-foreground transition-all duration-150 hover:text-foreground active:scale-95"
             >
               <X className="size-4.5" />

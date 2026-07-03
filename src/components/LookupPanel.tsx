@@ -887,7 +887,7 @@ function ResultRow({
       >
         {label}
       </span>
-      <div className={cn(selected && 'rounded bg-blue-500/15 px-1 -mx-1 dark:bg-blue-400/20')}>
+      <div className={cn(selected && 'rounded bg-blue-500/20 px-1 -mx-1 dark:bg-blue-400/25')}>
         {noteToShow ? (
           // Note row — render the note body where verse text normally goes, so a
           // note result lays out identically to a verse result.
