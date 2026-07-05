@@ -8,7 +8,7 @@ import {
   useState,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { X } from 'lucide-react'
 import {
   useBible,
@@ -40,43 +40,56 @@ import type { Annotation, Mark, OutlineEntry } from '@/types/bible'
 
 function OutlineHeading({
   entry,
+  entryIdx,
   tight,
   highlight,
   innerRef,
+  bookNo,
 }: {
   entry: OutlineEntry
+  entryIdx: number
   tight: boolean
   highlight?: boolean
-  innerRef?: (el: HTMLDivElement | null) => void
+  innerRef?: (el: HTMLElement | null) => void
+  bookNo: number
 }) {
-  // Indent is a left margin (not padding) so the highlight bg starts at the
-  // text, not at the column edge. When highlighted, px-1 adds a little breathing
-  // room and the margins are pulled in by 0.25rem to compensate (no layout shift).
-  const indent = (entry.level - 1) * 0.5
-  const cls =
-    'col-start-2 justify-self-start flex gap-1.5 font-sans text-[0.875em] text-muted-foreground ' +
-    (tight ? '' : 'mt-2 first:mt-0 ') +
-    (highlight ? 'rounded bg-highlight/30 px-1' : '')
-  const style = highlight
-    ? { marginLeft: `calc(${indent}rem - 0.25rem)`, marginRight: '-0.25rem' }
-    : { marginLeft: `${indent}rem` }
-
+  // Match the outline page's rows: the whole column is the link (block +
+  // paddingLeft indent), while the hover / highlight tint sits on just the text
+  // span (inline, -mx-1 so the bg bleeds without shifting layout). Tapping jumps
+  // to this exact entry on the outline page (?oe=index — index, not the anchor,
+  // so duplicate-anchor entries stay distinct), the reverse of the outline
+  // page's ?oh= link back into the chapter.
   return (
-    <div ref={innerRef} className={cls} style={style}>
-      {entry.marker && <span className="shrink-0">{displayMarker(entry.marker)}</span>}
-      <span>
+    <Link
+      ref={innerRef}
+      to="/$bookNo"
+      params={{ bookNo }}
+      search={{ oe: String(entryIdx) }}
+      style={{ paddingLeft: `${(entry.level - 1) * 0.5}rem` }}
+      className={cn(
+        'group col-start-2 block pr-2 font-sans text-[0.875em] text-muted-foreground transition-colors hover:text-foreground',
+        !tight && 'mt-2 first:mt-0',
+      )}
+    >
+      <span
+        className={cn(
+          'inline-block rounded px-1 -mx-1 transition-colors group-hover:bg-muted',
+          highlight && 'bg-highlight/30',
+        )}
+      >
+        {entry.marker && <span className="mr-1.5">{displayMarker(entry.marker)}</span>}
         {entry.title}
         {entry.continued && ' (續)'}
         {entry.range && (
           <span className="ml-1.5 text-muted-foreground/60">{formatOutlineRange(entry.range)}</span>
         )}
       </span>
-    </div>
+    </Link>
   )
 }
 
 type Row =
-  | { kind: 'heading'; entry: OutlineEntry; tight: boolean; hl: boolean; ref: boolean; key: string }
+  | { kind: 'heading'; entry: OutlineEntry; idx: number; tight: boolean; hl: boolean; ref: boolean; key: string }
   | {
       kind: 'verse'
       /** Raw verse number, used as the toggle key for note expansion. Stays
@@ -128,7 +141,7 @@ export function ChapterView({
   bookNo,
   chapterNo,
   highlights = [],
-  headingAnchor,
+  ohIndex,
   active = true,
   onSelectingChange,
 }: {
@@ -136,7 +149,10 @@ export function ChapterView({
   chapterNo: number
   /** Combined highlight list — verses to tint and / or notes to expand+tint. */
   highlights?: HlItem[]
-  headingAnchor?: { verse: number; segment: number }
+  /** Index (in the book outline) of the heading to scroll to + tint — from a
+   * ?oh= link on the outline page. Index, not anchor, so two entries sharing a
+   * verse target only the clicked one. */
+  ohIndex?: number
   /** Carousel panels render three chapters; only the centred (active) one
    * responds to verse taps, shows the selection bar, and runs the oh-scroll. */
   active?: boolean
@@ -357,7 +373,7 @@ export function ChapterView({
   const assignScroll = useCallback((el: HTMLElement | null) => {
     scrollRef.current = el
   }, [])
-  const ohKey = headingAnchor ? `${headingAnchor.verse}.${headingAnchor.segment}` : ''
+  const ohKey = ohIndex != null ? String(ohIndex) : ''
   // First verse touched by any hl item (verse range OR note ref) — used as
   // the scroll target so the landing position matches what the user clicked.
   const firstHlVerse =
@@ -389,8 +405,11 @@ export function ChapterView({
         if (main) main.scrollTop = 0
       }
       scrollRef.current?.scrollIntoView({
-        block: 'center',
-        behavior: chapterChanged ? 'auto' : 'smooth',
+        block: 'start',
+        // An outline-heading jump (?oh=) lands instantly — it's a deliberate
+        // navigation, not a within-chapter verse glide. The smooth glide is kept
+        // only for same-chapter hl moves (約1:14 → 約1:29).
+        behavior: chapterChanged || ohKey ? 'auto' : 'smooth',
       })
     })
     return () => cancelAnimationFrame(id)
@@ -402,7 +421,7 @@ export function ChapterView({
   // and it can't inherit a neighbour's scrollTop from a reused DOM node. Only
   // the active panel writes back. The active verse-jump view (?hl / ?oh) opts
   // out so the oh-scroll above can land on the verse instead.
-  const isJumpView = headingAnchor != null || firstHlVerse != null
+  const isJumpView = ohIndex != null || firstHlVerse != null
   useLayoutEffect(() => {
     const el = panelRef.current
     if (!el) return
@@ -455,7 +474,7 @@ export function ChapterView({
   const chapter = findChapter(data, bookNo, chapterNo)
   const outlineMap = showOutline
     ? chapterOutlineByAnchor(outline, bookNo, chapterNo)
-    : new Map<string, OutlineEntry[]>()
+    : new Map<string, { entry: OutlineEntry; idx: number }[]>()
 
   // First tap (0 → 1 selected) recenters the verse so the floating bar that
   // appears at the bottom doesn't hide it; later taps just toggle. The scroll
@@ -648,14 +667,14 @@ export function ChapterView({
         segCount > 1 &&
         Array.from({ length: segCount }, (_, s) => s).some((s) => s > 0 && headingsAt(s).length > 0)
 
-      const pushHeading = (e: OutlineEntry, key: string, seg: number) => {
-        const isTarget =
-          headingAnchor != null && headingAnchor.verse === v.verse && headingAnchor.segment === seg
+      const pushHeading = (e: OutlineEntry, idx: number, key: string) => {
+        const isTarget = idx === ohIndex
         const takeRef = isTarget && !headingRefDone
         if (takeRef) headingRefDone = true
         rows.push({
           kind: 'heading',
           entry: e,
+          idx,
           tight: rows[rows.length - 1]?.kind === 'heading',
           hl: isTarget,
           ref: takeRef,
@@ -673,7 +692,7 @@ export function ChapterView({
         let off = 0
         const lastSeg = v.segments.length - 1
         v.segments.forEach((segText, s) => {
-          headingsAt(s).forEach((e, i) => pushHeading(e, `h${v.verse}-${s}-${i}`, s))
+          headingsAt(s).forEach(({ entry, idx }, i) => pushHeading(entry, idx, `h${v.verse}-${s}-${i}`))
           rows.push({
             kind: 'verse',
             verse: v.verse,
@@ -688,7 +707,7 @@ export function ChapterView({
           off += segText.length
         })
       } else {
-        headingsAt(0).forEach((e, i) => pushHeading(e, `h${v.verse}-${i}`, 0))
+        headingsAt(0).forEach(({ entry, idx }, i) => pushHeading(entry, idx, `h${v.verse}-${i}`))
         rows.push({
           kind: 'verse',
           verse: v.verse,
@@ -711,7 +730,7 @@ export function ChapterView({
        * swipe live in the pager above; this is just the chapter body. */}
       <div
         ref={panelRef}
-        className="h-full overflow-y-auto overscroll-y-contain pb-[var(--nav-h)] [overflow-anchor:none] md:pb-0"
+        className="h-full overflow-y-auto overscroll-y-contain scroll-pt-6 pb-[var(--nav-h)] [overflow-anchor:none] md:pb-0"
       >
       <article
         className={cn(
@@ -739,9 +758,11 @@ export function ChapterView({
               <OutlineHeading
                 key={r.key}
                 entry={r.entry}
+                entryIdx={r.idx}
                 tight={r.tight}
                 highlight={r.hl}
                 innerRef={r.ref ? assignScroll : undefined}
+                bookNo={bookNo}
               />
             ) : (
               <Fragment key={r.key}>
@@ -835,7 +856,7 @@ export function ChapterView({
       {active &&
         hasSelection &&
         createPortal(
-          <div className="fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-40 flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur md:inset-x-auto md:right-3 md:bottom-3 md:min-w-[320px] md:max-w-sm">
+          <div className="fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-40 flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur md:inset-x-auto md:right-3 md:bottom-3 md:min-w-[384px]">
           <span className="flex min-w-0 flex-1 items-center gap-2 text-sm text-muted-foreground">
             <span
               aria-hidden
@@ -880,7 +901,7 @@ export function ChapterView({
        * selection. */}
       {hlActive &&
         createPortal(
-          <div className="fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-40 flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur md:inset-x-auto md:right-3 md:bottom-3 md:min-w-[320px] md:max-w-sm">
+          <div className="fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-40 flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur md:inset-x-auto md:right-3 md:bottom-3 md:min-w-[384px]">
           <span className="flex min-w-0 flex-1 items-center gap-2 text-sm text-muted-foreground">
             <span aria-hidden className="size-3 shrink-0 rounded-sm bg-highlight/30" />
             <span className="truncate">

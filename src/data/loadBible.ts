@@ -102,17 +102,19 @@ export function chapterOutlineByAnchor(
   outline: Outline | null,
   bookNo: number,
   chapterNo: number,
-): Map<string, OutlineEntry[]> {
-  const map = new Map<string, OutlineEntry[]>()
+): Map<string, { entry: OutlineEntry; idx: number }[]> {
+  const map = new Map<string, { entry: OutlineEntry; idx: number }[]>()
   if (!outline) return map
   const book = outline.books.find((b) => b.bookNo === bookNo)
   if (!book) return map
-  for (const e of book.outline) {
-    if (e.anchor.chapter !== chapterNo || e.anchor.verse == null) continue
+  // Carry each entry's index in the book outline so callers can identify one
+  // specific heading even when several share the same verse:segment anchor.
+  book.outline.forEach((e, idx) => {
+    if (e.anchor.chapter !== chapterNo || e.anchor.verse == null) return
     const key = `${e.anchor.verse}:${e.anchor.segment ?? 0}`
     const list = map.get(key)
-    if (list) list.push(e)
-    else map.set(key, [e])
-  }
+    if (list) list.push({ entry: e, idx })
+    else map.set(key, [{ entry: e, idx }])
+  })
   return map
 }

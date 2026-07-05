@@ -18,11 +18,9 @@ import { ChapterView } from '@/components/ChapterView'
 import { OutlineView } from '@/components/OutlineView'
 import { cn } from '@/lib/utils'
 
-function parseHeadingAnchor(oh: string | undefined): { verse: number; segment: number } | undefined {
-  if (!oh) return undefined
-  const m = oh.match(/^(\d+)(?:\.(\d+))?$/)
-  if (!m) return undefined
-  return { verse: Number(m[1]), segment: m[2] ? Number(m[2]) : 0 }
+// ?oh= is the outline entry's index in the book outline.
+function parseOhIndex(oh: string | undefined): number | undefined {
+  return oh != null && /^\d+$/.test(oh) ? Number(oh) : undefined
 }
 
 function titleOf(ref: ReadingRef): ReactNode {
@@ -48,12 +46,14 @@ export function ReadingPanel({
   active,
   hl,
   oh,
+  oe,
   onSelectingChange,
 }: {
   refData: ReadingRef
   active: boolean
   hl?: string
   oh?: string
+  oe?: string
   onSelectingChange?: (selecting: boolean) => void
 }) {
   if (refData.kind === 'chapter') {
@@ -63,12 +63,12 @@ export function ReadingPanel({
         chapterNo={refData.chapterNo}
         active={active}
         highlights={active ? parseHighlight(hl) : []}
-        headingAnchor={active ? parseHeadingAnchor(oh) : undefined}
+        ohIndex={active ? parseOhIndex(oh) : undefined}
         onSelectingChange={active ? onSelectingChange : undefined}
       />
     )
   }
-  return <OutlineView bookNo={refData.bookNo} active={active} />
+  return <OutlineView bookNo={refData.bookNo} active={active} oe={active ? oe : undefined} />
 }
 
 // Touch back button — a full-height bar at the header's edge.
@@ -110,7 +110,7 @@ function RefLink({ refData, children }: { refData: ReadingRef | null; children: 
  */
 export function ReadingPager() {
   const params = useParams({ strict: false }) as { bookNo: number; chapterNo?: number }
-  const search = useSearch({ strict: false }) as { hl?: string; oh?: string }
+  const search = useSearch({ strict: false }) as { hl?: string; oh?: string; oe?: string }
   const router = useRouter()
   const navigate = useNavigate()
   const canGoBack = useCanGoBack()
@@ -228,6 +228,7 @@ export function ReadingPager() {
                     active={active}
                     hl={active ? search.hl : undefined}
                     oh={active ? search.oh : undefined}
+                    oe={active ? search.oe : undefined}
                     onSelectingChange={active ? setSelecting : undefined}
                   />
                 )}
@@ -237,7 +238,7 @@ export function ReadingPager() {
         </div>
       ) : (
         <div className="relative min-h-0 flex-1">
-          <ReadingPanel refData={current} active hl={search.hl} oh={search.oh} />
+          <ReadingPanel refData={current} active hl={search.hl} oh={search.oh} oe={search.oe} />
         </div>
       )}
     </>
