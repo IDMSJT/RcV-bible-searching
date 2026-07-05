@@ -214,4 +214,15 @@ describe('parseStudyLines — fully-spelled 讀經 reading list', () => {
       '40:5:16',
     ])
   })
+
+  it('appositive-dash ref wins over a prior book in ctx (神人類—約一1 ≠ 弗)', () => {
+    // 弗 on the first line leaves Ephesians in ctx; the second line's
+    // 「神人類—約一1、14」 must peel to 約翰, not grab 「1」 as 弗1. Then 十二24
+    // continues in 約翰, not 弗12 (which doesn't exist → would render red).
+    const lines = parseStudyLines(
+      ['壹　基督—弗一14', '2　新的一類—神人類—約一1、14，十二24。'].join('\n'),
+    )
+    const pts = lines.filter((l): l is Extract<typeof l, { kind: 'point' }> => l.kind === 'point')
+    expect(refSigs(pts[1].refs)).toEqual(['43:1:1', '43:1:14', '43:12:24'])
+  })
 })

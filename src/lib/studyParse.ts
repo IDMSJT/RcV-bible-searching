@@ -100,22 +100,20 @@ function emitRefs(refsPart: string, ctx: ParseCtx, segs: StudySegment[]): void {
       segs.push({ text: tok })
       continue
     }
-    const refs = parseRefList(tok, ctx)
-    if (refs.length > 0) {
-      segs.push({ text: tok, refs })
-      continue
-    }
-    // The dash region regex starts at the FIRST dash, so a heading with
-    // appositive dashes ("…永遠的生命──三一神──裏作王──羅五18下") hands the whole
-    // prose-plus-ref blob here as one token that won't parse. If prose sits
-    // before the last dash, the real ref is after it — peel the prose (scanning
-    // it for a book name) and retry the tail.
+    // 「prose—ref」 (an appositive dash with CJK prose before the LAST dash, e.g.
+    // 「…新的一類—神人類—約一1」): the real ref is the tail, so peel it FIRST. Doing
+    // the whole-token parse first would mis-fire when a prior ref left a book in
+    // ctx — 「神人類—約一1」 would grab the trailing 「1」 as <prevBook>:1 and never
+    // recognise 約一 = John, so the peel (only tried on an empty parse) would
+    // never run. The dash region regex also starts at the FIRST dash, so headings
+    // like 「永遠的生命──三一神──裏作王──羅五18下」 arrive here as one blob.
     const dm = tok.match(LAST_DASH_RE)
     if (dm) {
       const cut = dm.index! + dm[0].length
       const prose = tok.slice(0, cut)
       const tail = tok.slice(cut)
       if (PROSE_HAN_RE.test(prose) && tail) {
+        const snap: ParseCtx = { book: ctx.book, chapter: ctx.chapter }
         scanBook(prose, ctx)
         const tailRefs = parseRefList(tail, ctx)
         if (tailRefs.length > 0) {
@@ -123,7 +121,16 @@ function emitRefs(refsPart: string, ctx: ParseCtx, segs: StudySegment[]): void {
           segs.push({ text: tail, refs: tailRefs })
           continue
         }
+        // Tail wasn't a ref after all — restore ctx and fall back to parsing the
+        // whole token (covers the non-appositive dashes like ranges).
+        ctx.book = snap.book
+        ctx.chapter = snap.chapter
       }
+    }
+    const refs = parseRefList(tok, ctx)
+    if (refs.length > 0) {
+      segs.push({ text: tok, refs })
+      continue
     }
     // No refs extracted — treat as prose rather than flagging it red.
     // The parser can't reliably tell "malformed ref" apart from "citation
