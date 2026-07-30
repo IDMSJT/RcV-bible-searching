@@ -105,7 +105,9 @@ export function renderMarkedText(
           // markers appear. p-1/-m-1 expands the clickable area without
           // shifting layout — the padding adds slop, the negative margin
           // pulls the surrounding glyphs back to where they would be.
-          className="relative -top-[0.6em] -m-1 cursor-pointer p-1 text-[0.7em] font-sans font-medium tabular-nums text-destructive hover:text-destructive/80"
+          // select-none: the marker digit is metadata — a text selection drags
+          // straight across it instead of catching on it or copying the number.
+          className="relative -top-[0.6em] -m-1 cursor-pointer p-1 text-[0.7em] font-sans font-medium tabular-nums text-destructive select-none hover:text-destructive/80"
         >
           {s.n}
         </sup>,

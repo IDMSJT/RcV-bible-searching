@@ -327,10 +327,10 @@ export function ChapterView({
   const hasSelection = selected.size > 0 || selectedNotes.size > 0
   const navigate = useNavigate()
 
-  // In-flight press: the long-press timer, the start point (to cancel on
-  // scroll), and whether the long-press already fired (so the trailing click
-  // doesn't toggle the verse back off).
-  const pressRef = useRef<{ x: number; y: number; long: boolean; timer: number } | null>(null)
+  // True while the user has a live native text selection inside this panel — so
+  // a partial-copy drag / long-press doesn't also toggle the whole verse, and
+  // the pager pauses the swipe while they drag to select.
+  const [textSelecting, setTextSelecting] = useState(false)
 
   // Clear selection whenever the chapter changes.
   useEffect(() => {
@@ -338,10 +338,11 @@ export function ChapterView({
     setSelectedNotes(new Set())
   }, [bookNo, chapterNo])
 
-  // Let the pager pause the swipe while a selection is active.
+  // Let the pager pause the swipe while a verse selection OR a text selection is
+  // active.
   useEffect(() => {
-    onSelectingChange?.(hasSelection)
-  }, [hasSelection, onSelectingChange])
+    onSelectingChange?.(hasSelection || textSelecting)
+  }, [hasSelection, textSelecting, onSelectingChange])
 
   // Every footnote in this chapter, keyed `verse:n`. Used by the「展開全部」
   // toggle below — empty when 顯示註釋 is off or the chapter has no notes.
@@ -369,6 +370,27 @@ export function ChapterView({
   void toggleAll
   const book = BOOK_BY_NO.get(bookNo)
   const panelRef = useRef<HTMLDivElement | null>(null)
+
+  // Track a live native text selection inside this panel (selectionchange is a
+  // document-level event, so scope it to nodes within panelRef).
+  useEffect(() => {
+    if (!active) return
+    const onSel = () => {
+      const sel = document.getSelection()
+      const el = panelRef.current
+      const inside =
+        !!sel &&
+        !sel.isCollapsed &&
+        sel.toString().trim().length > 0 &&
+        !!el &&
+        sel.anchorNode != null &&
+        el.contains(sel.anchorNode)
+      setTextSelecting(inside)
+    }
+    document.addEventListener('selectionchange', onSel)
+    return () => document.removeEventListener('selectionchange', onSel)
+  }, [active])
+
   const scrollRef = useRef<HTMLElement | null>(null)
   const assignScroll = useCallback((el: HTMLElement | null) => {
     scrollRef.current = el
@@ -490,43 +512,99 @@ export function ChapterView({
     }
   }
 
-  // Both a tap and a ~500ms long-press select a verse. The pointer handlers run
-  // the long-press timer (cancelled once the finger moves past a few px = a
-  // scroll); a quick tap is handled on click. The `long` flag stops the trailing
-  // click from toggling the verse straight back off after a long-press fired.
+  // A quick tap selects the whole verse. A native text selection (drag on
+  // desktop, long-press on mobile) is left to the browser so the user can copy
+  // just the part they highlight — the text-selection guard keeps that gesture
+  // from also toggling the verse. (No long-press verse-select: it would collide
+  // with the OS long-press-to-select-text on mobile.)
   const versePress = (verse: number): React.ComponentProps<'div'> =>
-    !active ? {} : {
-    onPointerDown: (e: React.PointerEvent) => {
-      const el = e.currentTarget
-      const st = { x: e.clientX, y: e.clientY, long: false, timer: 0 }
-      st.timer = window.setTimeout(() => {
-        st.long = true
-        selectVerse(verse, el)
-      }, 500)
-      pressRef.current = st
-    },
-    onPointerMove: (e: React.PointerEvent) => {
-      const st = pressRef.current
-      if (st && (Math.abs(e.clientX - st.x) > 10 || Math.abs(e.clientY - st.y) > 10)) {
-        clearTimeout(st.timer)
-        pressRef.current = null
+    !active
+      ? {}
+      : {
+          onClick: (e: React.MouseEvent) => {
+            const sel = document.getSelection()
+            if (textSelecting || (sel != null && !sel.isCollapsed && sel.toString().trim().length > 0))
+              return
+            selectVerse(verse, e.currentTarget)
+          },
+        }
+
+  // A native (Ctrl/⌘-C or long-press) copy of a text selection emits our own
+  // citation format instead of the raw HTML: one line per verse, the selected
+  // words quoted in 『』/"" with the verse ref. When only part of a verse is
+  // taken the ref gains a 上/中/下 segment marker (prefix / middle / suffix). A
+  // verse split by a mid-verse heading spans several data-verse rows, so the
+  // portion is accumulated by verse number and compared against the full
+  // verse.text. Verse numbers / footnote markers are user-select:none, so they
+  // stay out. The action-bar copy uses clipboard.writeText and never fires this.
+  const handleCopy = (e: React.ClipboardEvent) => {
+    const sel = window.getSelection()
+    const panel = panelRef.current
+    if (
+      !sel ||
+      sel.isCollapsed ||
+      !panel ||
+      sel.anchorNode == null ||
+      !panel.contains(sel.anchorNode)
+    ) {
+      return
+    }
+    const whole = sel.toString().trim()
+    if (!whole) return
+    const range = sel.getRangeAt(0)
+    const isEn = /[A-Za-z]/.test(whole) && !/[一-鿿]/.test(whole)
+
+    const cleanText = (frag: DocumentFragment): string => {
+      const div = document.createElement('div')
+      div.appendChild(frag)
+      div.querySelectorAll('.select-none').forEach((n) => n.remove())
+      return (div.textContent ?? '').replace(/\s+/g, ' ').trim()
+    }
+
+    const byVerse = new Map<number, string>()
+    const order: number[] = []
+    panel.querySelectorAll<HTMLElement>('[data-verse]').forEach((ve) => {
+      if (!range.intersectsNode(ve)) return
+      const nr = document.createRange()
+      nr.selectNodeContents(ve)
+      const inter = range.cloneRange()
+      if (inter.compareBoundaryPoints(Range.START_TO_START, nr) < 0) {
+        inter.setStart(nr.startContainer, nr.startOffset)
       }
-    },
-    onPointerUp: () => {
-      const st = pressRef.current
-      if (st) clearTimeout(st.timer)
-    },
-    onPointerCancel: () => {
-      const st = pressRef.current
-      if (st) clearTimeout(st.timer)
-      pressRef.current = null
-    },
-    onClick: (e: React.MouseEvent) => {
-      const st = pressRef.current
-      pressRef.current = null
-      if (st?.long) return // long-press already selected; ignore the click
-      selectVerse(verse, e.currentTarget)
-    },
+      if (inter.compareBoundaryPoints(Range.END_TO_END, nr) > 0) {
+        inter.setEnd(nr.endContainer, nr.endOffset)
+      }
+      const portion = cleanText(inter.cloneContents())
+      if (!portion) return
+      const verse = Number(ve.getAttribute('data-verse'))
+      if (!byVerse.has(verse)) order.push(verse)
+      byVerse.set(verse, (byVerse.get(verse) ?? '') + portion)
+    })
+    if (order.length === 0) return
+
+    const norm = (s: string) => s.replace(/\s+/g, '')
+    const lines = order.map((verse) => {
+      const portion = byVerse.get(verse) ?? ''
+      if (isEn) {
+        const abbr = BOOK_ABBREV_EN[bookNo] ?? ''
+        return formatCitation(`${abbr} ${chapterNo}:${verse}`, `"${portion}"`, citePosition, ' ')
+      }
+      const full = norm(chapter?.verses.find((x) => x.verse === verse)?.text ?? '')
+      const p = norm(portion)
+      // Which slice of the verse was taken → 上 (prefix) / 下 (suffix) / 中 (middle);
+      // no marker when the whole verse (or an unmatched fragment) is selected.
+      let segMark = ''
+      if (p && full && p !== full) {
+        if (full.startsWith(p)) segMark = '上'
+        else if (full.endsWith(p)) segMark = '下'
+        else if (full.includes(p)) segMark = '中'
+      }
+      const label = formatVerseRef(bookNo, chapterNo, verse, citeFormat) + segMark
+      return formatCitation(label, `『${portion}』`, citePosition)
+    })
+
+    e.clipboardData.setData('text/plain', lines.join('\n'))
+    e.preventDefault()
   }
 
   // en / both only apply with English loaded; otherwise force 中文.
@@ -730,6 +808,7 @@ export function ChapterView({
        * swipe live in the pager above; this is just the chapter body. */}
       <div
         ref={panelRef}
+        onCopy={handleCopy}
         className="h-full overflow-y-auto overscroll-y-contain scroll-pt-6 pb-[var(--nav-h)] [overflow-anchor:none] md:pb-0"
       >
       <article
@@ -773,10 +852,10 @@ export function ChapterView({
                 >
                   {r.num}
                 </span>
-                <div
-                  {...versePress(r.verse)}
-                  className="select-none [-webkit-touch-callout:none]"
-                >
+                {/* No select-none here: the verse text is natively selectable so
+                 * the user can drag / long-press to copy just part of it.
+                 * data-verse lets handleCopy map a selection back to its verse. */}
+                <div data-verse={r.verse} {...versePress(r.verse)}>
                   {/* One continuous selection tint over the verse + its English,
                    * like the search results. The navigate (r.hl) tint stays on
                    * the Chinese line, and yields to the selection tint. */}
@@ -792,15 +871,7 @@ export function ChapterView({
                         r.hl && !selected.has(r.verse) && 'rounded bg-highlight/30',
                       )}
                     >
-                      {renderMarkedText(r.text, r.marks, r.notes, (n) => {
-                        // A long-press over a note already selected the verse —
-                        // don't also open the note.
-                        if (pressRef.current?.long) {
-                          pressRef.current = null
-                          return
-                        }
-                        toggleNote(r.verse, n)
-                      })}
+                      {renderMarkedText(r.text, r.marks, r.notes, (n) => toggleNote(r.verse, n))}
                     </p>
                     {r.en && (
                       <p className="mt-0.5 font-sans text-[0.9em] text-muted-foreground">{r.en}</p>
