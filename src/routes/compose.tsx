@@ -240,7 +240,7 @@ function buildComposeText(
       out.push(p.text)
       pushVerses(p.refs)
     } else {
-      out.push(p.segments.map((s) => s.text).join(''))
+      out.push(p.lead + p.segments.map((s) => s.text).join(''))
       pushVerses(p.refs)
     }
   })
@@ -441,17 +441,9 @@ function ComposePage() {
             )
           }
           const indent = Math.max(p.level, 1) - 1
-          // Pull the marker + its trailing separator off the first segment so
-          // we can render the marker in its own grid column. The MARKER_RE
-          // matched on parse guarantees this prefix shape, so we always have
-          // a clean split when p.marker is non-empty.
-          let bodySegments = p.segments
-          if (p.marker && bodySegments.length > 0) {
-            const first = bodySegments[0]
-            const restText = first.text.replace(/^[^　 、.．]+[　 、.．]+/, '')
-            bodySegments = [{ ...first, text: restText }, ...bodySegments.slice(1)]
-          }
-          const renderSegments = bodySegments.map((seg, k) =>
+          // The marker is stripped at parse time, so the segments are already
+          // just the body and can render straight into the second column.
+          const renderSegments = p.segments.map((seg, k) =>
             isRefError(seg, bible) ? (
               <span key={k} className="rounded-sm bg-destructive/15 text-destructive">
                 {seg.text}

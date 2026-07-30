@@ -75,6 +75,14 @@ function normalize(t: string): string {
   return t.replace(/啓/g, '啟').replace(/（/g, '(').replace(/）/g, ')')
 }
 
+// A ref run can end up with the line's punctuation glued on: REF_CHARS has to
+// contain 「:」 for 「3:16」, so 「啟三12、21：」 matches 「21：」 and then fails to
+// parse. Trailing colons are never part of a reference, so drop them before
+// handing the token over.
+function trimRefTail(t: string): string {
+  return t.replace(/[:：]+$/, '')
+}
+
 /**
  * Scanning ref parser.
  *
@@ -166,12 +174,13 @@ export function parseRefs(input: string, initial?: ParseCtx): ParseResult {
     const aMatch = ANCHOR_FULL_RE.exec(text.slice(i))
     if (aMatch && aMatch.index === 0 && /[0-9章篇節:：]/.test(aMatch[0])) {
       const snapshot: ParseCtx = { book: ctx.book, chapter: ctx.chapter }
-      const out = parseToken(aMatch[0], ctx)
+      const aTok = trimRefTail(aMatch[0])
+      const out = parseToken(aTok, ctx)
       if (out.ok && out.refs.length > 0) {
         flushProse(i)
-        segments.push({ text: input.slice(i, i + aMatch[0].length), refs: out.refs })
+        segments.push({ text: input.slice(i, i + aTok.length), refs: out.refs })
         refs.push(...out.refs)
-        i += aMatch[0].length
+        i += aTok.length
         lastProseStart = i
         continue
       }
@@ -194,7 +203,7 @@ export function parseRefs(input: string, initial?: ParseCtx): ParseResult {
     // The renderer's post-processing then merges 「20」 + 「注3」 into one
     // link with `?note=20:3` so the destination chapter expands that note.
     const prev = i > 0 ? text[i - 1] : ''
-    if (ctx.book != null && ctx.chapter != null && prev !== '注' && prev !== '註') {
+    if (ctx.book != null && prev !== '注' && prev !== '註') {
       const cMatch = CONT_FULL_RE.exec(text.slice(i))
       // Step past blocklisted prose so the scanner doesn't try to re-match
       // a shorter sub-string of it — without this, 「七七節」 gets skipped
@@ -204,17 +213,22 @@ export function parseRefs(input: string, initial?: ParseCtx): ParseResult {
         i += cMatch[0].length
         continue
       }
-      if (cMatch && cMatch.index === 0 && /[0-9章篇節]/.test(cMatch[0])) {
+      // Without a chapter in context the run has to supply its own — 「一17」
+      // after 「羅馬書」 names Rom 1:17, whereas a bare 「17」 would be a verse
+      // in a chapter we don't know yet.
+      const cTok = cMatch && cMatch.index === 0 ? trimRefTail(cMatch[0]) : ''
+      const selfChapter = /^[^0-9]+[0-9]|[章篇:：]/.test(cTok)
+      if (cTok && (ctx.chapter != null || selfChapter) && /[0-9章篇節]/.test(cTok)) {
         const snapshot: ParseCtx = { book: ctx.book, chapter: ctx.chapter }
-        const out = parseToken(cMatch[0], ctx)
+        const out = parseToken(cTok, ctx)
         if (out.ok && out.refs.length > 0) {
           flushProse(i)
           segments.push({
-            text: input.slice(i, i + cMatch[0].length),
+            text: input.slice(i, i + cTok.length),
             refs: out.refs,
           })
           refs.push(...out.refs)
-          i += cMatch[0].length
+          i += cTok.length
           lastProseStart = i
           continue
         }

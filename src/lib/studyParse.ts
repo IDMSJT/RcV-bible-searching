@@ -1,6 +1,7 @@
 import { CANON } from '@/data/canon'
-import { CN_NUMERAL_CLASS, CN_NUMERAL_CHARS } from './chinese'
-import { parseToken, type ParseCtx, type VerseRef } from './parseToken'
+import { CN_NUMERAL_CLASS } from './chinese'
+import { parseRefs } from './parseRefs'
+import { type ParseCtx, type VerseRef } from './parseToken'
 
 export type { VerseRef } from './parseToken'
 
@@ -21,30 +22,47 @@ const BOOK_NAME_RE = new RegExp(
 // Marker is followed by whitespace, ideographic space, OR a punctuation
 // separator (、.．) so "壹、" / "1." also parse.
 const MARKER_HEAD_CHARS = '壹貳參叁肆伍陸柒捌玖拾'
+// The two deepest levels are parenthesised — 「（一）」 then 「（1）」. Their closing
+// paren already separates marker from title, so no trailing separator is
+// required; normalizeOutlineText has folded （） to () by the time this runs.
 const MARKER_RE = new RegExp(
-  `^([${MARKER_HEAD_CHARS}]+|${CN_NUMERAL_CLASS}|\\d+|[A-Za-z])[　 、.．]+(.*)$`,
+  '^(?:' +
+    `(\\((?:${CN_NUMERAL_CLASS}|\\d+|[A-Za-z])\\))[　 、.．]*` +
+    '|' +
+    `([${MARKER_HEAD_CHARS}]+|${CN_NUMERAL_CLASS}|\\d+|[A-Za-z])[　 、.．]+` +
+    ')(.*)$',
 )
 // 【週一】 (bracketed) is the legacy form; 「週　一」 (the char then a full /
 // half-width space then the day character) is the newer copy-paste format.
 // Both should render as the same centered small heading.
 const WEEK_RE = /^(?:【\s*週|週[　\s]+[一二三四五六七日])/
 
-// Normalise outline copy-paste: collapse the 啓/啟 character variants and
-// fullwidth parens that some sources use, so book-name matching and region
-// detection don't depend on which form the source happened to ship.
+// The deepest two levels are sometimes shipped as the precomposed enclosed
+// numerals ㈠ / ⑴ instead of the spelled-out 「（一）」 / 「（1）」. Expand them so
+// there is one marker shape to match (and to render) regardless of source.
+const CN_DIGITS = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
+
+// Normalise outline copy-paste: collapse the 啓/啟 character variants, expand
+// the enclosed numerals, and fold fullwidth parens, so marker and book-name
+// matching don't depend on the form the source happened to ship.
 function normalizeOutlineText(input: string): string {
   return input
     .replace(/啓/g, '啟')
+    .replace(/[㈠-㈩]/g, (c) => `(${CN_DIGITS[c.codePointAt(0)! - 0x3220]})`)
+    .replace(/[⑴-⒇]/g, (c) => `(${c.codePointAt(0)! - 0x2473})`)
     .replace(/（/g, '(')
     .replace(/）/g, ')')
 }
 
+// The published outlines run six deep: 壹 / 一 / 1 / a / （一） / （1）.
 function levelFromMarker(mk: string): number {
   if (new RegExp(`^[${MARKER_HEAD_CHARS}]+$`).test(mk)) return 1
   if (/^[一二三四五六七八九十百]+$/.test(mk)) return 2
   if (/^\d+$/.test(mk)) return 3
   if (/^[A-Za-z]$/.test(mk)) return 4
-  return 5
+  if (/^\([一二三四五六七八九十百]+\)$/.test(mk)) return 5
+  if (/^\((?:\d+|[A-Za-z])\)$/.test(mk)) return 6
+  return 6
 }
 
 export interface StudySegment {
@@ -53,135 +71,33 @@ export interface StudySegment {
   refs?: VerseRef[]
 }
 
-/** Parse one comma-separated reference list (e.g. "創二9，約十10下，十四6上"). */
-function parseRefList(s: string, ctx: ParseCtx): VerseRef[] {
-  const refs: VerseRef[] = []
-  for (const token of s.split(/[，,]/)) {
-    const out = parseToken(token, ctx)
-    refs.push(...out.refs)
-  }
-  return refs
-}
-
 function scanBook(text: string, ctx: ParseCtx): void {
   let found: string | null = null
   for (const m of text.matchAll(BOOK_NAME_RE)) found = m[1]
   if (found) ctx.book = NAME_TO_NO.get(found) ?? ctx.book
 }
 
-// A reference region: refs after a dash, OR refs inside a (…) group.
-// `normalizeOutlineText` collapses 全形（）→ 半形(); the regex needs to match
-// the half-width form because that's what the scanner actually sees. The dash
-// marker is `+` so a double-dash (「基業--11節」, common in pasted outlines) is
-// consumed whole, instead of leaving a stray `-` glued to the ref.
-const DASH_CLASS = '—─－\\-―'
-const REGION_RE = new RegExp(`([${DASH_CLASS}]+)([^()：:。」\\n]+)|\\(([^()]*)\\)`, 'g')
-const LAST_DASH_RE = new RegExp(`[${DASH_CLASS}](?=[^${DASH_CLASS}]*$)`)
-// A dash inside a heading is appositive punctuation (not a range mark) when a
-// prose word — a CJK char that isn't a numeral — sits before it:
-// 「永遠的生命──三一神──裏作王──羅五18下」. Range dashes are flanked by digits/CN
-// numerals only. Spotting prose lets emitRefs peel it so the trailing ref parses.
-const PROSE_HAN_RE = new RegExp(`(?![${CN_NUMERAL_CHARS}])[\\u3400-\\u9fff]`)
-
-// `與` joins refs the same way `，` does — context still flows ("詩四八2與五10"
-// → 詩48:2 + 詩5:10) but parser sees them as separate tokens. No canonical
-// book name contains 與, so listing it among the splitters is safe.
-//
-// Exception: 「與注N」 / 「與註N」 is NOT a separator — it's the trailing
-// footnote suffix attaching to the preceding ref (「詩四八2與註1」). The
-// lookahead leaves that 與 inside the ref token so parseToken can swallow
-// the suffix and set `.note` on the last verse.
-const REF_SEPARATOR_RE = /([，,]|與(?![注註]))/
-
-function emitRefs(refsPart: string, ctx: ParseCtx, segs: StudySegment[]): void {
-  for (const tok of refsPart.split(REF_SEPARATOR_RE)) {
-    if (!tok) continue
-    if (tok === '，' || tok === ',' || tok === '與') {
-      segs.push({ text: tok })
-      continue
-    }
-    // 「prose—ref」 (an appositive dash with CJK prose before the LAST dash, e.g.
-    // 「…新的一類—神人類—約一1」): the real ref is the tail, so peel it FIRST. Doing
-    // the whole-token parse first would mis-fire when a prior ref left a book in
-    // ctx — 「神人類—約一1」 would grab the trailing 「1」 as <prevBook>:1 and never
-    // recognise 約一 = John, so the peel (only tried on an empty parse) would
-    // never run. The dash region regex also starts at the FIRST dash, so headings
-    // like 「永遠的生命──三一神──裏作王──羅五18下」 arrive here as one blob.
-    const dm = tok.match(LAST_DASH_RE)
-    if (dm) {
-      const cut = dm.index! + dm[0].length
-      const prose = tok.slice(0, cut)
-      const tail = tok.slice(cut)
-      if (PROSE_HAN_RE.test(prose) && tail) {
-        const snap: ParseCtx = { book: ctx.book, chapter: ctx.chapter }
-        scanBook(prose, ctx)
-        const tailRefs = parseRefList(tail, ctx)
-        if (tailRefs.length > 0) {
-          segs.push({ text: prose })
-          segs.push({ text: tail, refs: tailRefs })
-          continue
-        }
-        // Tail wasn't a ref after all — restore ctx and fall back to parsing the
-        // whole token (covers the non-appositive dashes like ranges).
-        ctx.book = snap.book
-        ctx.chapter = snap.chapter
-      }
-    }
-    const refs = parseRefList(tok, ctx)
-    if (refs.length > 0) {
-      segs.push({ text: tok, refs })
-      continue
-    }
-    // No refs extracted — treat as prose rather than flagging it red.
-    // The parser can't reliably tell "malformed ref" apart from "citation
-    // of another book" or other dash-trailed prose ("…生命讀經，一七頁"),
-    // so we err toward silent fall-through; a real ref failing to parse
-    // will just render as plain text, which is acceptable.
-    segs.push({ text: tok })
+/** Segment one line's body, reusing the same scanning parser the footnotes and
+ * cross-refs use. It anchors on book names and falls back to context-inheriting
+ * continuations, so outline refs are found wherever they sit rather than only
+ * after a dash or inside parens — an appositive heading like
+ * 「新的一類—神人類—約一1」 needs no special handling, because the scan anchors on
+ * 約 instead of trying to read the whole token in the previous line's book.
+ *
+ * `ctx` flows across lines: a full book name in the prose seeds it (so a bare
+ * 「一17」 on a later line still resolves), and the last ref parsed carries the
+ * book/chapter forward. */
+function segmentLine(body: string, ctx: ParseCtx): StudySegment[] {
+  scanBook(body, ctx)
+  const { segments, refs } = parseRefs(body, ctx)
+  const last = refs[refs.length - 1]
+  if (last) {
+    ctx.book = last.bookNo
+    ctx.chapter = last.endChapter ?? last.chapter
   }
-}
-
-function segmentLine(line: string, ctx: ParseCtx): StudySegment[] {
-  const segs: StudySegment[] = []
-  let last = 0
-  REGION_RE.lastIndex = 0
-  let m: RegExpExecArray | null
-  while ((m = REGION_RE.exec(line)) !== null) {
-    const before = line.slice(last, m.index)
-    if (before) {
-      scanBook(before, ctx) // prose may name the book the following refs belong to
-      segs.push({ text: before })
-    }
-    if (m[1] != null) {
-      // dash group: m[1] = dash, m[2] = refs
-      segs.push({ text: m[1] })
-      emitRefs(m[2], ctx, segs)
-    } else {
-      // paren group: m[3] = content inside (…)
-      const content = m[3]
-      segs.push({ text: '（' })
-      const dm = content.match(LAST_DASH_RE)
-      if (dm) {
-        const di = dm.index! + dm[0].length
-        scanBook(content.slice(0, di), ctx)
-        segs.push({ text: content.slice(0, di) })
-        emitRefs(content.slice(di), ctx, segs)
-      } else if (parseRefList(content, { ...ctx }).length > 0) {
-        emitRefs(content, ctx, segs) // re-parse on real ctx
-      } else {
-        scanBook(content, ctx)
-        segs.push({ text: content })
-      }
-      segs.push({ text: '）' })
-    }
-    last = m.index + m[0].length
-  }
-  if (last < line.length) {
-    const tail = line.slice(last)
-    scanBook(tail, ctx)
-    segs.push({ text: tail })
-  }
-  return segs
+  return segments.map((seg) =>
+    seg.refs && seg.refs.length > 0 ? { text: seg.text, refs: seg.refs } : { text: seg.text },
+  )
 }
 
 export type StudyLine =
@@ -192,7 +108,16 @@ export type StudyLine =
    * above the parsed verse list. */
   | { kind: 'reading'; text: string; refs: VerseRef[] }
   | { kind: 'week' }
-  | { kind: 'point'; level: number; marker: string; segments: StudySegment[]; refs: VerseRef[] }
+  | {
+      kind: 'point'
+      level: number
+      marker: string
+      /** The marker plus its separator, stripped off the body — prepend it to the
+       * segments to recover the original line. */
+      lead: string
+      segments: StudySegment[]
+      refs: VerseRef[]
+    }
 
 const READING_PREFIX_RE = /^讀經[:：]\s*/
 
@@ -219,7 +144,13 @@ export function parseStudyLines(input: string): StudyLine[] {
     // keep the original line so the renderer can show it verbatim.
     if (idx === readingIdx) {
       const tail = line.replace(READING_PREFIX_RE, '')
-      return { kind: 'reading', text: line, refs: parseRefList(tail, ctx) }
+      const { refs } = parseRefs(tail, ctx)
+      const tailLast = refs[refs.length - 1]
+      if (tailLast) {
+        ctx.book = tailLast.bookNo
+        ctx.chapter = tailLast.endChapter ?? tailLast.chapter
+      }
+      return { kind: 'reading', text: line, refs }
     }
 
     // Anything before 讀經 is treated as title prose (centered, no refs).
@@ -229,12 +160,18 @@ export function parseStudyLines(input: string): StudyLine[] {
 
     if (WEEK_RE.test(line)) return { kind: 'week' }
     const m = line.match(MARKER_RE)
-    const marker = m ? m[1] : ''
-    const segments = segmentLine(line, ctx)
+    const marker = m ? (m[1] ?? m[2]) : ''
+    // Split the marker off before scanning: an arabic marker ("1　在已過的…")
+    // would otherwise parse as a verse in the inherited book. `lead` keeps the
+    // marker with its original separator so the line can be rebuilt verbatim.
+    const body = m ? m[3] : line
+    const lead = m ? line.slice(0, line.length - body.length) : ''
+    const segments = segmentLine(body, ctx)
     return {
       kind: 'point',
       level: marker ? levelFromMarker(marker) : 0,
       marker,
+      lead,
       segments,
       refs: segments.flatMap((s) => s.refs ?? []),
     }
