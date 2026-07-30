@@ -169,7 +169,7 @@ export function ChapterView({
   const [showOutline] = useLocalStorage('rcv/show-outline', true)
   const [showEnglish] = useLocalStorage('rcv/show-english', false)
   const [showNotes] = useLocalStorage('rcv/show-notes', true)
-  const [showRefs] = useLocalStorage('rcv/show-crossrefs', false)
+  const [showRefs] = useLocalStorage('rcv/show-crossrefs', true)
   const [citeFormat] = useLocalStorage<CiteFormat>('rcv/cite-format', DEFAULT_CITE_FORMAT)
   const [citePosition] = useLocalStorage<CitePosition>('rcv/cite-position', DEFAULT_CITE_POSITION)
   const [copyLang] = useLocalStorage<CopyLang>('rcv/copy-lang', DEFAULT_COPY_LANG)
@@ -543,18 +543,12 @@ export function ChapterView({
     ? chapterOutlineByAnchor(outline, bookNo, chapterNo)
     : new Map<string, { entry: OutlineEntry; idx: number }[]>()
 
-  // First tap (0 → 1 selected) recenters the verse so the floating bar that
-  // appears at the bottom doesn't hide it; later taps just toggle. The scroll
-  // is deferred a frame so the extra bottom padding (added on this same render)
-  // exists first — otherwise the last verses have no room to move up.
-  const selectVerse = (verse: number, el: Element | null) => {
-    const wasEmpty = !hasSelection
+  // A tap just toggles the verse — the page stays put. The floating bar adds
+  // bottom padding on the same render, so nothing it covers is unreachable;
+  // scrolling the tapped verse to the middle moved the text out from under the
+  // reader's finger, which is worse than the bar being close to it.
+  const selectVerse = (verse: number) => {
     toggleSelect(verse)
-    if (wasEmpty && el) {
-      requestAnimationFrame(() => {
-        el.scrollIntoView({ block: 'center', behavior: 'smooth' })
-      })
-    }
   }
 
   // A quick tap selects the whole verse. A native text selection (drag on
@@ -566,22 +560,24 @@ export function ChapterView({
     !active
       ? {}
       : {
-          onClick: (e: React.MouseEvent) => {
+          onClick: () => {
             const sel = document.getSelection()
             if (textSelecting || (sel != null && !sel.isCollapsed && sel.toString().trim().length > 0))
               return
-            selectVerse(verse, e.currentTarget)
+            selectVerse(verse)
           },
         }
 
   // A native (Ctrl/⌘-C or long-press) copy of a text selection emits our own
-  // citation format instead of the raw HTML: one line per verse, the selected
-  // words quoted in 『』/"" with the verse ref. When only part of a verse is
-  // taken the ref gains a 上/中/下 segment marker (prefix / middle / suffix). A
-  // verse split by a mid-verse heading spans several data-verse rows, so the
-  // portion is accumulated by verse number and compared against the full
-  // verse.text. Verse numbers / footnote markers are user-select:none, so they
-  // stay out. The action-bar copy uses clipboard.writeText and never fires this.
+  // citation format instead of the raw HTML: one line per verse or note, the
+  // selected words quoted in 『』/"" with the reference. When only part of a verse
+  // is taken the ref gains a 上/中/下 segment marker (prefix / middle / suffix);
+  // notes carry no such marker, only 註N. A verse split by a mid-verse heading
+  // spans several data-verse rows, so its portion is accumulated by verse number
+  // and compared against the full verse.text. Verse numbers / footnote markers
+  // are user-select:none, so they stay out, and a selection that touches neither
+  // a verse nor a note (e.g. a cross-ref card) falls through to the browser's
+  // plain copy. The action-bar copy uses clipboard.writeText and never fires this.
   const handleCopy = (e: React.ClipboardEvent) => {
     const sel = window.getSelection()
     const panel = panelRef.current
@@ -597,7 +593,7 @@ export function ChapterView({
     const whole = sel.toString().trim()
     if (!whole) return
     const range = sel.getRangeAt(0)
-    const isEn = /[A-Za-z]/.test(whole) && !/[一-鿿]/.test(whole)
+    const isEn = /[A-Za-z]/.test(whole) && !/[\u4e00-\u9fff]/.test(whole)
 
     const cleanText = (frag: DocumentFragment): string => {
       const div = document.createElement('div')
@@ -606,12 +602,15 @@ export function ChapterView({
       return (div.textContent ?? '').replace(/\s+/g, ' ').trim()
     }
 
+    // Walk the marked elements in document order so the emitted lines read in
+    // the same order as the page: verse, then whatever notes were opened under it.
     const byVerse = new Map<number, string>()
-    const order: number[] = []
-    panel.querySelectorAll<HTMLElement>('[data-verse]').forEach((ve) => {
-      if (!range.intersectsNode(ve)) return
+    const byNote = new Map<string, string>()
+    const order: string[] = []
+    panel.querySelectorAll<HTMLElement>('[data-verse],[data-note]').forEach((el) => {
+      if (!range.intersectsNode(el)) return
       const nr = document.createRange()
-      nr.selectNodeContents(ve)
+      nr.selectNodeContents(el)
       const inter = range.cloneRange()
       if (inter.compareBoundaryPoints(Range.START_TO_START, nr) < 0) {
         inter.setStart(nr.startContainer, nr.startOffset)
@@ -621,14 +620,28 @@ export function ChapterView({
       }
       const portion = cleanText(inter.cloneContents())
       if (!portion) return
-      const verse = Number(ve.getAttribute('data-verse'))
-      if (!byVerse.has(verse)) order.push(verse)
-      byVerse.set(verse, (byVerse.get(verse) ?? '') + portion)
+      const noteAttr = el.getAttribute('data-note')
+      if (noteAttr) {
+        const key = `n${noteAttr}`
+        if (!byNote.has(key)) order.push(key)
+        byNote.set(key, (byNote.get(key) ?? '') + portion)
+      } else {
+        const verse = Number(el.getAttribute('data-verse'))
+        const key = `v${verse}`
+        if (!byVerse.has(verse)) order.push(key)
+        byVerse.set(verse, (byVerse.get(verse) ?? '') + portion)
+      }
     })
     if (order.length === 0) return
 
     const norm = (s: string) => s.replace(/\s+/g, '')
-    const lines = order.map((verse) => {
+    const lines = order.map((key) => {
+      if (key.startsWith('n')) {
+        const [verseStr, nStr] = key.slice(1).split(':')
+        const label = `${formatVerseRef(bookNo, chapterNo, Number(verseStr), citeFormat)}註${nStr}`
+        return formatCitation(label, `『${byNote.get(key) ?? ''}』`, citePosition)
+      }
+      const verse = Number(key.slice(1))
       const portion = byVerse.get(verse) ?? ''
       if (isEn) {
         const abbr = BOOK_ABBREV_EN[bookNo] ?? ''
@@ -899,13 +912,17 @@ export function ChapterView({
                   {r.num}
                 </span>
                 {/* No select-none here: the verse text is natively selectable so
-                 * the user can drag / long-press to copy just part of it.
-                 * data-verse lets handleCopy map a selection back to its verse. */}
-                <div data-verse={r.verse} {...versePress(r.verse)}>
+                 * the user can drag / long-press to copy just part of it. */}
+                <div {...versePress(r.verse)}>
                   {/* One continuous selection tint over the verse + its English,
                    * like the search results. The navigate (r.hl) tint stays on
-                   * the Chinese line, and yields to the selection tint. */}
+                   * the Chinese line, and yields to the selection tint.
+                   * data-verse sits here, not on the row: it marks what counts
+                   * as verse text for handleCopy, so selecting inside the note /
+                   * cross-ref cards below copies plainly instead of coming out
+                   * dressed as a verse citation. */}
                   <div
+                    data-verse={r.verse}
                     className={cn(
                       'rounded px-1 -mx-1',
                       selected.has(r.verse) && 'bg-blue-500/20 dark:bg-blue-400/25',
@@ -945,6 +962,7 @@ export function ChapterView({
                       notes={r.notes.filter((n) =>
                         expandedNotes.has(`${r.verse}:${n.n}`),
                       )}
+                      verse={r.verse}
                       bookNo={bookNo}
                       chapterNo={chapterNo}
                       highlightedNs={
@@ -963,7 +981,16 @@ export function ChapterView({
                             )
                           : undefined
                       }
-                      onSelectNote={active ? (n) => toggleNoteSelect(r.verse, n) : undefined}
+                      onSelectNote={
+                        active
+                          ? (n) => {
+                              // A drag that ends on the card is the reader
+                              // selecting text, not asking to select the note.
+                              if (textSelecting) return
+                              toggleNoteSelect(r.verse, n)
+                            }
+                          : undefined
+                      }
                     />
                   )}
                 </div>

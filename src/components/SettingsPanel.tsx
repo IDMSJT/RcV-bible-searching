@@ -27,9 +27,7 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
   const [showOutline, setShowOutline] = useLocalStorage('rcv/show-outline', true)
   const [showEnglish, setShowEnglish] = useLocalStorage('rcv/show-english', false)
   const [showNotes, setShowNotes] = useLocalStorage('rcv/show-notes', true)
-  // Off by default — crossrefs.json is a separate ~1.5 MB fetch, only pulled
-  // once the reader asks for it.
-  const [showRefs, setShowRefs] = useLocalStorage('rcv/show-crossrefs', false)
+  const [showRefs, setShowRefs] = useLocalStorage('rcv/show-crossrefs', true)
   const [fontSize, setFontSize] = useLocalStorage('rcv/font-size', 16)
   const [citeFormat, setCiteFormat] = useLocalStorage<CiteFormat>('rcv/cite-format', DEFAULT_CITE_FORMAT)
   const [citePosition, setCitePosition] = useLocalStorage<CitePosition>('rcv/cite-position', DEFAULT_CITE_POSITION)

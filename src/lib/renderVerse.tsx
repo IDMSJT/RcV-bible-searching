@@ -403,6 +403,7 @@ export function CrossRefList({
 
 export function NoteList({
   notes,
+  verse,
   bookNo,
   chapterNo,
   highlightedNs,
@@ -410,6 +411,9 @@ export function NoteList({
   onSelectNote,
 }: {
   notes: Annotation[]
+  /** The verse these notes hang off — tags each card so a native copy can cite
+   * it as 「太一1註2」. Omitted where notes render outside a chapter (lookup). */
+  verse?: number
   bookNo: number
   chapterNo: number
   highlightedNs?: Set<number>
@@ -432,6 +436,7 @@ export function NoteList({
         return (
           <li
             key={n.n}
+            data-note={verse != null ? `${verse}:${n.n}` : undefined}
             // stopPropagation on pointerdown keeps the surrounding verse's
             // long-press from firing; onClick selects the note (ref links inside
             // stop their own propagation, so they still navigate).
@@ -444,9 +449,10 @@ export function NoteList({
                   }
                 : undefined
             }
+            // No select-none: the body is selectable so a reader can copy part
+            // of a note the same way they copy part of a verse.
             className={
               'space-y-2 rounded-md px-3 py-2 ' +
-              (onSelectNote ? 'select-none ' : '') +
               (sel
                 ? 'bg-blue-500/20 text-foreground dark:bg-blue-400/25'
                 : hit
