@@ -952,6 +952,7 @@ export function ChapterView({
                       refs={r.refs.filter((x) => expandedRefs.has(`${r.verse}:${x.m}`))}
                       bookNo={bookNo}
                       chapterNo={chapterNo}
+                      onClose={(m) => toggleRef(r.verse, m)}
                     />
                   )}
                   {/* Only the notes the user has actually expanded via sup
@@ -963,6 +964,7 @@ export function ChapterView({
                         expandedNotes.has(`${r.verse}:${n.n}`),
                       )}
                       verse={r.verse}
+                      onClose={(n) => toggleNote(r.verse, n)}
                       bookNo={bookNo}
                       chapterNo={chapterNo}
                       highlightedNs={

@@ -1,5 +1,6 @@
-import { Fragment, useState, type ReactNode } from 'react'
+import { Fragment, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
+import { X } from 'lucide-react'
 import { parseRefs, type VerseRef } from '@/lib/parseRefs'
 import { useBible, eachVerseInRange } from '@/data/loadBible'
 import { formatVerseRef } from '@/lib/cite'
@@ -245,9 +246,13 @@ export function renderNoteText(
 function VersePreview({
   refs,
   ctx,
+  divideBelow,
 }: {
   refs: VerseRef[]
   ctx: { book: number; chapter: number }
+  /** Whether any card content follows — the closing rule is only drawn when
+   * there is something below to separate from. */
+  divideBelow: boolean
 }): ReactNode {
   const { data: bible } = useBible()
   if (!bible) return null
@@ -275,7 +280,12 @@ function VersePreview({
   return (
     // Same two-column shape as the search results: a narrow citation column
     // whose labels line up, verse text flowing in the rest.
-    <div className="mt-2 grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 border-t border-border/60 pt-2 font-serif text-foreground">
+    <div
+      className={cn(
+        'mt-2 grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 border-t border-border/60 pt-2 font-serif text-foreground',
+        divideBelow && 'mb-2 border-b pb-2',
+      )}
+    >
       {shown.map((r, i) => (
         <Fragment key={i}>
           <Link
@@ -303,6 +313,60 @@ function VersePreview({
 /** Card body shared by notes and cross-refs: the prose, with every embedded ref
  * tappable. Tapping a ref reveals its verses at the foot of the card; tapping
  * another switches to it, and tapping the same one again closes it. */
+/** Character index (into the paragraph's own text, ignoring the marker sup)
+ * where the visual line *after* `refEl`'s last line begins — i.e. the point at
+ * which we can break the paragraph without leaving a ragged half-line. Returns
+ * the text length when the ref already sits on the final line.
+ *
+ * Line boxes aren't addressable in the DOM, so this reads them back off the
+ * rendered layout: every character's top edge is non-decreasing in document
+ * order, which makes "first character on a lower line" a binary search. */
+function lineEndAfter(container: HTMLElement, refEl: HTMLElement): number {
+  const rects = refEl.getClientRects()
+  if (rects.length === 0) return -1
+  const lineTop = rects[rects.length - 1].top
+
+  // The note number / cross-ref letter is a <sup> inside the same paragraph but
+  // not part of its text, so it must not shift the indices.
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
+    acceptNode: (n) =>
+      n.parentElement?.closest('sup') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+  })
+  const nodes: { node: Text; start: number }[] = []
+  let total = 0
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const t = n as Text
+    nodes.push({ node: t, start: total })
+    total += t.length
+  }
+  if (nodes.length === 0) return -1
+
+  let refEnd = 0
+  for (const { node, start } of nodes) {
+    if (refEl.contains(node)) refEnd = Math.max(refEnd, start + node.length)
+  }
+  if (refEnd === 0) return -1
+
+  const topAt = (i: number): number => {
+    const hit = nodes.find(({ node, start }) => i >= start && i < start + node.length)
+    if (!hit) return Infinity
+    const range = document.createRange()
+    range.setStart(hit.node, i - hit.start)
+    range.setEnd(hit.node, i - hit.start + 1)
+    return range.getBoundingClientRect().top
+  }
+
+  // First index after the ref that renders on a lower line.
+  let lo = refEnd
+  let hi = total
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (topAt(mid) > lineTop + 1) hi = mid
+    else lo = mid + 1
+  }
+  return lo
+}
+
 function RefBody({
   paragraphs,
   bookNo,
@@ -316,54 +380,121 @@ function RefBody({
   marker?: ReactNode
 }): ReactNode {
   const [active, setActive] = useState<{ key: string; refs: VerseRef[] } | null>(null)
+  // Measured per active ref. Keyed so that switching refs renders unsplit for a
+  // layout pass first — measuring a paragraph that is already broken would read
+  // back the wrong line.
+  const [split, setSplit] = useState<{ key: string; at: number } | null>(null)
+  const paraRef = useRef<HTMLParagraphElement | null>(null)
+  const refElRef = useRef<HTMLElement | null>(null)
   const ctx = { book: bookNo, chapter: chapterNo }
+
+  useLayoutEffect(() => {
+    if (!active) return
+    if (split?.key === active.key) return
+    const p = paraRef.current
+    const r = refElRef.current
+    if (!p || !r) return
+    setSplit({ key: active.key, at: lineEndAfter(p, r) })
+  }, [active, split])
+
+  const splitAt = active && split?.key === active.key ? split.at : null
 
   return (
     <>
       {paragraphs.map((para, pi) => {
         const { segments } = parseRefs(para, ctx)
+        if (segments.length === 0) {
+          return (
+            <p key={pi}>
+              {pi === 0 && marker}
+              {para}
+            </p>
+          )
+        }
+
+        const activeHere = active?.key.startsWith(`${pi}:`) ?? false
+
+        const renderSeg = (seg: (typeof segments)[number], si: number, text?: string) => {
+          const body = text ?? seg.text
+          if (!seg.refs || seg.refs.length === 0) {
+            return <Fragment key={si}>{body}</Fragment>
+          }
+          const key = `${pi}:${si}`
+          const on = active?.key === key
+          return (
+            <span
+              key={si}
+              ref={on ? (el) => { refElRef.current = el } : undefined}
+              role="button"
+              tabIndex={0}
+              // The card itself may select the note on tap (and lookup rows
+              // navigate) — keep both off this ref.
+              onPointerDown={(e) => e.stopPropagation()}
+              // Mouse users just sweep across the refs to read them; gated on
+              // pointerType so a touch's synthetic hover doesn't fire ahead of
+              // the tap on mobile.
+              onClick={(e) => {
+                e.stopPropagation()
+                setActive(on ? null : { key, refs: seg.refs! })
+              }}
+              className={cn(
+                'cursor-pointer rounded text-primary hover:text-primary/80',
+                on && 'bg-primary/15',
+              )}
+            >
+              {body}
+            </span>
+          )
+        }
+
+        // Not this paragraph's ref, or the split isn't measured yet — render
+        // whole. The unmeasured pass is what the layout effect measures against.
+        if (!activeHere || splitAt == null || splitAt < 0) {
+          return (
+            <p key={pi} ref={activeHere ? paraRef : undefined}>
+              {pi === 0 && marker}
+              {segments.map((seg, si) => renderSeg(seg, si))}
+            </p>
+          )
+        }
+
+        // Break at the end of the line the ref was read on, so the verses land
+        // directly beneath it instead of at the foot of a long note — and the
+        // line keeps its full measure rather than stopping at the ref.
+        const head: ReactNode[] = []
+        const tail: ReactNode[] = []
+        let pos = 0
+        for (let si = 0; si < segments.length; si++) {
+          const seg = segments[si]
+          const start = pos
+          const end = pos + seg.text.length
+          pos = end
+          if (end <= splitAt) head.push(renderSeg(seg, si))
+          else if (start >= splitAt) tail.push(renderSeg(seg, si))
+          else if (seg.refs && seg.refs.length > 0) {
+            // Never cut a citation in half — keep it whole on the upper line.
+            head.push(renderSeg(seg, si))
+          } else {
+            head.push(renderSeg(seg, si, seg.text.slice(0, splitAt - start)))
+            tail.push(renderSeg(seg, si + segments.length, seg.text.slice(splitAt - start)))
+          }
+        }
+        const hasTail = tail.length > 0
         return (
-          <p key={pi}>
-            {pi === 0 && marker}
-            {segments.length === 0
-              ? para
-              : segments.map((seg, si) => {
-                  if (!seg.refs || seg.refs.length === 0) {
-                    return <Fragment key={si}>{seg.text}</Fragment>
-                  }
-                  const key = `${pi}:${si}`
-                  const on = active?.key === key
-                  return (
-                    <span
-                      key={si}
-                      role="button"
-                      tabIndex={0}
-                      // The card itself may select the note on tap (and lookup
-                      // rows navigate) — keep both off this ref.
-                      onPointerDown={(e) => e.stopPropagation()}
-                      // Mouse users just sweep across the refs to read them;
-                      // gated on pointerType so a touch's synthetic hover
-                      // doesn't fire ahead of the tap on mobile.
-                      onPointerEnter={(e) => {
-                        if (e.pointerType === 'mouse') setActive({ key, refs: seg.refs! })
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setActive(on ? null : { key, refs: seg.refs! })
-                      }}
-                      className={cn(
-                        'cursor-pointer rounded text-primary hover:text-primary/80',
-                        on && 'bg-primary/15',
-                      )}
-                    >
-                      {seg.text}
-                    </span>
-                  )
-                })}
-          </p>
+          <Fragment key={pi}>
+            <p ref={paraRef}>
+              {pi === 0 && marker}
+              {head}
+            </p>
+            <VersePreview
+              refs={active!.refs}
+              ctx={ctx}
+              divideBelow={hasTail || pi < paragraphs.length - 1}
+            />
+            {hasTail && <p>{tail}</p>}
+          </Fragment>
         )
       })}
-      {active && <VersePreview refs={active.refs} ctx={ctx} />}
     </>
   )
 }
@@ -371,28 +502,60 @@ function RefBody({
 /** The cross-references (串珠) opened on a verse — same card treatment as the
  * footnotes above, with the marker letter leading the line and each citation
  * tappable to peek at the verses it points to. */
+/** Dismiss control in a card's top-right corner. Floated rather than absolutely
+ * placed so the prose flows around it — only the line it sits on is shortened,
+ * instead of a gutter being reserved down the whole card. The negative margins
+ * pull it out of the card's uneven px-3/py-2 padding so the glyph ends up the
+ * same distance from the top and right edges. stopPropagation keeps the tap off
+ * the card's own select/navigate handlers. */
+function CloseButton({ onClose, label }: { onClose: () => void; label: string }): ReactNode {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation()
+        onClose()
+      }}
+      className="float-right -mr-1 ml-0.5 rounded p-1 text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
+    >
+      <X className="size-3.5" />
+    </button>
+  )
+}
+
 export function CrossRefList({
   refs,
   bookNo,
   chapterNo,
+  onClose,
 }: {
   refs: CrossRef[]
   bookNo: number
   chapterNo: number
+  /** Collapse this cross-ref again — renders the card's ✕ when given. */
+  onClose?: (m: string) => void
 }): ReactNode {
   if (refs.length === 0) return null
   return (
     <ul className="mt-2 space-y-2 font-sans text-[0.95em] font-light leading-relaxed">
       {refs.map((r) => (
-        <li key={r.m} className="space-y-2 rounded-md bg-muted/40 px-3 py-2 text-muted-foreground">
+        <li
+          key={r.m}
+          className="space-y-2 rounded-md bg-muted/40 px-3 py-2 text-muted-foreground"
+        >
           <RefBody
             paragraphs={[r.refs]}
             bookNo={bookNo}
             chapterNo={chapterNo}
             marker={
-              <sup className="px-0.5 text-[0.7em] font-sans font-medium tabular-nums text-destructive">
-                {r.m}
-              </sup>
+              <>
+                {onClose && <CloseButton onClose={() => onClose(r.m)} label={`關閉串珠 ${r.m}`} />}
+                <sup className="px-0.5 text-[0.7em] font-sans font-medium tabular-nums text-destructive">
+                  {r.m}
+                </sup>
+              </>
             }
           />
         </li>
@@ -406,6 +569,7 @@ export function NoteList({
   verse,
   bookNo,
   chapterNo,
+  onClose,
   highlightedNs,
   selectedNs,
   onSelectNote,
@@ -416,6 +580,8 @@ export function NoteList({
   verse?: number
   bookNo: number
   chapterNo: number
+  /** Collapse this note again — renders the card's ✕ when given. */
+  onClose?: (n: number) => void
   highlightedNs?: Set<number>
   /** Note numbers currently selected (for copy/share) — tinted blue. */
   selectedNs?: Set<number>
@@ -465,9 +631,12 @@ export function NoteList({
               bookNo={bookNo}
               chapterNo={chapterNo}
               marker={
-                <sup className="px-0.5 text-[0.7em] font-sans font-medium tabular-nums text-destructive">
-                  {n.n}
-                </sup>
+                <>
+                  {onClose && <CloseButton onClose={() => onClose(n.n)} label={`關閉註釋 ${n.n}`} />}
+                  <sup className="px-0.5 text-[0.7em] font-sans font-medium tabular-nums text-destructive">
+                    {n.n}
+                  </sup>
+                </>
               }
             />
           </li>
