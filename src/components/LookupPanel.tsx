@@ -8,7 +8,7 @@ import {
   useBibleEn,
   useAnnotations,
   findChapter,
-  findAnnotationChapter,
+  notesForVerse,
   eachVerseInRange,
 } from '@/data/loadBible'
 import { BOOK_ABBREV } from '@/data/abbrev'
@@ -389,7 +389,6 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
       // cross-chapter span can't say which verse the 「注N」 belongs to.
       const wantsNote =
         ref.note != null && ref.verseStart === ref.verseEnd && ref.chapter === ref.endChapter
-      const annChapter = wantsNote ? findAnnotationChapter(annotations, ref.bookNo, ref.chapter) : null
 
       // Walk every verse the ref covers — spans chapters for a cross-chapter
       // range. English / annotation lookups key off each verse's REAL chapter
@@ -407,10 +406,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
         // existing refHl / navigation / backdrop machinery works unchanged.
         // Connected form (太八2與註) also emits the verse row first.
         if (ref.noteAll) {
-          const vNotes =
-            findAnnotationChapter(annotations, ref.bookNo, vCh)?.verses.find(
-              (x) => x.verse === v.verse,
-            )?.notes ?? []
+          const vNotes = notesForVerse(annotations, ref.bookNo, vCh, v.verse)
           if (!ref.noteDirect) {
             const enText = showEnglish
               ? findChapter(bibleEn, ref.bookNo, vCh)?.verses.find((x) => x.verse === v.verse)?.text
@@ -447,7 +443,9 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
 
         const isAttachedVerse = wantsNote && vCh === ref.chapter && v.verse === ref.verseStart
         const noteToShow = isAttachedVerse
-          ? annChapter?.verses.find((x) => x.verse === v.verse)?.notes.find((n) => n.n === ref.note)
+          ? (wantsNote ? notesForVerse(annotations, ref.bookNo, ref.chapter, v.verse) : []).find(
+              (n) => n.n === ref.note,
+            )
           : undefined
 
         // Direct 注N (啟二一23註1) → ONE note-only row in place of the

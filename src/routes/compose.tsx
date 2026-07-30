@@ -4,7 +4,7 @@ import {
   useBible,
   useAnnotations,
   findChapter,
-  findAnnotationChapter,
+  notesForVerse,
 } from '@/data/loadBible'
 import { BOOK_ABBREV } from '@/data/abbrev'
 import { useLocalStorage } from '@/lib/useLocalStorage'
@@ -90,7 +90,6 @@ function expandRef(bible: Bible, annotations: AnnotationData | null, r: VerseRef
   // Only single-verse refs can attach a specific note — a range can't say
   // which verse the 「注N」 belongs to.
   const wantsNote = single && r.note != null
-  const annCh = wantsNote ? findAnnotationChapter(annotations, r.bookNo, r.chapter) : null
   const rows: VerseRow[] = []
   for (let c = r.chapter; c <= r.endChapter; c++) {
     const ch = findChapter(bible, r.bookNo, c)
@@ -104,10 +103,7 @@ function expandRef(bible: Bible, annotations: AnnotationData | null, r: VerseRef
       // Bare 註 (noteAll): every footnote on this verse → its own note row.
       // Connected form (太八2與註) also emits the verse row first.
       if (r.noteAll) {
-        const vNotes =
-          findAnnotationChapter(annotations, r.bookNo, c)?.verses.find(
-            (x) => x.verse === vo.verse,
-          )?.notes ?? []
+        const vNotes = notesForVerse(annotations, r.bookNo, c, vo.verse)
         if (!r.noteDirect) {
           rows.push({
             bookNo: r.bookNo,
@@ -134,7 +130,10 @@ function expandRef(bible: Bible, annotations: AnnotationData | null, r: VerseRef
 
       const isAttachedVerse = wantsNote && c === r.chapter && vo.verse === r.verseStart
       const noteToShow = isAttachedVerse
-        ? annCh?.verses.find((x) => x.verse === vo.verse)?.notes.find((n) => n.n === r.note)
+        ? (wantsNote
+            ? notesForVerse(annotations, r.bookNo, r.chapter, vo.verse)
+            : []
+          ).find((n) => n.n === r.note)
         : undefined
 
       // Direct 注N → only emit the note row (no verse row).

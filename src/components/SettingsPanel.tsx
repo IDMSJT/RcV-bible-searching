@@ -27,6 +27,9 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
   const [showOutline, setShowOutline] = useLocalStorage('rcv/show-outline', true)
   const [showEnglish, setShowEnglish] = useLocalStorage('rcv/show-english', false)
   const [showNotes, setShowNotes] = useLocalStorage('rcv/show-notes', true)
+  // Off by default — crossrefs.json is a separate ~1.5 MB fetch, only pulled
+  // once the reader asks for it.
+  const [showRefs, setShowRefs] = useLocalStorage('rcv/show-crossrefs', false)
   const [fontSize, setFontSize] = useLocalStorage('rcv/font-size', 16)
   const [citeFormat, setCiteFormat] = useLocalStorage<CiteFormat>('rcv/cite-format', DEFAULT_CITE_FORMAT)
   const [citePosition, setCitePosition] = useLocalStorage<CitePosition>('rcv/cite-position', DEFAULT_CITE_POSITION)
@@ -48,6 +51,9 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
         </SettingRow>
         <SettingRow label="顯示註釋" onClick={() => setShowNotes(!showNotes)}>
           <Switch on={showNotes} />
+        </SettingRow>
+        <SettingRow label="顯示串珠" onClick={() => setShowRefs(!showRefs)}>
+          <Switch on={showRefs} />
         </SettingRow>
         <SettingRow label={`字體大小　${fontSize}px`} stack>
           <FontSizeSlider value={fontSize} min={13} max={24} onChange={setFontSize} />

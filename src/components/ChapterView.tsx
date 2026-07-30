@@ -15,8 +15,10 @@ import {
   useBibleEn,
   useOutline,
   useAnnotations,
+  useCrossRefs,
   findChapter,
-  findAnnotationChapter,
+  notesForVerse,
+  crossRefsForVerse,
   chapterOutlineByAnchor,
 } from '@/data/loadBible'
 import { BOOK_BY_NO } from '@/data/canon'
@@ -32,11 +34,11 @@ import {
   type CopyLang,
 } from '@/lib/cite'
 import { formatOutlineRange, displayMarker } from '@/lib/chinese'
-import { renderMarkedText, sliceMarks, NoteList } from '@/lib/renderVerse'
+import { renderMarkedText, sliceMarks, NoteList, CrossRefList } from '@/lib/renderVerse'
 import type { HlItem } from '@/lib/highlight'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
-import type { Annotation, Mark, OutlineEntry } from '@/types/bible'
+import type { Annotation, CrossRef, Mark, OutlineEntry } from '@/types/bible'
 
 function OutlineHeading({
   entry,
@@ -103,6 +105,8 @@ type Row =
       marks?: Mark[]
       /** Inline footnote markers + bodies for this verse (when 顯示註釋 is on). */
       notes?: Annotation[]
+      /** Cross-reference (串珠) markers for this verse (when 顯示串珠 is on). */
+      refs?: CrossRef[]
       hl: boolean
       ref: boolean
       key: string
@@ -165,13 +169,35 @@ export function ChapterView({
   const [showOutline] = useLocalStorage('rcv/show-outline', true)
   const [showEnglish] = useLocalStorage('rcv/show-english', false)
   const [showNotes] = useLocalStorage('rcv/show-notes', true)
+  const [showRefs] = useLocalStorage('rcv/show-crossrefs', false)
   const [citeFormat] = useLocalStorage<CiteFormat>('rcv/cite-format', DEFAULT_CITE_FORMAT)
   const [citePosition] = useLocalStorage<CitePosition>('rcv/cite-position', DEFAULT_CITE_POSITION)
   const [copyLang] = useLocalStorage<CopyLang>('rcv/copy-lang', DEFAULT_COPY_LANG)
   const { data: bibleEn } = useBibleEn(showEnglish)
   const { data: annotations } = useAnnotations(showNotes)
+  const { data: crossRefs } = useCrossRefs(showRefs)
   const enChapter = showEnglish ? findChapter(bibleEn, bookNo, chapterNo) : null
-  const annChapter = showNotes ? findAnnotationChapter(annotations, bookNo, chapterNo) : null
+  const chapter = findChapter(data, bookNo, chapterNo)
+  // annotations.json is a flat `book.chapter.verse` map, so gather this
+  // chapter's notes once (keyed by verse) instead of re-looking-up per row.
+  const chapterNotes = useMemo(() => {
+    const m = new Map<number, Annotation[]>()
+    if (!showNotes || !annotations || !chapter) return m
+    for (const v of chapter.verses) {
+      const notes = notesForVerse(annotations, bookNo, chapterNo, v.verse)
+      if (notes.length) m.set(v.verse, notes)
+    }
+    return m
+  }, [showNotes, annotations, chapter, bookNo, chapterNo])
+  const chapterRefs = useMemo(() => {
+    const m = new Map<number, CrossRef[]>()
+    if (!showRefs || !crossRefs || !chapter) return m
+    for (const v of chapter.verses) {
+      const refs = crossRefsForVerse(crossRefs, bookNo, chapterNo, v.verse)
+      if (refs.length) m.set(v.verse, refs)
+    }
+    return m
+  }, [showRefs, crossRefs, chapter, bookNo, chapterNo])
   // Click-to-expand state — each entry is keyed `${verse}:${noteN}`. Lives in
   // local state because reading-position is ephemeral; navigating away should
   // collapse everything.
@@ -206,12 +232,12 @@ export function ChapterView({
         s.add(`${h.verse}:${h.n}`)
       } else if (h.kind === 'noteAll') {
         // 「v:*」 — expand to every note the verse actually has.
-        const vNotes = annChapter?.verses.find((x) => x.verse === h.verse)?.notes ?? []
+        const vNotes = chapterNotes.get(h.verse) ?? []
         for (const n of vNotes) s.add(`${h.verse}:${n.n}`)
       }
     }
     return s
-  }, [highlights, annChapter])
+  }, [highlights, chapterNotes])
 
   // Persist the open-footnote set per chapter in sessionStorage so navigating
   // to a referenced verse and pressing 「back」 (or hitting refresh) returns
@@ -221,6 +247,7 @@ export function ChapterView({
   // notes from hl are unioned in so an inbound 「?hl=…:N」 link auto-expands
   // that body.
   const notesKey = `rcv/notes-open/${bookNo}/${chapterNo}`
+  const refsKey = `rcv/refs-open/${bookNo}/${chapterNo}`
   const readStorage = useCallback((key: string): Set<string> => {
     try {
       const saved = sessionStorage.getItem(key)
@@ -283,6 +310,24 @@ export function ChapterView({
     }
   }, [notesKey, noteHighlights, readStorage, writeStorage])
 
+  // Which cross-ref letters are open, keyed `${verse}:${marker}`. Persisted per
+  // chapter like the notes are, so paging away and back keeps what you opened.
+  // (No hl equivalent — nothing links straight to a 串珠.)
+  const [expandedRefs, setExpandedRefs] = useState<Set<string>>(() => readStorage(refsKey))
+  const toggleRef = useCallback(
+    (verse: number, m: string) => {
+      setExpandedRefs((prev) => {
+        const key = `${verse}:${m}`
+        const next = new Set(prev)
+        if (next.has(key)) next.delete(key)
+        else next.add(key)
+        writeStorage(refsKey, next)
+        return next
+      })
+    },
+    [refsKey, writeStorage],
+  )
+
   const toggleNote = useCallback(
     (verse: number, n: number) => {
       setExpandedNotes((prev) => {
@@ -336,7 +381,9 @@ export function ChapterView({
   useEffect(() => {
     setSelected(new Set())
     setSelectedNotes(new Set())
-  }, [bookNo, chapterNo])
+    // Not cleared but reloaded — the opened cross-refs are saved per chapter.
+    setExpandedRefs(readStorage(`rcv/refs-open/${bookNo}/${chapterNo}`))
+  }, [bookNo, chapterNo, readStorage])
 
   // Let the pager pause the swipe while a verse selection OR a text selection is
   // active.
@@ -348,12 +395,11 @@ export function ChapterView({
   // toggle below — empty when 顯示註釋 is off or the chapter has no notes.
   const allNoteKeys = useMemo(() => {
     const out = new Set<string>()
-    if (!annChapter) return out
-    for (const v of annChapter.verses) {
-      for (const n of v.notes) out.add(`${v.verse}:${n.n}`)
+    for (const [verse, notes] of chapterNotes) {
+      for (const n of notes) out.add(`${verse}:${n.n}`)
     }
     return out
-  }, [annChapter])
+  }, [chapterNotes])
   const allExpanded =
     allNoteKeys.size > 0 &&
     expandedNotes.size >= allNoteKeys.size &&
@@ -493,7 +539,6 @@ export function ChapterView({
     return <p className="p-8 text-sm text-muted-foreground">找不到書卷</p>
   }
 
-  const chapter = findChapter(data, bookNo, chapterNo)
   const outlineMap = showOutline
     ? chapterOutlineByAnchor(outline, bookNo, chapterNo)
     : new Map<string, { entry: OutlineEntry; idx: number }[]>()
@@ -642,7 +687,7 @@ export function ChapterView({
       }
       // Notes on this verse (Chinese only), kept in note order.
       if (noteSet.size > 0) {
-        const vNotes = annChapter?.verses.find((x) => x.verse === v.verse)?.notes ?? []
+        const vNotes = chapterNotes.get(v.verse) ?? []
         for (const n of vNotes) {
           if (noteSet.has(`${v.verse}:${n.n}`)) {
             const label = `${formatVerseRef(bookNo, chapterNo, v.verse, citeFormat)}註${n.n}`
@@ -764,7 +809,7 @@ export function ChapterView({
       // single row). 詩篇 v0 superscriptions don't have an English equivalent
       // in this DB, so the lookup naturally returns undefined and we skip.
       const enText = enChapter?.verses.find((x) => x.verse === v.verse)?.text
-      const verseNotes = annChapter?.verses.find((x) => x.verse === v.verse)?.notes
+      const verseNotes = chapterNotes.get(v.verse)
 
       if (anyMid && v.segments) {
         let off = 0
@@ -794,6 +839,7 @@ export function ChapterView({
           en: enText,
           marks: v.marks,
           notes: verseNotes,
+          refs: chapterRefs.get(v.verse),
           hl,
           ref: isFirst,
           key: `v${v.verse}`,
@@ -871,12 +917,26 @@ export function ChapterView({
                         r.hl && !selected.has(r.verse) && 'rounded bg-highlight/30',
                       )}
                     >
-                      {renderMarkedText(r.text, r.marks, r.notes, (n) => toggleNote(r.verse, n))}
+                      {renderMarkedText(
+                        r.text,
+                        r.marks,
+                        r.notes,
+                        (n) => toggleNote(r.verse, n),
+                        r.refs,
+                        (m) => toggleRef(r.verse, m),
+                      )}
                     </p>
                     {r.en && (
                       <p className="mt-0.5 font-sans text-[0.9em] text-muted-foreground">{r.en}</p>
                     )}
                   </div>
+                  {r.refs && (
+                    <CrossRefList
+                      refs={r.refs.filter((x) => expandedRefs.has(`${r.verse}:${x.m}`))}
+                      bookNo={bookNo}
+                      chapterNo={chapterNo}
+                    />
+                  )}
                   {/* Only the notes the user has actually expanded via sup
                    * tap are rendered inline — keeps the reading surface clean
                    * until they ask for the detail. */}

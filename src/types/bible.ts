@@ -1,8 +1,3 @@
-export interface Note {
-  n: number
-  pos: number
-}
-
 /** Inline semantic span over `text` (offsets are char indices). */
 export interface Mark {
   /** pn=人名, png=地名, add=補字, tl=音譯 */
@@ -16,9 +11,6 @@ export interface Verse {
   text: string
   segments?: string[]
   marks?: Mark[]
-  notes?: Note[]
-  /** Text length changed vs the annotated edition — note positions need rechecking. */
-  noteShift?: boolean
 }
 
 export interface Chapter {
@@ -67,29 +59,43 @@ export interface Outline {
   books: BookOutline[]
 }
 
-/** A footnote attached to a verse: number, the char offset where the
- * superscript should sit in the verse text, and the note body. */
+/** Key into the per-verse overlays: `${bookNo}.${chapterNo}.${verse}`.
+ *
+ * The overlays (notes, cross-refs) are flat maps rather than the nested
+ * book→chapter→verse arrays `verse.json` uses: the Bible text is walked a
+ * chapter at a time, but an overlay is looked up per verse, so a keyed map
+ * beats three levels of `.find()`. */
+export type VerseKey = string
+
+export function verseKey(bookNo: number, chapterNo: number, verse: number): VerseKey {
+  return `${bookNo}.${chapterNo}.${verse}`
+}
+
+/** A footnote on a verse. One note can be anchored at several places in the
+ * same verse, so `offsets` holds every char index the superscript sits at
+ * (ascending; usually just one). */
 export interface Annotation {
   n: number
-  offset: number
+  offsets: number[]
   text: string
 }
 
-export interface AnnotationVerse {
-  verse: number
-  notes: Annotation[]
-}
-
-export interface AnnotationChapter {
-  chapterNo: number
-  verses: AnnotationVerse[]
-}
-
-export interface AnnotationBook {
-  bookNo: number
-  chapters: AnnotationChapter[]
-}
-
 export interface AnnotationData {
-  books: AnnotationBook[]
+  source: string
+  notes: Record<VerseKey, Annotation[]>
+}
+
+/** A cross-reference (串珠): a marker in the verse text pointing at related
+ * verses. `refs` is the raw citation string (約壹一1，參西一17，創一1) — it is
+ * parsed into links at render time rather than baked into the data. */
+export interface CrossRef {
+  /** Marker letter shown inline (a, b, c… restarting each verse). */
+  m: string
+  offset: number
+  refs: string
+}
+
+export interface CrossRefData {
+  source: string
+  refs: Record<VerseKey, CrossRef[]>
 }

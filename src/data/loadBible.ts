@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react'
 import type {
-  AnnotationChapter,
+  Annotation,
   AnnotationData,
   Bible,
   Chapter,
+  CrossRef,
+  CrossRefData,
   Outline,
   OutlineEntry,
   Verse,
 } from '../types/bible'
+import { verseKey } from '../types/bible'
 
 function makeJsonLoader<T>(file: string) {
   let cached: T | null = null
@@ -45,6 +48,7 @@ export const useBible = makeJsonLoader<Bible>('verse.json')
 export const useBibleEn = makeJsonLoader<Bible>('verse_en.json')
 export const useOutline = makeJsonLoader<Outline>('outline.json')
 export const useAnnotations = makeJsonLoader<AnnotationData>('annotations.json')
+export const useCrossRefs = makeJsonLoader<CrossRefData>('crossrefs.json')
 
 export function findChapter(
   bible: Bible | null,
@@ -84,17 +88,24 @@ export function* eachVerseInRange(
   }
 }
 
-/** Annotation chapter for a given book + chapter (null when not loaded yet or
- * the chapter has no notes recorded). */
-export function findAnnotationChapter(
+/** Footnotes on one verse, in note order ([] when not loaded or none). */
+export function notesForVerse(
   data: AnnotationData | null,
   bookNo: number,
   chapterNo: number,
-): AnnotationChapter | null {
-  if (!data) return null
-  const book = data.books.find((b) => b.bookNo === bookNo)
-  if (!book) return null
-  return book.chapters.find((c) => c.chapterNo === chapterNo) ?? null
+  verse: number,
+): Annotation[] {
+  return data?.notes[verseKey(bookNo, chapterNo, verse)] ?? []
+}
+
+/** Cross-references (串珠) on one verse, in text order ([] when none). */
+export function crossRefsForVerse(
+  data: CrossRefData | null,
+  bookNo: number,
+  chapterNo: number,
+  verse: number,
+): CrossRef[] {
+  return data?.refs[verseKey(bookNo, chapterNo, verse)] ?? []
 }
 
 /** Outline entries for a given book + chapter, keyed by `${verse}:${segment}`. */
