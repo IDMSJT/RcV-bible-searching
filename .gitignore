@@ -8,6 +8,8 @@ scripts/cache/
 scripts/cache_new/
 scripts/cache_yv/
 scripts/output/
+# 一次性比對報告(可由 scripts/ 重跑產生)
+scripts/*_diff.json
 __pycache__/
 *.pyc
 
