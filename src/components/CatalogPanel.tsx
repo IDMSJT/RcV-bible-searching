@@ -64,9 +64,15 @@ function DesktopCatalog({ activeBookNo, activeChapterNo, activeBook, onPick }: S
   )
 }
 
+// Each pane's last scroll offset. Module-level because the drawer unmounts its
+// contents on close, so component state wouldn't survive between openings.
+const paneScroll = { books: 0, chapters: 0 }
+
 function MobileCatalog({ activeBookNo, activeChapterNo, activeBook, onPick }: SharedProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const innerRef = useRef<HTMLDivElement>(null)
+  const bookPaneRef = useRef<HTMLDivElement>(null)
+  const chapterPaneRef = useRef<HTMLDivElement>(null)
   const [paneIdx, setPaneIdx] = useState<0 | 1>(activeBook ? 1 : 0)
   const isFirstRender = useRef(true)
   // Stable so the memoized BookPicker doesn't re-render every time we
@@ -84,6 +90,35 @@ function MobileCatalog({ activeBookNo, activeChapterNo, activeBook, onPick }: Sh
     inner.style.transform = `translateX(${-paneIdx * 50}%)`
     isFirstRender.current = false
   }, [paneIdx])
+
+  // Reopening the catalog should land where it was left — you were probably
+  // browsing towards something. But a link may have moved the reader elsewhere
+  // in the meantime, so if where they now are isn't on screen, centre it: on
+  // 詩篇130 the catalog should show 130, not the top of a 150-cell grid.
+  // Scroll is written straight to the pane rather than via scrollIntoView,
+  // which would also try to scroll the drawer and the page behind it.
+  useLayoutEffect(() => {
+    const panes = [
+      [bookPaneRef.current, 'books'],
+      [chapterPaneRef.current, 'chapters'],
+    ] as const
+    for (const [pane, key] of panes) {
+      if (!pane) continue
+      pane.scrollTop = paneScroll[key]
+      const el = pane.querySelector<HTMLElement>('[data-active]')
+      if (!el) continue
+      const p = pane.getBoundingClientRect()
+      const e = el.getBoundingClientRect()
+      if (e.top < p.top || e.bottom > p.bottom) {
+        pane.scrollTop += e.top - p.top - (pane.clientHeight - el.offsetHeight) / 2
+      }
+    }
+    return () => {
+      for (const [pane, key] of panes) {
+        if (pane) paneScroll[key] = pane.scrollTop
+      }
+    }
+  }, [activeBookNo, activeChapterNo])
 
   // Auto-snap to the chapter pane whenever the active book / chapter changes
   // (user picked a new book — either from the book pane here or some other
@@ -187,13 +222,13 @@ function MobileCatalog({ activeBookNo, activeChapterNo, activeBook, onPick }: Sh
         * a composited layer instead of re-painting the underlying book/chapter
         * grids. */}
       <div ref={innerRef} className="relative flex h-full w-[200%] transform-gpu will-change-transform">
-        <div className="w-1/2 shrink-0 overflow-y-auto">
+        <div ref={bookPaneRef} className="w-1/2 shrink-0 overflow-y-auto">
           <BookPicker
             activeBookNo={activeBookNo}
             onPickBook={handlePickBook}
           />
         </div>
-        <div className="w-1/2 shrink-0 overflow-y-auto">
+        <div ref={chapterPaneRef} className="w-1/2 shrink-0 overflow-y-auto">
           {activeBook && (
             <ChapterPicker
               book={activeBook}
@@ -423,6 +458,8 @@ function BookGridCell({
             to="/$bookNo"
             params={{ bookNo: book.bookNo }}
             onClick={onPick}
+            // Lets the pane find what to bring into view when it opens.
+            data-active={active || undefined}
             className={cn(
               '@container flex aspect-square items-center justify-center border-b border-border transition-colors',
               !isLastCol && 'border-r',
@@ -460,6 +497,7 @@ function ChapterRow({
           params={{ bookNo: book.bookNo, chapterNo: ch }}
           search={{}}
           onClick={onPick}
+          data-active={activeChapterNo === ch || undefined}
           className={cn(
             '@container flex aspect-square items-center justify-center border-b border-border transition-colors',
             col !== COLS - 1 && 'border-r',
