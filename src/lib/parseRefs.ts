@@ -48,8 +48,11 @@ const REF_CHARS = `0-9${CN_NUMERAL_CHARS}上下中章篇節標題:：~～\\-至�
 // segment; parseToken then peels the same suffix off and attaches each note.
 // `*` (not `?`) so multiple notes on one verse stay in the same segment. A
 // bare 注/註 (no number, 太八2註 = all notes) is allowed too, but only when
-// NOT followed by a CJK char — so prose like 「太八2註解」 doesn't get eaten.
-const NOTE_TAIL_PAT = `(?:[\\s、，,與和及]*[注註]\\s*(?:\\d+|(?![一-鿿\\d])))*`
+// what follows can't be more of a word — so prose like 「太八2註解」 doesn't get
+// eaten. The conjunctions are exempt from that guard: 「太八2～4註與可一40～45註」
+// joins two whole-verse note refs, and treating 與 as word-continuation there
+// silently dropped the first 註 and linked the verses instead of their notes.
+const NOTE_TAIL_PAT = `(?:[\\s、，,與和及]*[注註]\\s*(?:\\d+|(?!\\d)(?!(?![與和及])[一-鿿])))*`
 
 // `^alias` then an optional English-style gap (a period and/or spaces, as in
 // 「Matt. 5:1」) then any run of ref-chars. Case-insensitive so English aliases

@@ -250,3 +250,26 @@ describe('parseRefs — 詩篇標題 in prose', () => {
     expect(sigs('這是本書的標題')).toEqual([])
   })
 })
+
+describe('parseRefs — bare 註 joined by a conjunction', () => {
+  it('keeps 註all on both sides of 與', () => {
+    // 「見太八2～4註與可一40～45註」 cites the notes on both passages. 與 is a
+    // conjunction here, not the start of a word, so the first 註 must survive.
+    expect(sigs('見太八2～4註與可一40～45註。')).toEqual([
+      '40:8:2-4註all',
+      '41:1:40-45註all',
+    ])
+  })
+
+  it('a comma-joined pair behaves the same', () => {
+    expect(sigs('太八2～4註，可一40～45註')).toEqual([
+      '40:8:2-4註all',
+      '41:1:40-45註all',
+    ])
+  })
+
+  it('still refuses to eat 註 that starts a word', () => {
+    // 「註解」 is prose — the verse links, the word does not become a note ref.
+    expect(sigs('太八2註解說明')).toEqual(['40:8:2'])
+  })
+})
