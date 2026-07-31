@@ -305,7 +305,10 @@ function VersePreview({
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
       className={cn(
-        'mt-2 grid max-h-96 grid-cols-[auto_1fr] gap-x-2 gap-y-1 overflow-y-auto overscroll-contain border-t border-border/60 pt-2 font-serif text-foreground',
+        // clear-both: the dismiss button floats inside the paragraph above, and a
+        // float doesn't grow its parent, so without this it can hang over the
+        // preview whenever the break lands after only a line or two.
+        'mt-2 grid clear-both max-h-96 grid-cols-[auto_1fr] gap-x-2 gap-y-1 overflow-y-auto overscroll-contain border-t border-border/60 pt-2 font-serif text-foreground',
         divideBelow && 'mb-2 border-b pb-2',
       )}
     >
@@ -317,7 +320,7 @@ function VersePreview({
             search={{ hl: r.note != null ? `${r.verse}:${r.note}` : String(r.verse) }}
             resetScroll={sameChapter ? false : undefined}
             onClick={(e) => e.stopPropagation()}
-            className="self-start whitespace-nowrap pt-1 text-left text-xs font-sans text-primary transition-colors hover:text-primary/80"
+            className="self-start whitespace-nowrap pt-[0.25em] text-left text-[0.8em] font-sans text-primary transition-colors hover:text-primary/80"
           >
             {formatVerseRef(r.bookNo, r.chapterNo, r.verse, 'colon')}
             {r.note != null && `註${r.note}`}
@@ -343,25 +346,62 @@ function VersePreview({
  * Line boxes aren't addressable in the DOM, so this reads them back off the
  * rendered layout: every character's top edge is non-decreasing in document
  * order, which makes "first character on a lower line" a binary search. */
+/** The paragraph's own text nodes, in order, with each one's start index. The
+ * marker <sup> is skipped: it sits in the paragraph but isn't part of its text,
+ * so counting it would shift every index. */
+function textNodesOf(root: HTMLElement): { node: Text; start: number }[] {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: (n) =>
+      n.parentElement?.closest('sup') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+  })
+  const out: { node: Text; start: number }[] = []
+  let total = 0
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const t = n as Text
+    out.push({ node: t, start: total })
+    total += t.length
+  }
+  return out
+}
+
+function topOf(nodes: { node: Text; start: number }[], i: number): number {
+  const hit = nodes.find(({ node, start }) => i >= start && i < start + node.length)
+  if (!hit) return Infinity
+  const range = document.createRange()
+  range.setStart(hit.node, i - hit.start)
+  range.setEnd(hit.node, i - hit.start + 1)
+  return range.getBoundingClientRect().top
+}
+
+/** Whether character `i` is the first on its line. Probing one character can't
+ * tell: a Range covering the first character after a soft wrap is commonly
+ * reported back at the end of the previous line, which reads as "same line" and
+ * puts the break one character too late. A Range spanning `i-1` and `i` is
+ * unambiguous — when they sit on different lines the browser returns a rect for
+ * each. */
+function startsLine(nodes: { node: Text; start: number }[], i: number): boolean {
+  if (i <= 0) return false
+  const a = nodes.find(({ node, start }) => i - 1 >= start && i - 1 < start + node.length)
+  const b = nodes.find(({ node, start }) => i >= start && i < start + node.length)
+  if (!a || !b) return false
+  const range = document.createRange()
+  range.setStart(a.node, i - 1 - a.start)
+  range.setEnd(b.node, i - b.start + 1)
+  return range.getClientRects().length > 1
+}
+
+/** A head line with no more than this many characters reads as a stranded
+ * fragment rather than a line, so the break moves in front of it. */
+const ORPHAN_MAX = 2
+
 function lineEndAfter(container: HTMLElement, refEl: HTMLElement): number {
   const rects = refEl.getClientRects()
   if (rects.length === 0) return -1
   const lineTop = rects[rects.length - 1].top
 
-  // The note number / cross-ref letter is a <sup> inside the same paragraph but
-  // not part of its text, so it must not shift the indices.
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
-    acceptNode: (n) =>
-      n.parentElement?.closest('sup') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
-  })
-  const nodes: { node: Text; start: number }[] = []
-  let total = 0
-  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-    const t = n as Text
-    nodes.push({ node: t, start: total })
-    total += t.length
-  }
-  if (nodes.length === 0) return -1
+  const nodes = textNodesOf(container)
+  const total = nodes.reduce((n, x) => n + x.node.length, 0)
+  if (total === 0) return -1
 
   let refEnd = 0
   for (const { node, start } of nodes) {
@@ -369,23 +409,25 @@ function lineEndAfter(container: HTMLElement, refEl: HTMLElement): number {
   }
   if (refEnd === 0) return -1
 
-  const topAt = (i: number): number => {
-    const hit = nodes.find(({ node, start }) => i >= start && i < start + node.length)
-    if (!hit) return Infinity
-    const range = document.createRange()
-    range.setStart(hit.node, i - hit.start)
-    range.setEnd(hit.node, i - hit.start + 1)
-    return range.getBoundingClientRect().top
-  }
-
   // First index after the ref that renders on a lower line.
   let lo = refEnd
   let hi = total
   while (lo < hi) {
     const mid = (lo + hi) >> 1
-    if (topAt(mid) > lineTop + 1) hi = mid
+    if (topOf(nodes, mid) > lineTop + 1) hi = mid
     else lo = mid + 1
   }
+  if (lo >= total) return total
+  // Correct for the probe's blind spot: if the character just before the
+  // candidate already starts a line, that's where the break belongs.
+  if (lo - 1 > refEnd && startsLine(nodes, lo - 1)) lo -= 1
+
+  // The head will be a paragraph in its own right, and the browser wraps a
+  // truncated paragraph a little tighter — the character that sat at the end of
+  // the line here can drop to a line of its own there. When that happens the
+  // copy's last line starts at a character this layout still had on the ref's
+  // line, so break there instead and let those characters go with the tail.
+
   return lo
 }
 
@@ -408,6 +450,8 @@ function RefBody({
   const [split, setSplit] = useState<{ key: string; at: number } | null>(null)
   const paraRef = useRef<HTMLParagraphElement | null>(null)
   const refElRef = useRef<HTMLElement | null>(null)
+  // Which ref's break has already been checked against what actually rendered.
+  const checkedRef = useRef<string | null>(null)
   const ctx = { book: bookNo, chapter: chapterNo }
 
   useLayoutEffect(() => {
@@ -417,6 +461,32 @@ function RefBody({
     const r = refElRef.current
     if (!p || !r) return
     setSplit({ key: active.key, at: lineEndAfter(p, r) })
+  }, [active, split])
+
+  // The head is a paragraph in its own right once the break lands, and the
+  // browser wraps it a shade tighter than the same words were wrapped mid-flow —
+  // tight enough to strand the last character on a line of its own. Measuring a
+  // detached copy doesn't reproduce that, so read back what actually rendered
+  // and pull the break in front of the stranded characters. Runs once per ref;
+  // the pulled-back break ends on a full line, so it settles immediately.
+  useLayoutEffect(() => {
+    if (!active || !split || split.key !== active.key) return
+    if (checkedRef.current === active.key) return
+    checkedRef.current = active.key
+    const p = paraRef.current
+    if (!p) return
+    const nodes = textNodesOf(p)
+    const total = nodes.reduce((n, x) => n + x.node.length, 0)
+    if (total < 2) return
+    const lastTop = topOf(nodes, total - 1)
+    let lo = 0
+    let hi = total - 1
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (topOf(nodes, mid) >= lastTop - 1) hi = mid
+      else lo = mid + 1
+    }
+    if (lo > 0 && total - lo <= ORPHAN_MAX) setSplit({ key: active.key, at: lo })
   }, [active, split])
 
   const splitAt = active && split?.key === active.key ? split.at : null
@@ -457,6 +527,7 @@ function RefBody({
               // the tap on mobile.
               onClick={(e) => {
                 e.stopPropagation()
+                checkedRef.current = null
                 setActive(on ? null : { key, refs: seg.refs! })
               }}
               className={cn(
@@ -540,9 +611,11 @@ function CloseButton({ onClose, label }: { onClose: () => void; label: string })
         e.stopPropagation()
         onClose()
       }}
-      className="float-right -mr-1 ml-0.5 rounded p-1 text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
+      // Sized in em so it tracks the reading font-size setting along with the
+      // text it sits beside.
+      className="float-right -mr-[0.25em] ml-[0.125em] rounded p-[0.25em] text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
     >
-      <X className="size-3.5" />
+      <X className="size-[1em]" />
     </button>
   )
 }

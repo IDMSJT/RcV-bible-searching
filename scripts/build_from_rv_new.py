@@ -205,7 +205,11 @@ def main() -> int:
             for r in d.get("notes") or []:
                 grp.setdefault((r["segment_code"], r["note_num"]), []).append(r)
             for (seg, num), rows in sorted(grp.items()):
-                body = next((r["note_content"] for r in rows if r.get("note_content")), "")
+                # 站方用 ˍ (U+02CD) 標示分段(一律緊接在句尾標點之後);換成換行,
+                # 前端才切得出段落。一對一替換,所以 offset 不受影響。
+                body = next(
+                    (r["note_content"] for r in rows if r.get("note_content")), ""
+                ).replace("\u02cd", "\n")
                 offs = sorted(
                     o for r in rows
                     if (o := off(seg, r.get("unit_code", 0), r["note_loc"])) is not None
