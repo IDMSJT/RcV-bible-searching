@@ -960,7 +960,7 @@ export function ChapterView({
                 <span
                   ref={r.ref ? assignScroll : undefined}
                   {...versePress(r.verse)}
-                  className="pt-[0.25em] text-right text-[0.75em] font-sans text-muted-foreground select-none"
+                  className="pt-[0.25em] text-right text-[0.75em] font-sans tabular-nums text-muted-foreground select-none"
                 >
                   {r.num}
                 </span>
