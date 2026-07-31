@@ -9,12 +9,14 @@ import {
 } from '@tanstack/react-router'
 import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
 import { BOOK_BY_NO } from '@/data/canon'
+import { useBible, findChapter } from '@/data/loadBible'
 import { chapterUnit } from '@/lib/chinese'
 import { parseHighlight } from '@/lib/highlight'
 import { prevRef, nextRef, refKey, type ReadingRef } from '@/lib/readingRef'
 import { useCarousel } from '@/lib/useCarousel'
 import { useIsTouch } from '@/lib/useIsTouch'
 import { ChapterView } from '@/components/ChapterView'
+import { VerseRail } from '@/components/VerseRail'
 import { OutlineView } from '@/components/OutlineView'
 import { cn } from '@/lib/utils'
 
@@ -48,6 +50,7 @@ export function ReadingPanel({
   oh,
   oe,
   onSelectingChange,
+  onScrubApi,
 }: {
   refData: ReadingRef
   active: boolean
@@ -55,6 +58,7 @@ export function ReadingPanel({
   oh?: string
   oe?: string
   onSelectingChange?: (selecting: boolean) => void
+  onScrubApi?: (scrub: ((verse: number) => void) | null) => void
 }) {
   if (refData.kind === 'chapter') {
     return (
@@ -65,6 +69,7 @@ export function ReadingPanel({
         highlights={active ? parseHighlight(hl) : []}
         ohIndex={active ? parseOhIndex(oh) : undefined}
         onSelectingChange={active ? onSelectingChange : undefined}
+        onScrubApi={active ? onScrubApi : undefined}
       />
     )
   }
@@ -136,6 +141,11 @@ export function ReadingPager() {
   }
 
   const [selecting, setSelecting] = useState(false)
+  // The rail lives here rather than in the panel so it can follow `titleRef` —
+  // the same ref the title uses — and flip to the chapter a swipe is heading
+  // for before the finger lifts. Only the landed panel can actually scroll, so
+  // it hands its jump function up.
+  const [scrub, setScrub] = useState<((verse: number) => void) | null>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const { dx, animating, targetDir, trackProps } = useCarousel({
     containerRef: bodyRef,
@@ -151,6 +161,14 @@ export function ReadingPager() {
   // the threshold (before the finger lifts), and through the commit slide.
   const titleRef =
     (targetDir === 'prev' ? prev : targetDir === 'next' ? next : null) ?? current
+
+  const { data: bible } = useBible()
+  const railVerses =
+    titleRef.kind === 'chapter'
+      ? (findChapter(bible, titleRef.bookNo, titleRef.chapterNo)?.verses ?? [])
+          .map((v) => v.verse)
+          .filter((v) => v > 0)
+      : []
 
   // 3-slot track: prev / current / next, current centred at translateX(-100%).
   // Keyed by ref so the landed panel keeps its (fresh, top) scroll across a
@@ -189,7 +207,9 @@ export function ReadingPager() {
               </span>
             )}
           </div>
-          <h1 className="self-center text-base font-medium tracking-tight">{titleOf(titleRef)}</h1>
+          <h1 className="self-center text-base font-medium tracking-tight">
+            {titleOf(titleRef)}
+          </h1>
           <div className="flex items-center justify-end pr-1">
             {!isTouch && (
               <RefLink refData={next}>
@@ -200,6 +220,9 @@ export function ReadingPager() {
         </div>
       </header>
 
+      {isTouch && railVerses.length > 1 && (
+        <VerseRail verses={railVerses} onScrub={(v) => scrub?.(v)} />
+      )}
       {isTouch ? (
         <div
           ref={bodyRef}
@@ -230,6 +253,7 @@ export function ReadingPager() {
                     oh={active ? search.oh : undefined}
                     oe={active ? search.oe : undefined}
                     onSelectingChange={active ? setSelecting : undefined}
+                    onScrubApi={active ? (fn) => setScrub(() => fn) : undefined}
                   />
                 )}
               </div>

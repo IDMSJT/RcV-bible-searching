@@ -1,0 +1,89 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+
+/** Vertical room each label gets on the rail. Big enough to stay legible and to
+ * keep the drag from feeling twitchy. */
+const RAIL_SLOT = 20
+
+/** The verse rail down the right edge, in the manner of a phone contact list's
+ * A–Z index: drag it to run through the chapter, release to land. Only the
+ * labels are spaced out; the drag itself maps continuously over every verse, so
+ * a chapter can be scrubbed as finely as it has verses.
+ *
+ * Its height follows the chapter's length rather than the screen's — a short
+ * chapter gets a short rail — with the label spacing widening as needed to keep
+ * the whole thing inside the reading area. */
+export function VerseRail({
+  verses,
+  onScrub,
+}: {
+  verses: number[]
+  /** Runs on press and on every move, so the page tracks the finger. */
+  onScrub: (verse: number) => void
+}) {
+  const railRef = useRef<HTMLDivElement | null>(null)
+  const [held, setHeld] = useState<number | null>(null)
+  const [budget, setBudget] = useState(() => window.innerHeight * 0.62)
+
+  useEffect(() => {
+    const onResize = () => setBudget(window.innerHeight * 0.62)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  const marks = useMemo(() => {
+    const last = verses[verses.length - 1]
+    for (const step of [5, 10, 20, 25, 50]) {
+      const out = verses.filter((v, i) => i === 0 || v % step === 0 || v === last)
+      if (out.length * RAIL_SLOT <= budget) return out
+    }
+    return [verses[0], last]
+  }, [verses, budget])
+
+  const pick = (clientY: number) => {
+    const el = railRef.current
+    if (!el) return
+    const { top, height } = el.getBoundingClientRect()
+    const frac = Math.min(1, Math.max(0, (clientY - top) / height))
+    const verse = verses[Math.round(frac * (verses.length - 1))]
+    if (verse == null) return
+    setHeld(verse)
+    onScrub(verse)
+  }
+
+  // Portalled to the body: on touch the reading surface sits inside the pager's
+  // transformed carousel track, and a transform makes `fixed` resolve against
+  // that ancestor instead of the viewport — the rail would land off-screen
+  // beside the neighbouring panel. The copy bars are portalled for the same
+  // reason.
+  return createPortal(
+    <>
+      {held != null && (
+        <div className="pointer-events-none fixed top-1/2 right-12 z-50 -translate-y-1/2 rounded-lg bg-foreground/85 px-3 py-1.5 font-sans text-lg font-medium text-background tabular-nums">
+          {held}
+        </div>
+      )}
+      <div
+        ref={railRef}
+        // Capture keeps the drag on the rail once it starts, so the pager's
+        // horizontal swipe can't steal it mid-scrub.
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId)
+          pick(e.clientY)
+        }}
+        onPointerMove={(e) => {
+          if (e.currentTarget.hasPointerCapture(e.pointerId)) pick(e.clientY)
+        }}
+        onPointerUp={() => setHeld(null)}
+        onPointerCancel={() => setHeld(null)}
+        style={{ height: marks.length * RAIL_SLOT }}
+        className="fixed top-1/2 right-0 z-30 flex -translate-y-1/2 touch-none flex-col items-end justify-between pr-1 pl-3 font-sans text-[0.6875rem] leading-none font-medium text-muted-foreground/70 tabular-nums select-none"
+      >
+        {marks.map((v) => (
+          <span key={v}>{v}</span>
+        ))}
+      </div>
+    </>,
+    document.body,
+  )
+}

@@ -36,6 +36,7 @@ import {
 import { formatOutlineRange, displayMarker } from '@/lib/chinese'
 import { renderMarkedText, sliceMarks, NoteList, CrossRefList } from '@/lib/renderVerse'
 import type { HlItem } from '@/lib/highlight'
+import { useIsTouch } from '@/lib/useIsTouch'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
 import type { Annotation, CrossRef, Mark, OutlineEntry } from '@/types/bible'
@@ -172,6 +173,7 @@ export function ChapterView({
   ohIndex,
   active = true,
   onSelectingChange,
+  onScrubApi,
 }: {
   bookNo: number
   chapterNo: number
@@ -187,6 +189,10 @@ export function ChapterView({
   /** Reports whether the active panel has a verse selection, so the pager can
    * pause the swipe gesture while selecting. */
   onSelectingChange?: (selecting: boolean) => void
+  /** Hands the pager a way to jump this panel to a verse — the rail lives up
+   * there so it can flip to the next chapter mid-swipe, but only this panel
+   * knows its own scroll container. */
+  onScrubApi?: (scrub: ((verse: number) => void) | null) => void
 }) {
   const { data, error } = useBible()
   const { data: outline } = useOutline()
@@ -338,6 +344,7 @@ export function ChapterView({
   // chapter like the notes are, so paging away and back keeps what you opened.
   // (No hl equivalent — nothing links straight to a 串珠.)
   const [expandedRefs, setExpandedRefs] = useState<Set<string>>(() => readStorage(refsKey))
+  const isTouch = useIsTouch()
   const toggleRef = useCallback(
     (verse: number, m: string) => {
       setExpandedRefs((prev) => {
@@ -408,6 +415,22 @@ export function ChapterView({
     // Not cleared but reloaded — the opened cross-refs are saved per chapter.
     setExpandedRefs(readStorage(`rcv/refs-open/${bookNo}/${chapterNo}`))
   }, [bookNo, chapterNo, readStorage])
+
+  // Bring a verse to the top of the panel, matching the gap the ?hl / ?oh jumps
+  // land with. Instant, because the rail is dragged and has to track the finger.
+  const scrubTo = useCallback((verse: number) => {
+    const panel = panelRef.current
+    const el = panel?.querySelector<HTMLElement>(`[data-verse="${verse}"]`)
+    if (!panel || !el) return
+    panel.scrollTop +=
+      el.getBoundingClientRect().top - panel.getBoundingClientRect().top - 24
+  }, [])
+
+  useEffect(() => {
+    if (!active) return
+    onScrubApi?.(scrubTo)
+    return () => onScrubApi?.(null)
+  }, [active, onScrubApi, scrubTo])
 
   // Let the pager pause the swipe while a verse selection OR a text selection is
   // active.
@@ -909,6 +932,8 @@ export function ChapterView({
           // away, but eased (duration-300) when it collapses so the margin
           // shrinks smoothly on exit.
           'mx-auto max-w-3xl px-4 py-6 transition-[padding-bottom] md:px-8 md:py-10',
+          // Clear of the verse rail, which floats over this edge on touch.
+          isTouch && 'pr-6',
           hasSelection || hlActive
             ? 'pb-[calc(1.5rem+3.5rem+0.75rem)] duration-0'
             : 'duration-300',
@@ -918,7 +943,7 @@ export function ChapterView({
          * and ready (see useMemo above); UI is hidden until we decide on a
          * better entry point than a top-right text button. */}
         {chapter ? (
-        <div className="grid grid-cols-[minmax(1.3125rem,auto)_1fr] gap-x-2 gap-y-2.5 font-serif text-[length:var(--reading-fs,1rem)]">
+        <div className="grid grid-cols-[minmax(1.3125em,auto)_1fr] gap-x-2 gap-y-2.5 font-serif text-[length:var(--reading-fs,1rem)]">
           {rows.map((r) =>
             r.kind === 'heading' ? (
               <OutlineHeading
@@ -935,7 +960,7 @@ export function ChapterView({
                 <span
                   ref={r.ref ? assignScroll : undefined}
                   {...versePress(r.verse)}
-                  className="pt-1 text-right text-xs font-sans text-muted-foreground select-none"
+                  className="pt-[0.25em] text-right text-[0.75em] font-sans text-muted-foreground select-none"
                 >
                   {r.num}
                 </span>
