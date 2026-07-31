@@ -304,6 +304,11 @@ const ChapterPicker = memo(function ChapterPicker({
   )
 })
 
+// Three columns, but they earn their widths differently per viewport. On mobile
+// the back arrow holds the left slot and the book name is centred, so the outer
+// columns have to match. Desktop has no back arrow — the name sits left and
+// wants every pixel the right column doesn't, otherwise a long one like
+// 帖撒羅尼迦前書 wraps to two lines while 綱目 sits in space it never needed.
 function ChapterHeader({
   book,
   onPick,
@@ -314,7 +319,7 @@ function ChapterHeader({
   onBack?: () => void
 }) {
   return (
-    <div className="sticky top-0 z-10 grid h-[var(--header-h)] grid-cols-[1fr_auto_1fr] items-stretch border-b border-border bg-muted/80 text-base font-medium backdrop-blur md:h-9 md:text-xs md:font-semibold">
+    <div className="sticky top-0 z-10 grid h-[var(--header-h)] grid-cols-[1fr_auto_1fr] items-stretch border-b border-border bg-muted/80 text-base font-medium backdrop-blur md:h-9 md:grid-cols-[1fr_auto_auto] md:text-xs md:font-semibold">
       <div className="flex items-stretch">
         {onBack ? (
           <button
