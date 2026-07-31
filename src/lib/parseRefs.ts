@@ -188,9 +188,28 @@ export function parseRefs(input: string, initial?: ParseCtx): ParseResult {
         continue
       }
       // Parse failed despite the alias matching — restore ctx so a false
-      // positive like 「創作家」 doesn't leak chapter=1 into the next ref.
+      // positive like 「創作家」 doesn't leak chapter=1 into the next ref, and
+      // step over the whole match. Leaving the digits behind let them be read
+      // as a continuation of the ref before: 「太16:2，可2」 failed on 可2 for
+      // want of a chapter, then matched the stranded 2 against Matthew 16 and
+      // reported that verse twice.
       ctx.book = snapshot.book
       ctx.chapter = snapshot.chapter
+      // Step over the whole match, but only where the alias reads as a citation
+      // rather than as part of a word. Leaving the digits behind let them be
+      // taken as a continuation of the ref before — 「太16:2，可2」 failed on 可2
+      // for want of a chapter, then matched the stranded 2 against Matthew 16
+      // and reported that verse twice. Skipping unconditionally was worse: in
+      // 「以實瑪利—十六15」 the 利 of 以實瑪利 matches 利未記, and the reference
+      // after it went with it. A separator in front is what tells them apart.
+      const before = i > 0 ? text[i - 1] : ''
+      if (
+        (i === 0 || /[\s、，,;；:：(（"'\u201c\u201d]/.test(before)) &&
+        /[0-9\u4e00-\u9fff]/.test(aTok.slice(1))
+      ) {
+        i += aMatch[0].length
+        continue
+      }
     }
 
     // 2. Continuation — verse-only / chapter-change ref that inherits ctx.

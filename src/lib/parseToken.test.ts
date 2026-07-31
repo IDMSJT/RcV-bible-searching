@@ -253,3 +253,30 @@ describe('parseToken — 詩篇標題 (superscription = verse 0)', () => {
     expect(run('標題').ok).toBe(false)
   })
 })
+
+describe('parseToken — a bare number needs a chapter to lean on', () => {
+  it('refuses 太16: Matthew has 28 chapters, so which one is unknowable', () => {
+    expect(run('太16').ok).toBe(false)
+  })
+
+  it('refuses 詩23 rather than reading it as Psalm 1:23', () => {
+    // Anyone typing this means Psalm 23; guessing chapter 1 produced a verse
+    // that exists but isn't the one asked for, which is worse than no answer.
+    expect(run('詩23').ok).toBe(false)
+  })
+
+  it('still fills in the chapter for a one-chapter book', () => {
+    expect(run('猶24').refs).toEqual(['65:1:24'])
+    expect(run('門6').refs).toEqual(['57:1:6'])
+  })
+
+  it('leaves the spelled-out and colon forms alone', () => {
+    expect(run('太一16').refs).toEqual(['40:1:16'])
+    expect(run('太16:5').refs).toEqual(['40:16:5'])
+    expect(run('Matt. 5:1').refs).toEqual(['40:5:1'])
+  })
+
+  it('a chapter already in context still carries a bare verse', () => {
+    expect(run('16', { book: 40, chapter: 5 }).refs).toEqual(['40:5:16'])
+  })
+})

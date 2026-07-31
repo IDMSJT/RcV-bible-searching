@@ -273,3 +273,38 @@ describe('parseRefs — bare 註 joined by a conjunction', () => {
     expect(sigs('太八2註解說明')).toEqual(['40:8:2'])
   })
 })
+
+describe('parseRefs — an unresolvable bare number stays prose', () => {
+  it('does not link 太16 in running text', () => {
+    expect(sigs('見太16')).toEqual([])
+  })
+
+  it('still links the one-chapter shorthand', () => {
+    expect(sigs('見猶24')).toEqual(['65:1:24'])
+  })
+
+  it('links it once the chapter is spelled out', () => {
+    expect(sigs('見太十六16')).toEqual(['40:16:16'])
+  })
+})
+
+describe('parseRefs — naming a book starts its own chapter context', () => {
+  it('does not lend one book\'s chapter to the next', () => {
+    // 「可2」 has no chapter of its own and Mark has sixteen, so it can't be
+    // resolved — and Matthew 16 must not stand in for it.
+    expect(sigs('太16:2，可2')).toEqual(['40:16:2'])
+  })
+
+  it('resolves once the second ref carries its own chapter', () => {
+    expect(sigs('太16:2，可3:2')).toEqual(['40:16:2', '41:3:2'])
+    expect(sigs('太16:2，可一2')).toEqual(['40:16:2', '41:1:2'])
+  })
+
+  it('a bare verse still continues the ref before it', () => {
+    expect(sigs('創一1、5')).toEqual(['1:1:1', '1:1:5'])
+  })
+
+  it('leaves an alias-shaped word alone', () => {
+    expect(sigs('創作家一定')).toEqual([])
+  })
+})

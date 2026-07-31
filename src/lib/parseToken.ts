@@ -1,5 +1,8 @@
 import { BOOK_ALIASES, BOOK_ALIAS_RE } from '@/data/bookAliases'
+import { CANON } from '@/data/canon'
 import { CN_NUMERAL_CHARS, CN_NUMERAL_CLASS, parseNum } from './chinese'
+
+const CHAPTER_COUNT = new Map(CANON.map((b) => [b.bookNo, b.chapterCount]))
 
 const CN = CN_NUMERAL_CLASS
 const NUM = `(?:\\d+|${CN})`
@@ -55,7 +58,6 @@ const VERSE_SPEC_RE = new RegExp(
   `^(${NUM})([上下中])?(?:[${RANGE_CHARS}]([${CN_NUMERAL_CHARS}]+)?(${NUM})([上下中])?)?$`,
 )
 
-const STARTS_WITH_CN_RE = new RegExp(`^${CN}`)
 
 export interface ParseTokenResult {
   ok: boolean
@@ -94,10 +96,16 @@ export function parseToken(token: string, ctx: ParseCtx): ParseTokenResult {
     // English refs put a period and/or space between the book and the numbers
     // (「Matt. 5:1」, 「2 Cor. 6:14」); drop it so chapter parsing sees the digits.
     rest = rest.replace(/^[.\s]+/, '')
-    // Book alias not followed by a CN chapter → assume chapter 1. Handles
-    // single-chapter books written without a chapter number (猶24 = Jude 1:24)
-    // and also the natural "default to chapter 1" shorthand.
-    if (!STARTS_WITH_CN_RE.test(rest)) ctx.chapter = 1
+    // Naming a book starts its own chapter context: the chapter carried in from
+    // whatever was cited before belongs to that book, not this one. 「太16:2，可2」
+    // was reading the second as Mark 16:2 purely because Matthew 16 came first.
+    //
+    // A one-chapter book is the exception — 「猶24」 can only be Jude 1:24. For
+    // everything else a bare number is genuinely ambiguous: 「詩23」 reads as
+    // Psalm 23 to anyone, yet defaulting to chapter 1 turned it into Psalm 1:23,
+    // a verse that exists but isn't the one asked for. Leave it unset and let
+    // the parse fail rather than resolve confidently to the wrong place.
+    ctx.chapter = CHAPTER_COUNT.get(book ?? 0) === 1 ? 1 : null
   }
 
   // 2. Optional chapter (4 forms, priority order):
