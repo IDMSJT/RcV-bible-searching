@@ -40,6 +40,26 @@ import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
 import type { Annotation, CrossRef, Mark, OutlineEntry } from '@/types/bible'
 
+/** Footnotes whose anchors fall in [start, end), re-based to that slice. A note
+ * anchored in more than one place keeps only the anchors inside the slice. */
+function sliceNotes(notes: Annotation[] | undefined, start: number, end: number): Annotation[] {
+  if (!notes) return []
+  const out: Annotation[] = []
+  for (const n of notes) {
+    const offsets = n.offsets.filter((o) => o >= start && o < end).map((o) => o - start)
+    if (offsets.length > 0) out.push({ ...n, offsets })
+  }
+  return out
+}
+
+/** Cross-refs anchored in [start, end), re-based to that slice. */
+function sliceCrossRefs(refs: CrossRef[] | undefined, start: number, end: number): CrossRef[] {
+  if (!refs) return []
+  return refs
+    .filter((r) => r.offset >= start && r.offset < end)
+    .map((r) => ({ ...r, offset: r.offset - start }))
+}
+
 function OutlineHeading({
   entry,
   entryIdx,
@@ -836,6 +856,10 @@ export function ChapterView({
             text: segText,
             en: s === lastSeg ? enText : undefined,
             marks: sliceMarks(v.marks, off, off + segText.length),
+            // A split verse's notes / cross-refs are anchored against the whole
+            // verse, so each fragment takes the ones that land inside it.
+            notes: sliceNotes(verseNotes, off, off + segText.length),
+            refs: sliceCrossRefs(chapterRefs.get(v.verse), off, off + segText.length),
             hl,
             ref: isFirst && s === 0,
             key: `v${v.verse}-${s}`,

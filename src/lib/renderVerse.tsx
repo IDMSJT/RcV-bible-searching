@@ -72,9 +72,6 @@ export function sliceMarks(
 // adds slop, the negative margin pulls the surrounding glyphs back to where
 // they would be. select-none: the marker is metadata — a text selection drags
 // straight across it instead of catching on it or copying it.
-/** Most verses a ref preview will show before it summarises the rest. */
-const PREVIEW_MAX = 12
-
 const SUP_CLS =
   'relative -top-[0.6em] -m-1 cursor-pointer p-1 text-[0.7em] font-sans font-medium tabular-nums text-destructive select-none hover:text-destructive/80'
 
@@ -267,35 +264,36 @@ function VersePreview({
   for (const ref of refs) {
     const wantsNote = ref.note != null || ref.noteAll
     // 「二1註3」 targets the note alone; 「二1與註3」 wants the verse as well.
-    if (!wantsNote || !ref.noteDirect) {
-      for (const { chapterNo, verse } of eachVerseInRange(
-        bible,
-        ref.bookNo,
-        ref.chapter,
-        ref.endChapter,
-        ref.verseStart,
-        ref.verseEnd,
-      )) {
+    const wantsVerse = !wantsNote || !ref.noteDirect
+    // Walk the whole span, not just its first verse — 「賽十四12～15與註」 means
+    // every verse in the range along with the notes on each. Each verse is
+    // followed by its own notes so the two read together.
+    for (const { chapterNo, verse } of eachVerseInRange(
+      bible,
+      ref.bookNo,
+      ref.chapter,
+      ref.endChapter,
+      ref.verseStart,
+      ref.verseEnd,
+    )) {
+      if (wantsVerse) {
         rows.push({ bookNo: ref.bookNo, chapterNo, verse: verse.verse, text: verse.text })
       }
-    }
-    if (wantsNote && annotations) {
-      const all = notesForVerse(annotations, ref.bookNo, ref.chapter, ref.verseStart)
-      for (const n of ref.noteAll ? all : all.filter((x) => x.n === ref.note)) {
-        rows.push({
-          bookNo: ref.bookNo,
-          chapterNo: ref.chapter,
-          verse: ref.verseStart,
-          note: n.n,
-          text: n.text,
-        })
+      if (wantsNote && annotations) {
+        const all = notesForVerse(annotations, ref.bookNo, chapterNo, verse.verse)
+        for (const n of ref.noteAll ? all : all.filter((x) => x.n === ref.note)) {
+          rows.push({
+            bookNo: ref.bookNo,
+            chapterNo,
+            verse: verse.verse,
+            note: n.n,
+            text: n.text,
+          })
+        }
       }
     }
   }
   if (rows.length === 0) return null
-  // A ref can span a lot of verses (詩一百十九…); show a workable slice rather
-  // than burying the note under the whole passage.
-  const shown = rows.slice(0, PREVIEW_MAX)
   const ref0 = refs[0]
   const sameChapter = ref0.bookNo === ctx.book && ref0.chapter === ctx.chapter
 
@@ -303,12 +301,18 @@ function VersePreview({
     // Same two-column shape as the search results: a narrow citation column
     // whose labels line up, verse text flowing in the rest.
     <div
+      // A long span (「賽十四12～15與註」 pulls in four verses plus every note on
+      // them) scrolls in place rather than being cut short — the reader can
+      // still reach all of it without the card swallowing the page.
+      // stopPropagation keeps a tap in here off the card's own select handler.
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
       className={cn(
-        'mt-2 grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 border-t border-border/60 pt-2 font-serif text-foreground',
+        'mt-2 grid max-h-96 grid-cols-[auto_1fr] gap-x-2 gap-y-1 overflow-y-auto overscroll-contain border-t border-border/60 pt-2 font-serif text-foreground',
         divideBelow && 'mb-2 border-b pb-2',
       )}
     >
-      {shown.map((r, i) => (
+      {rows.map((r, i) => (
         <Fragment key={i}>
           <Link
             to="/$bookNo/$chapterNo"
@@ -327,11 +331,6 @@ function VersePreview({
           </div>
         </Fragment>
       ))}
-      {rows.length > shown.length && (
-        <p className="col-span-2 font-sans text-[0.85em] text-muted-foreground">
-          …共 {rows.length} 節
-        </p>
-      )}
     </div>
   )
 }
