@@ -52,12 +52,16 @@ function sliceNotes(notes: Annotation[] | undefined, start: number, end: number)
   return out
 }
 
-/** Cross-refs anchored in [start, end), re-based to that slice. */
+/** Cross-refs anchored in [start, end), re-based to that slice. A marker placed
+ * in more than one spot keeps only the anchors inside the slice. */
 function sliceCrossRefs(refs: CrossRef[] | undefined, start: number, end: number): CrossRef[] {
   if (!refs) return []
-  return refs
-    .filter((r) => r.offset >= start && r.offset < end)
-    .map((r) => ({ ...r, offset: r.offset - start }))
+  const out: CrossRef[] = []
+  for (const r of refs) {
+    const offsets = r.offsets.filter((o) => o >= start && o < end).map((o) => o - start)
+    if (offsets.length > 0) out.push({ ...r, offsets })
+  }
+  return out
 }
 
 function OutlineHeading({

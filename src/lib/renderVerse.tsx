@@ -105,12 +105,9 @@ export function renderMarkedText(
         offset,
       })),
     ),
-    ...(crossRefs ?? []).map((r) => ({
-      kind: 'ref' as const,
-      label: r.m,
-      id: r.m,
-      offset: r.offset,
-    })),
+    ...(crossRefs ?? []).flatMap((r) =>
+      r.offsets.map((offset) => ({ kind: 'ref' as const, label: r.m, id: r.m, offset })),
+    ),
     // Same offset → the footnote number comes first, then the cross-ref letter.
   ].sort((a, b) => a.offset - b.offset || (a.kind === b.kind ? 0 : a.kind === 'note' ? -1 : 1))
   if (ms.length === 0 && sups.length === 0) return text

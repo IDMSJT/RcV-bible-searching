@@ -91,7 +91,9 @@ export interface AnnotationData {
 export interface CrossRef {
   /** Marker letter shown inline (a, b, c… restarting each verse). */
   m: string
-  offset: number
+  /** Every char index the marker sits at — one cross-ref can be anchored at
+   * several places in the same verse, exactly like a footnote. */
+  offsets: number[]
   refs: string
 }
 

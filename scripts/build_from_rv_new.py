@@ -145,7 +145,7 @@ def main() -> int:
 
     books, notes_out, refs_out = [], {}, {}
     stats = {"verses": 0, "len_mismatch": 0, "notes": 0, "note_anchors": 0,
-             "refs": 0, "ws_in_content": 0, "orphan_note": 0, "orphan_ref": 0}
+             "refs": 0, "ref_anchors": 0, "ws_in_content": 0, "orphan_note": 0, "orphan_ref": 0}
 
     for b, n_ch in enumerate(counts, start=1):
         chapters = []
@@ -219,17 +219,25 @@ def main() -> int:
                 stats["notes"] += 1
                 stats["note_anchors"] += len(offs)
 
-            # ── 串珠
-            for r in sorted(d.get("foots") or [],
-                            key=lambda x: (x["segment_code"], x.get("unit_code", 0), x["loc"])):
-                o = off(r["segment_code"], r.get("unit_code", 0), r["loc"])
-                if o is None or not r.get("beaded_content"):
+            # ── 串珠:和註解同樣的形狀 —— 同一個標號可有多列,第一列帶引經
+            # 字串,其餘 beaded_content 為空,只是該串珠的額外掛載位置。
+            fgrp: dict[tuple[int, str], list] = {}
+            for r in d.get("foots") or []:
+                fgrp.setdefault((r["segment_code"], r.get("beaded", "")), []).append(r)
+            for (seg, mark), rows in sorted(fgrp.items()):
+                body = next((r["beaded_content"] for r in rows if r.get("beaded_content")), "")
+                offs = sorted(
+                    o for r in rows
+                    if (o := off(seg, r.get("unit_code", 0), r["loc"])) is not None
+                )
+                if not body or not offs:
                     stats["orphan_ref"] += 1
                     continue
-                refs_out.setdefault(f"{b}.{c}.{r['segment_code']}", []).append(
-                    {"m": r.get("beaded", ""), "offset": o, "refs": r["beaded_content"]}
+                refs_out.setdefault(f"{b}.{c}.{seg}", []).append(
+                    {"m": mark, "offsets": offs, "refs": body}
                 )
                 stats["refs"] += 1
+                stats["ref_anchors"] += len(offs)
 
             chapters.append({"chapterNo": c, "verses": verses})
         books.append({"bookNo": b, "name": book_name.get(b, ""), "chapters": chapters})
