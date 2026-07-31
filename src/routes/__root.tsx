@@ -53,7 +53,15 @@ function RootComponent() {
   const onCompose = pathname === '/compose'
 
   const [mode, setMode] = useLocalStorage<SidebarMode>('rcv/sidebar-mode', 'catalog')
-  const effectiveMode: SidebarMode = onCompose ? 'compose' : mode
+  // Lets a panel show over /compose without leaving it — settings, say, which
+  // has nothing to do with the document being written. Deliberately not
+  // persisted and cleared on navigation, so arriving at /compose always brings
+  // back the editor rather than whatever was last opened on top of it.
+  const [composeOverlay, setComposeOverlay] = useState<SidebarMode | null>(null)
+  useEffect(() => {
+    setComposeOverlay(null)
+  }, [pathname])
+  const effectiveMode: SidebarMode = onCompose ? composeOverlay ?? 'compose' : mode
   // Remember the last chapter URL the user was actually reading on; the 閱讀
   // nav button uses this as the jump-target whenever we leave a non-chapter
   // route (e.g. /compose) so clicking it always lands back in a verse view
@@ -197,6 +205,9 @@ function RootComponent() {
       return
     }
     setMode(m)
+    // On /compose the sidebar belongs to the document, so anything else shows
+    // as an overlay on top of it instead of replacing the persisted mode.
+    if (onCompose) setComposeOverlay(m === 'compose' ? null : m)
     if (onNav) onNav()
     // Below md the drawer is the visible part — flip it open. On desktop the
     // aside is permanently mounted, so we skip the state change: otherwise
@@ -325,7 +336,7 @@ function RootComponent() {
           active={effectiveMode === 'settings'}
           label="設定"
           className="mt-auto"
-          onClick={() => openMode('settings', onCompose ? goToLastChapter : undefined)}
+          onClick={() => openMode('settings')}
         >
           <Settings className={navIcon} />
         </NavButton>
@@ -402,7 +413,7 @@ function RootComponent() {
           // would feel like a glitch.
           onClick={() => {
             if (drawerOpen && effectiveMode === 'settings') return
-            openMode('settings', onCompose ? goToLastChapter : undefined)
+            openMode('settings')
           }}
         >
           <Settings className={navIcon} />
