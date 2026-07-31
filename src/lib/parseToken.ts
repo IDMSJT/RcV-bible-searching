@@ -115,6 +115,33 @@ export function parseToken(token: string, ctx: ParseCtx): ParseTokenResult {
   }
 
   if (book == null) return { ok: false, refs: [], reason: '缺少書名' }
+
+  // 「詩三四標題」 / a bare 「一四二標題」 continuing the same book — the psalm
+  // superscription, which the text stores as verse 0. The chapter comes from the
+  // token's own CN numeral when it has one, since the superscription form never
+  // carries an arabic verse number for the chapter rules above to latch onto.
+  const sup = rest.match(new RegExp(`^(${CN})?標題$`))
+  if (sup) {
+    const supChapter = sup[1] ? parseNum(sup[1]) : chapter
+    if (supChapter == null) return { ok: false, refs: [], reason: '缺少章' }
+    ctx.book = book
+    ctx.chapter = supChapter
+    return {
+      ok: true,
+      refs: [
+        {
+          bookNo: book,
+          chapter: supChapter,
+          endChapter: supChapter,
+          verseStart: 0,
+          verseEnd: 0,
+          seg: null,
+          source: token,
+        },
+      ],
+    }
+  }
+
   if (chapter == null) return { ok: false, refs: [], reason: '缺少章' }
 
   // 3. Verse list — split on 、, each spec gets its own VerseRef. The footnote

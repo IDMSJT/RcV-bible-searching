@@ -41,7 +41,7 @@ const BOOK_PATTERN = ALL_BOOK_NAMES.map(escapeRe).join('|')
 // matched as the anchor 「創一1」 and the continuation loop picks up 「5」
 // separately — that way each verse becomes its own segment and can be
 // individually hovered / highlighted in the backdrop.
-const REF_CHARS = `0-9${CN_NUMERAL_CHARS}上下中章篇節:：~～\\-至到—–－`
+const REF_CHARS = `0-9${CN_NUMERAL_CHARS}上下中章篇節標題:：~～\\-至到—–－`
 
 // Optional trailing chain of 「注N」 / 「註N」 footnote pointers. Eaten by the
 // match so parseRefs consumes the full 「太一21注3」 / 「二1注3與注4」 as one
@@ -172,7 +172,7 @@ export function parseRefs(input: string, initial?: ParseCtx): ParseResult {
     // for 'one', not a chapter / verse number. Require at least one
     // arabic digit or 章/篇/節/: so we keep that match as prose.
     const aMatch = ANCHOR_FULL_RE.exec(text.slice(i))
-    if (aMatch && aMatch.index === 0 && /[0-9章篇節:：]/.test(aMatch[0])) {
+    if (aMatch && aMatch.index === 0 && /[0-9章篇節:：]|標題/.test(aMatch[0])) {
       const snapshot: ParseCtx = { book: ctx.book, chapter: ctx.chapter }
       const aTok = trimRefTail(aMatch[0])
       const out = parseToken(aTok, ctx)
@@ -217,8 +217,8 @@ export function parseRefs(input: string, initial?: ParseCtx): ParseResult {
       // after 「羅馬書」 names Rom 1:17, whereas a bare 「17」 would be a verse
       // in a chapter we don't know yet.
       const cTok = cMatch && cMatch.index === 0 ? trimRefTail(cMatch[0]) : ''
-      const selfChapter = /^[^0-9]+[0-9]|[章篇:：]/.test(cTok)
-      if (cTok && (ctx.chapter != null || selfChapter) && /[0-9章篇節]/.test(cTok)) {
+      const selfChapter = /^[^0-9]+[0-9]|[章篇:：]|標題/.test(cTok)
+      if (cTok && (ctx.chapter != null || selfChapter) && /[0-9章篇節]|標題/.test(cTok)) {
         const snapshot: ParseCtx = { book: ctx.book, chapter: ctx.chapter }
         const out = parseToken(cTok, ctx)
         if (out.ok && out.refs.length > 0) {

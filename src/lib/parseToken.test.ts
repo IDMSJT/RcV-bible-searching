@@ -225,3 +225,31 @@ describe('parseToken — defensive cases', () => {
     expect(run('太一1節').refs).toEqual(['40:1:1'])
   })
 })
+
+describe('parseToken — 詩篇標題 (superscription = verse 0)', () => {
+  it('book + CN chapter + 標題', () => {
+    expect(run('詩三四標題').refs).toEqual(['19:34:0'])
+  })
+
+  it('chapterless 標題 continues in the context chapter', () => {
+    const ctx: ParseCtx = { book: 19, chapter: 23 }
+    expect(run('標題', ctx).refs).toEqual(['19:23:0'])
+  })
+
+  it('own CN chapter wins over the context chapter', () => {
+    // 「詩五七標題，一四二標題」 — the second token has no arabic digit for the
+    // chapter rules to latch onto, so it must read its own 一四二 rather than
+    // inheriting 57 from the ref before it.
+    const ctx: ParseCtx = { book: 19, chapter: 57 }
+    expect(run('一四二標題', ctx).refs).toEqual(['19:142:0'])
+  })
+
+  it('leaves the chapter in context for what follows', () => {
+    const { ctx } = run('詩三標題')
+    expect([ctx.book, ctx.chapter]).toEqual([19, 3])
+  })
+
+  it('needs a chapter from somewhere', () => {
+    expect(run('標題').ok).toBe(false)
+  })
+})

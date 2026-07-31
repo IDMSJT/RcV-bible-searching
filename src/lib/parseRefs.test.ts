@@ -231,3 +231,22 @@ describe('parseRefs — normalisation', () => {
     expect(refs).toEqual(['58:13:16', '45:12:13'])
   })
 })
+
+describe('parseRefs — 詩篇標題 in prose', () => {
+  it('links a superscription ref', () => {
+    expect(sigs('見詩三四標題。')).toEqual(['19:34:0'])
+  })
+
+  it('a following 標題 keeps the book but takes its own chapter', () => {
+    expect(sigs('詩五七標題，一四二標題')).toEqual(['19:57:0', '19:142:0'])
+  })
+
+  it('the citation is one segment, punctuation stays prose', () => {
+    const segs = parseRefs('見詩三四標題。').segments.map((s) => s.text)
+    expect(segs).toEqual(['見', '詩三四標題', '。'])
+  })
+
+  it('prose ending in 標題 without a chapter is left alone', () => {
+    expect(sigs('這是本書的標題')).toEqual([])
+  })
+})
