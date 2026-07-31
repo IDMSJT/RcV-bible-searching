@@ -1,4 +1,10 @@
-"""Extract the English Recovery Version verse text from the bilingual DB that
+"""⚠️ 已被 build_verse_en_bibleread.py 取代 —— 不再產出現役資料。
+
+`public/verse_en.json` 現在來自 bibleread.online(LSM 官方線上恢復本,現行版次);
+全書比對顯示這份 DB 是較早的版次,術語(judgments/spoon/brass)與大小寫都已修訂,
+另有 Selah 等缺字。保留本檔是為了記錄下面 EN_PATCHES 那 12 節的來歷。
+
+Extract the English Recovery Version verse text from the bilingual DB that
 came with the friend's single-HTML RcV bible app (saved in scripts/sources/
 during the framework migration) and write it as `public/verse_en.json` in the
 same shape as `verse.json` so the existing data loader can fetch it directly.
