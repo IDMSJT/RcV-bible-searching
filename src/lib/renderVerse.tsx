@@ -2,7 +2,7 @@ import { Fragment, useLayoutEffect, useRef, useState, type ReactNode } from 'rea
 import { Link } from '@tanstack/react-router'
 import { X } from 'lucide-react'
 import { parseRefs, type VerseRef } from '@/lib/parseRefs'
-import { useBible, eachVerseInRange } from '@/data/loadBible'
+import { useBible, useAnnotations, eachVerseInRange, notesForVerse } from '@/data/loadBible'
 import { formatVerseRef } from '@/lib/cite'
 import { cn } from '@/lib/utils'
 import type { Annotation, CrossRef, Mark } from '@/types/bible'
@@ -255,19 +255,41 @@ function VersePreview({
   divideBelow: boolean
 }): ReactNode {
   const { data: bible } = useBible()
+  // A ref can point at a footnote rather than the text (「見10註2」), in which
+  // case that note is what the reader wants to see. Only pull annotations.json
+  // when one of these refs actually needs it.
+  const wantsNotes = refs.some((r) => r.note != null || r.noteAll)
+  const { data: annotations } = useAnnotations(wantsNotes)
   if (!bible) return null
 
-  const rows: { bookNo: number; chapterNo: number; verse: number; text: string }[] = []
+  type Row = { bookNo: number; chapterNo: number; verse: number; note?: number; text: string }
+  const rows: Row[] = []
   for (const ref of refs) {
-    for (const { chapterNo, verse } of eachVerseInRange(
-      bible,
-      ref.bookNo,
-      ref.chapter,
-      ref.endChapter,
-      ref.verseStart,
-      ref.verseEnd,
-    )) {
-      rows.push({ bookNo: ref.bookNo, chapterNo, verse: verse.verse, text: verse.text })
+    const wantsNote = ref.note != null || ref.noteAll
+    // 「二1註3」 targets the note alone; 「二1與註3」 wants the verse as well.
+    if (!wantsNote || !ref.noteDirect) {
+      for (const { chapterNo, verse } of eachVerseInRange(
+        bible,
+        ref.bookNo,
+        ref.chapter,
+        ref.endChapter,
+        ref.verseStart,
+        ref.verseEnd,
+      )) {
+        rows.push({ bookNo: ref.bookNo, chapterNo, verse: verse.verse, text: verse.text })
+      }
+    }
+    if (wantsNote && annotations) {
+      const all = notesForVerse(annotations, ref.bookNo, ref.chapter, ref.verseStart)
+      for (const n of ref.noteAll ? all : all.filter((x) => x.n === ref.note)) {
+        rows.push({
+          bookNo: ref.bookNo,
+          chapterNo: ref.chapter,
+          verse: ref.verseStart,
+          note: n.n,
+          text: n.text,
+        })
+      }
     }
   }
   if (rows.length === 0) return null
@@ -291,14 +313,18 @@ function VersePreview({
           <Link
             to="/$bookNo/$chapterNo"
             params={{ bookNo: r.bookNo, chapterNo: r.chapterNo }}
-            search={{ hl: String(r.verse) }}
+            search={{ hl: r.note != null ? `${r.verse}:${r.note}` : String(r.verse) }}
             resetScroll={sameChapter ? false : undefined}
             onClick={(e) => e.stopPropagation()}
             className="self-start whitespace-nowrap pt-1 text-left text-xs font-sans text-primary transition-colors hover:text-primary/80"
           >
             {formatVerseRef(r.bookNo, r.chapterNo, r.verse, 'colon')}
+            {r.note != null && `註${r.note}`}
           </Link>
-          <p>{r.text}</p>
+          {/* A note body carries its own paragraph breaks. */}
+          <div className={r.note != null ? 'space-y-1' : undefined}>
+            {r.note != null ? r.text.split('\n').map((para, k) => <p key={k}>{para}</p>) : <p>{r.text}</p>}
+          </div>
         </Fragment>
       ))}
       {rows.length > shown.length && (
