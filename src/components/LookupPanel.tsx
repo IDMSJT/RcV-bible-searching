@@ -177,12 +177,14 @@ function renderBackdrop(
         </span>
       )
     }
-    return lit ? (
-      <span key={i} className="rounded-sm bg-highlight/30">
+    // Same look a cross-reference has in the reading view: recognised refs read
+    // as links, and the one in play picks up the tint. Colour and background
+    // only — the backdrop has to stay glyph-for-glyph with the textarea above
+    // it, so anything affecting metrics (weight, spacing) would break alignment.
+    return (
+      <span key={i} className={cn('rounded-sm text-primary', lit && 'bg-primary/15')}>
         {seg.text}
       </span>
-    ) : (
-      <Fragment key={i}>{seg.text}</Fragment>
     )
   })
 }
