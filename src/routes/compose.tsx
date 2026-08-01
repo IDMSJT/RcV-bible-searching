@@ -7,6 +7,7 @@ import {
   notesForVerse,
 } from '@/data/loadBible'
 import { BOOK_ABBREV } from '@/data/abbrev'
+import { displayMarker } from '@/lib/chinese'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { parseStudyLines, type StudyLine, type StudySegment, type VerseRef } from '@/lib/studyParse'
 import { renderMarkedText, renderNoteText, NoteList } from '@/lib/renderVerse'
@@ -456,7 +457,7 @@ function ComposePage() {
             <div key={i} className="pt-3 first:pt-0" style={{ paddingLeft: `${indent}rem` }}>
               {p.marker ? (
                 <div className="grid grid-cols-[2rem_1fr]">
-                  <p className="font-medium">{p.marker}</p>
+                  <p className="font-medium">{displayMarker(p.marker)}</p>
                   <p className="font-medium">{renderSegments}</p>
                 </div>
               ) : (

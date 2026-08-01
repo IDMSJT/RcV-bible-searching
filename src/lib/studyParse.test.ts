@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseStudyLines } from './studyParse'
+import { displayMarker } from './chinese'
 import type { VerseRef } from './parseToken'
 
 function sig(r: VerseRef): string {
@@ -224,5 +225,28 @@ describe('parseStudyLines — fully-spelled 讀經 reading list', () => {
     )
     const pts = lines.filter((l): l is Extract<typeof l, { kind: 'point' }> => l.kind === 'point')
     expect(refSigs(pts[1].refs)).toEqual(['43:1:1', '43:1:14', '43:12:24'])
+  })
+})
+
+describe('parseStudyLines — bracket width', () => {
+  const points = (s: string) =>
+    parseStudyLines(s).filter((l): l is Extract<typeof l, { kind: 'point' }> => l.kind === 'point')
+
+  it('reads a marker written either width, at the same level', () => {
+    expect(points('（一）\u3000標題').map((p) => [p.marker, p.level])).toEqual([['（一）', 5]])
+    expect(points('(一)\u3000標題').map((p) => [p.marker, p.level])).toEqual([['(一)', 5]])
+  })
+
+  it('leaves the body alone — only displayMarker folds, and only the marker', () => {
+    // Folding up front rewrote the text every segment is sliced from, so an
+    // aside in the prose came out half-width along with the marker.
+    expect(points('（一）\u3000污靈（鬼）').map((p) => p.segments.map((s) => s.text).join(''))).toEqual([
+      '污靈（鬼）',
+    ])
+    expect(displayMarker('（一）')).toBe('(一)')
+  })
+
+  it('still expands a precomposed enclosed numeral', () => {
+    expect(points('㈡\u3000標題').map((p) => [p.marker, p.level])).toEqual([['（二）', 5]])
   })
 })

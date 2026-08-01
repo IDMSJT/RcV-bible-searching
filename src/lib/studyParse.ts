@@ -24,10 +24,14 @@ const BOOK_NAME_RE = new RegExp(
 const MARKER_HEAD_CHARS = '壹貳參叁肆伍陸柒捌玖拾'
 // The two deepest levels are parenthesised — 「（一）」 then 「（1）」. Their closing
 // paren already separates marker from title, so no trailing separator is
-// required; normalizeOutlineText has folded （） to () by the time this runs.
+// required. Both bracket widths are accepted here rather than folded up front,
+// so that only the marker is shown half-width (displayMarker) and the body
+// keeps whatever the source wrote.
+const OPEN = '[(（]'
+const CLOSE = '[)）]'
 const MARKER_RE = new RegExp(
   '^(?:' +
-    `(\\((?:${CN_NUMERAL_CLASS}|\\d+|[A-Za-z])\\))[　 、.．]*` +
+    `(${OPEN}(?:${CN_NUMERAL_CLASS}|\\d+|[A-Za-z])${CLOSE})[　 、.．]*` +
     '|' +
     `([${MARKER_HEAD_CHARS}]+|${CN_NUMERAL_CLASS}|\\d+|[A-Za-z])[　 、.．]+` +
     ')(.*)$',
@@ -42,16 +46,19 @@ const WEEK_RE = /^(?:【\s*週|週[　\s]+[一二三四五六七日])/
 // there is one marker shape to match (and to render) regardless of source.
 const CN_DIGITS = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
 
-// Normalise outline copy-paste: collapse the 啓/啟 character variants, expand
-// the enclosed numerals, and fold fullwidth parens, so marker and book-name
-// matching don't depend on the form the source happened to ship.
+// Normalise outline copy-paste: collapse the 啓/啟 character variants and expand
+// the precomposed enclosed numerals, so marker and book-name matching don't
+// depend on the form the source happened to ship.
+//
+// Bracket width is deliberately left alone. This rewrites the text everything
+// downstream is sliced from, so folding （） here reached the body as well as
+// the markers — 「污靈（鬼）」 came out half-width. The matchers take both widths
+// instead, and displayMarker() folds the marker alone, at display time.
 function normalizeOutlineText(input: string): string {
   return input
     .replace(/啓/g, '啟')
-    .replace(/[㈠-㈩]/g, (c) => `(${CN_DIGITS[c.codePointAt(0)! - 0x3220]})`)
-    .replace(/[⑴-⒇]/g, (c) => `(${c.codePointAt(0)! - 0x2473})`)
-    .replace(/（/g, '(')
-    .replace(/）/g, ')')
+    .replace(/[㈠-㈩]/g, (c) => `（${CN_DIGITS[c.codePointAt(0)! - 0x3220]}）`)
+    .replace(/[⑴-⒇]/g, (c) => `（${c.codePointAt(0)! - 0x2473}）`)
 }
 
 // The published outlines run six deep: 壹 / 一 / 1 / a / （一） / （1）.
@@ -60,8 +67,8 @@ function levelFromMarker(mk: string): number {
   if (/^[一二三四五六七八九十百]+$/.test(mk)) return 2
   if (/^\d+$/.test(mk)) return 3
   if (/^[A-Za-z]$/.test(mk)) return 4
-  if (/^\([一二三四五六七八九十百]+\)$/.test(mk)) return 5
-  if (/^\((?:\d+|[A-Za-z])\)$/.test(mk)) return 6
+  if (new RegExp(`^${OPEN}[一二三四五六七八九十百]+${CLOSE}$`).test(mk)) return 5
+  if (new RegExp(`^${OPEN}(?:\\d+|[A-Za-z])${CLOSE}$`).test(mk)) return 6
   return 6
 }
 
