@@ -22,20 +22,41 @@ const BOOK_NAME_RE = new RegExp(
 // Marker is followed by whitespace, ideographic space, OR a punctuation
 // separator (、.．) so "壹、" / "1." also parse.
 const MARKER_HEAD_CHARS = '壹貳參叁肆伍陸柒捌玖拾'
-// The two deepest levels are parenthesised — 「（一）」 then 「（1）」. Their closing
-// paren already separates marker from title, so no trailing separator is
-// required. Both bracket widths are accepted here rather than folded up front,
-// so that only the marker is shown half-width (displayMarker) and the body
-// keeps whatever the source wrote.
+// The deeper levels are bracketed — 「（一）」, 「（1）」, 「（a）」, then 「《一》」 at the
+// bottom. Their closing bracket already separates marker from title, so no
+// trailing separator is required. Every bracket width is accepted here rather
+// than folded up front, so that only the marker is shown half-width
+// (displayMarker) and the body keeps whatever the source wrote.
 const OPEN = '[(（]'
 const CLOSE = '[)）]'
+// Genesis' life-study goes one level deeper than the outlines do, and reaches
+// for 《》 to say so — 137 headings across 37 of its 120 messages, none in
+// Matthew's 72.
+const CHEVRON_OPEN = '《'
+const CHEVRON_CLOSE = '》'
+// Latin markers turn up fullwidth as often as not (「ａ　背景」 beside 「a　背景」),
+// so both forms are matched rather than normalised, for the same reason the
+// brackets are.
+const LATIN = '[A-Zａ-ｚＡ-Ｚa-z]'
 const MARKER_RE = new RegExp(
   '^(?:' +
-    `(${OPEN}(?:${CN_NUMERAL_CLASS}|\\d+|[A-Za-z])${CLOSE})[　 、.．]*` +
+    `(${CHEVRON_OPEN}${CN_NUMERAL_CLASS}${CHEVRON_CLOSE})[　 、.．]*` +
     '|' +
-    `([${MARKER_HEAD_CHARS}]+|${CN_NUMERAL_CLASS}|\\d+|[A-Za-z])[　 、.．]+` +
+    `(${OPEN}(?:${CN_NUMERAL_CLASS}|\\d+|${LATIN})${CLOSE})[　 、.．]*` +
+    '|' +
+    `([${MARKER_HEAD_CHARS}]+|${CN_NUMERAL_CLASS}|\\d+|${LATIN})[　 、.．]+` +
     ')(.*)$',
 )
+// Some sources run a numbered heading straight into its title with no
+// separator at all — 「2放棄外面祭司的地位」 beside 「四 引薦的方式」 in the same
+// message. MARKER_RE can't just drop its separator requirement: prose that
+// opens with a number would become a heading. What tells them apart is that a
+// heading is a whole short line with nothing sentence-like in it. Across
+// Genesis' and Matthew's 192 life-study messages every line of this shape is a
+// heading — not one is prose.
+const BARE_NUM_HEADING_RE = /^(\d+)([一-鿿][^。，；：？！『』]*)$/
+const HEADING_MAX = 30
+
 // 【週一】 (bracketed) is the legacy form; 「週　一」 (the char then a full /
 // half-width space then the day character) is the newer copy-paste format.
 // Both should render as the same centered small heading.
@@ -61,15 +82,20 @@ function normalizeOutlineText(input: string): string {
     .replace(/[⑴-⒇]/g, (c) => `（${c.codePointAt(0)! - 0x2473}）`)
 }
 
-// The published outlines run six deep: 壹 / 一 / 1 / a / （一） / （1）.
+// Eight deep: 壹 / 一 / 1 / a / （一） / （1） / （a） / 《一》. The published
+// outlines stop at six; a life-study nests two further, and 「（1）」 and 「（a）」
+// are distinct levels there — a message reads （2）憑藉 with （a）基路伯 beneath
+// it, so sharing a level left the two indented alike and reading as siblings.
 function levelFromMarker(mk: string): number {
   if (new RegExp(`^[${MARKER_HEAD_CHARS}]+$`).test(mk)) return 1
   if (/^[一二三四五六七八九十百]+$/.test(mk)) return 2
   if (/^\d+$/.test(mk)) return 3
-  if (/^[A-Za-z]$/.test(mk)) return 4
+  if (new RegExp(`^${LATIN}$`).test(mk)) return 4
   if (new RegExp(`^${OPEN}[一二三四五六七八九十百]+${CLOSE}$`).test(mk)) return 5
-  if (new RegExp(`^${OPEN}(?:\\d+|[A-Za-z])${CLOSE}$`).test(mk)) return 6
-  return 6
+  if (new RegExp(`^${OPEN}\\d+${CLOSE}$`).test(mk)) return 6
+  if (new RegExp(`^${OPEN}${LATIN}${CLOSE}$`).test(mk)) return 7
+  if (new RegExp(`^${CHEVRON_OPEN}[一二三四五六七八九十百]+${CHEVRON_CLOSE}$`).test(mk)) return 8
+  return 8
 }
 
 export interface StudySegment {
@@ -166,12 +192,13 @@ export function parseStudyLines(input: string): StudyLine[] {
     }
 
     if (WEEK_RE.test(line)) return { kind: 'week' }
-    const m = line.match(MARKER_RE)
-    const marker = m ? (m[1] ?? m[2]) : ''
+    const bare = line.length <= HEADING_MAX ? line.match(BARE_NUM_HEADING_RE) : null
+    const m = bare ?? line.match(MARKER_RE)
+    const marker = bare ? bare[1] : m ? (m[1] ?? m[2] ?? m[3]) : ''
     // Split the marker off before scanning: an arabic marker ("1　在已過的…")
     // would otherwise parse as a verse in the inherited book. `lead` keeps the
     // marker with its original separator so the line can be rebuilt verbatim.
-    const body = m ? m[3] : line
+    const body = bare ? bare[2] : m ? m[4] : line
     const lead = m ? line.slice(0, line.length - body.length) : ''
     const segments = segmentLine(body, ctx)
     return {

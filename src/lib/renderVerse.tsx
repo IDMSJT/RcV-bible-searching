@@ -564,8 +564,12 @@ function RefBody({
           pos = end
           if (end <= splitAt) head.push(renderSeg(seg, si))
           else if (start >= splitAt) tail.push(renderSeg(seg, si))
-          else if (seg.refs && seg.refs.length > 0) {
-            // Never cut a citation in half — keep it whole on the upper line.
+          else if (seg.refs && seg.refs.length > 0 && active?.key === `${pi}:${si}`) {
+            // The citation being read stays whole: it is the element the break
+            // is measured from, and cutting it would move the anchor the next
+            // measurement reads. Every other citation wraps like the prose
+            // around it, so the rule lands where the line really ended instead
+            // of being pushed past a citation that happened to straddle it.
             head.push(renderSeg(seg, si))
           } else {
             head.push(renderSeg(seg, si, seg.text.slice(0, splitAt - start)))
