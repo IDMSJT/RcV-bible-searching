@@ -72,10 +72,45 @@ const CONT_FULL_RE = new RegExp(`^[0-9${CN_NUMERAL_CHARS}][${REF_CHARS}]*${NOTE_
 // of Weeks) collides — 一節/二節 are legitimate「verse N」 refs.
 const PROSE_NOT_REF = new Set(['七七節'])
 
+const SPELLED_CHAPTER_RE = new RegExp(`^[${CN_NUMERAL_CHARS}]+章`)
+
+// A list of verses writes the 節 unit once, on the last item — 「十八、十九節」,
+// 「四、五、九節」. Each item is scanned as its own token, so without this the
+// earlier ones arrive at parseToken as bare CN numerals and its guard against
+// prose counts (「三章七封書信」) discards them. Matched against what follows a
+// token: a run of separated numerals that lands on 節 means this token is
+// heading for one too.
+const LIST_VERSE_TAIL_RE = new RegExp(
+  `^(?:[、,，和及][0-9${CN_NUMERAL_CHARS}]+)+節`,
+)
+
+// 「每一節」「這一節」「上一節」 — the numeral counts sentences, not verses, so a
+// bare 「一節」 after one of these is prose. 第 is absent on purpose: 「第一節」 is
+// a real citation, and it is read before the scanner ever gets here.
+const PROSE_QUANTIFIER = new Set(['每', '這', '那', '上', '下', '前', '後', '各', '同', '另', '該'])
+const BARE_CN_VERSE_RE = new RegExp(`^[${CN_NUMERAL_CHARS}]+節[上下中]?$`)
+
+// Prose spells a reference out with 第, and often 的 between the two halves:
+// 「第一章的第一節」. The 第 keeps these out of REF_CHARS, which is why only the
+// 「一節」 inside used to match — and it matched as a continuation, taking the
+// chapter from whatever was cited last. Read whole, they carry their own.
+const CN = CN_NUMERAL_CHARS
+const ORDINAL_CV_RE = new RegExp(`^第([${CN}]+)章的?第([${CN}]+)節`)
+const ORDINAL_V_RE = new RegExp(`^第([${CN}]+)節`)
+const ORDINAL_C_RE = new RegExp(`^第[${CN}]+章`)
+
 // Normalise outline-style copy-paste so anchor matching doesn't depend on the
 // variant the source happened to ship (啓 vs 啟, full-width parens, …).
 function normalize(t: string): string {
-  return t.replace(/啓/g, '啟').replace(/（/g, '(').replace(/）/g, ')')
+  return t
+    .replace(/啓/g, '啟')
+    .replace(/（/g, '(')
+    .replace(/）/g, ')')
+    // Fullwidth digits turn up mid-reference — 「約一１～3」 — and would otherwise
+    // fail the whole run, since only ASCII digits are ref characters. Every swap
+    // here is one glyph for one, which is what keeps the emitted segments lined
+    // up with the caller's own text.
+    .replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xfee0))
 }
 
 // A ref run can end up with the line's punctuation glued on: REF_CHARS has to
@@ -84,6 +119,31 @@ function normalize(t: string): string {
 // handing the token over.
 function trimRefTail(t: string): string {
   return t.replace(/[:：]+$/, '')
+}
+
+/** Where a note's citation context ends. A comma-separated run is one citation
+ * — 「詩一百三十五11、一百三十六20」 stays in Psalms — so only a sentence ending
+ * or a bracket edge breaks the chain. The colon is deliberately not here: it
+ * introduces a list rather than closing one, and adding it changed nothing. */
+const SENTENCE_END = '。！？；'
+
+export interface ParseOptions {
+  /** What kind of text this is, which decides what bounds a citation's context.
+   *
+   * `'note'` (the default) — a footnote. Brackets and sentence endings both
+   * reset: each bracketed group is its own citation, and the prose that resumes
+   * after one refers back to the verse being annotated. In a note on Genesis
+   * 12:3 a bracket cites Galatians, and the 「二二18」 after it means Genesis
+   * 22:18, not Galatians 22:18 — a chapter Galatians doesn't have. Over the
+   * whole corpus these two rules take the citations landing on verses that
+   * don't exist from 47 to 10.
+   *
+   * `'prose'` — running text, where neither bounds anything. A bracket is an
+   * aside (「污靈(鬼)」) and the passage under discussion carries on past it;
+   * so does a full stop, which is how a life-study message can name Matthew 12
+   * in one sentence and write 「四十四節」 two sentences later. Resetting there
+   * only lost references and gained nothing. */
+  kind?: 'note' | 'prose'
 }
 
 /**
@@ -103,7 +163,11 @@ function trimRefTail(t: string): string {
  * brackets, and stray words mid-text all just flow into prose segments without
  * tripping up the surrounding refs.
  */
-export function parseRefs(input: string, initial?: ParseCtx): ParseResult {
+export function parseRefs(
+  input: string,
+  initial?: ParseCtx,
+  options?: ParseOptions,
+): ParseResult {
   // `text` is the normalised form used for matching (啓→啟, （→(); offsets
   // line up 1:1 with `input` because every normalisation is a same-length
   // glyph swap. Emitted segments use `input` slices so the caller sees the
@@ -121,6 +185,8 @@ export function parseRefs(input: string, initial?: ParseCtx): ParseResult {
     chapter: initial?.chapter ?? null,
   }
 
+  const bounded = (options?.kind ?? 'note') === 'note'
+
   let i = 0
   let lastProseStart = 0
 
@@ -136,13 +202,13 @@ export function parseRefs(input: string, initial?: ParseCtx): ParseResult {
   }
 
   while (i < text.length) {
-    // Paren boundaries reset the parse context. Each bracketed group reads
-    // as its own scope: 「…（路三23～38。）…（1，16～17。）」 — the second
-    // bracket means 太1:1, 太1:16~17 (the verse we're annotating), not Luke
-    // continuing from the first bracket. The paren itself doesn't match an
-    // anchor or continuation, so we just reset and fall through to i++.
+    // A sentence ending, and both edges of a bracket, reset the context — see
+    // `kind`, which turns this off for prose. Restoring the outer context on the
+    // way out of a bracket was tried and is wrong here: a note's brackets hold
+    // citations, and the prose between them belongs to the verse being
+    // annotated, not to whatever the last bracket named.
     const ch = text[i]
-    if (ch === '(' || ch === ')') resetCtx()
+    if (bounded && (ch === '(' || ch === ')' || SENTENCE_END.includes(ch))) resetCtx()
 
     // 「本書」 = the book this note belongs to — the *initial* context book, not
     // whatever book was last cited (「…來十三16，與本書十二13…」 means Romans, the
@@ -174,11 +240,54 @@ export function parseRefs(input: string, initial?: ParseCtx): ParseResult {
     // alias-Exo + CN-one to the matcher but the 「一」 is the prose word
     // for 'one', not a chapter / verse number. Require at least one
     // arabic digit or 章/篇/節/: so we keep that match as prose.
+    // 「第一章的第一節」 and 「第一節」 — spelled out with 第, resolved against the
+    // book in hand. A chapter on its own is left alone: it names no verse, and
+    // stepping over it stops the numeral inside being read as one.
+    const ordCV = ORDINAL_CV_RE.exec(text.slice(i))
+    const ordV = ordCV ? null : ORDINAL_V_RE.exec(text.slice(i))
+    if (ctx.book != null && (ordCV || ordV)) {
+      const m = (ordCV ?? ordV)!
+      const token = ordCV ? `${ordCV[1]}章${ordCV[2]}節` : `${ordV![1]}節`
+      const snapshot: ParseCtx = { book: ctx.book, chapter: ctx.chapter }
+      const out = parseToken(token, ctx)
+      if (out.ok && out.refs.length > 0) {
+        flushProse(i)
+        segments.push({ text: input.slice(i, i + m[0].length), refs: out.refs })
+        refs.push(...out.refs)
+        i += m[0].length
+        lastProseStart = i
+        continue
+      }
+      ctx.book = snapshot.book
+      ctx.chapter = snapshot.chapter
+    }
+    const ordC = ORDINAL_C_RE.exec(text.slice(i))
+    if (ordC) {
+      i += ordC[0].length
+      continue
+    }
+
+    // A one-character alias in front of a spelled-out chapter is prose, not a
+    // citation: 「但一章一節」 is 「但」 the conjunction followed by a chapter and
+    // verse that carry on from the book named earlier, yet 但 is also the
+    // abbreviation for Daniel. Across the notes and cross-references the short
+    // abbreviations are always written compactly — 但三5, 445 times, against a
+    // single spelled-out instance for any two-character alias and none at all
+    // for a one-character one — so the spelled-out form belongs to full book
+    // names and bare continuations. Falling through leaves 「一章一節」 to be read
+    // as the continuation it is.
+    if (BOOK_ALIASES.has(text[i]) && SPELLED_CHAPTER_RE.test(text.slice(i + 1))) {
+      i += 1
+      continue
+    }
+
     const aMatch = ANCHOR_FULL_RE.exec(text.slice(i))
     if (aMatch && aMatch.index === 0 && /[0-9章篇節:：]|標題/.test(aMatch[0])) {
       const snapshot: ParseCtx = { book: ctx.book, chapter: ctx.chapter }
       const aTok = trimRefTail(aMatch[0])
-      const out = parseToken(aTok, ctx)
+      const out = parseToken(aTok, ctx, {
+        verseUnit: LIST_VERSE_TAIL_RE.test(text.slice(i + aTok.length)),
+      })
       if (out.ok && out.refs.length > 0) {
         flushProse(i)
         segments.push({ text: input.slice(i, i + aTok.length), refs: out.refs })
@@ -239,10 +348,23 @@ export function parseRefs(input: string, initial?: ParseCtx): ParseResult {
       // after 「羅馬書」 names Rom 1:17, whereas a bare 「17」 would be a verse
       // in a chapter we don't know yet.
       const cTok = cMatch && cMatch.index === 0 ? trimRefTail(cMatch[0]) : ''
+      if (cTok && PROSE_QUANTIFIER.has(prev) && BARE_CN_VERSE_RE.test(cTok)) {
+        i += cTok.length
+        continue
+      }
       const selfChapter = /^[^0-9]+[0-9]|[章篇:：]|標題/.test(cTok)
-      if (cTok && (ctx.chapter != null || selfChapter) && /[0-9章篇節]|標題/.test(cTok)) {
+      // A bare CN numeral has to earn its place: a digit, or a unit that says
+      // what it counts. Otherwise 「五位婦女」 reads as verse 5. The unit can be
+      // the list's, written once at the end — that is what lets the 八 of
+      // 「八、九節」 through while 「五位」 stays prose.
+      const listVerse = LIST_VERSE_TAIL_RE.test(text.slice(i + cTok.length))
+      if (
+        cTok &&
+        (ctx.chapter != null || selfChapter) &&
+        (listVerse || /[0-9章篇節]|標題/.test(cTok))
+      ) {
         const snapshot: ParseCtx = { book: ctx.book, chapter: ctx.chapter }
-        const out = parseToken(cTok, ctx)
+        const out = parseToken(cTok, ctx, { verseUnit: listVerse })
         if (out.ok && out.refs.length > 0) {
           flushProse(i)
           segments.push({

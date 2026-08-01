@@ -81,7 +81,22 @@ export interface ParseTokenResult {
  * reference; the caller chooses whether to surface that to the user (lookup
  * highlight) or silently drop it (study prose between refs).
  */
-export function parseToken(token: string, ctx: ParseCtx): ParseTokenResult {
+export interface TokenOptions {
+  /** The 節 unit was written for the citation this token belongs to, even though
+   * it isn't inside the token itself.
+   *
+   * A list writes the unit once, at the end — 「馬太二十八章十八、十九節」 — and the
+   * scanner hands each item over separately, so 「十八」 arrives with nothing to
+   * say it is a verse and the CN-numeral guard below throws it away. The caller
+   * can see the 節 that item is heading towards; this is how it says so. */
+  verseUnit?: boolean
+}
+
+export function parseToken(
+  token: string,
+  ctx: ParseCtx,
+  options?: TokenOptions,
+): ParseTokenResult {
   let rest = token.trim().replace(/^參/, '').trim()
   if (!rest) return { ok: false, refs: [], reason: '空 token' }
 
@@ -166,7 +181,7 @@ export function parseToken(token: string, ctx: ParseCtx): ParseTokenResult {
     if (!vspec) continue
     // Was the verse explicitly marked with 節? Captured before we strip it,
     // because it gates whether a *CN-numeral* verse is allowed (see below).
-    const hadJie = vspec.includes('節')
+    const hadJie = vspec.includes('節') || options?.verseUnit === true
     // Strip the 節 verse-unit wherever it sits — it shows up mid-token before a
     // 上/下 segment marker (「十八節下」), not only trailing (「十八節」). Also peel
     // any sentence punctuation that rode in on the final ref (「…十六節。」).

@@ -194,6 +194,33 @@ describe('parseRefs — paren-scope context reset', () => {
   })
 })
 
+describe('parseRefs — a sentence ending closes a note\'s citation', () => {
+  it('a comma-separated run stays in the book it named', () => {
+    // The book is written once and the rest of the list continues from it —
+    // this is the case a distance-based cutoff got wrong.
+    expect(sigs('詩一百三十五11、一百三十六20、六八15')).toEqual([
+      '19:135:11',
+      '19:136:20',
+      '19:68:15',
+    ])
+  })
+
+  it('the next sentence starts from the annotated verse again', () => {
+    // Leviticus 1 is cited, the sentence ends, and the bare verse numbers that
+    // follow belong to the chapter the note is on.
+    const refs = parseRefs('見利一8。又8節、13節。', { book: 3, chapter: 3 }).refs.map(sig)
+    expect(refs).toEqual(['3:1:8', '3:3:8', '3:3:13'])
+  })
+
+  it('prose carries the passage across a full stop', () => {
+    // A life-study message names the chapter once and goes on discussing it,
+    // so nothing there bounds the context.
+    const refs = parseRefs('太十二43。四十四節', { book: 40, chapter: null }, { kind: 'prose' })
+      .refs.map(sig)
+    expect(refs).toEqual(['40:12:43', '40:12:44'])
+  })
+})
+
 describe('parseRefs — normalisation', () => {
   it('啓 normalises to 啟', () => {
     expect(sigs('啓二一23')).toEqual(['66:21:23'])
@@ -308,3 +335,46 @@ describe('parseRefs — naming a book starts its own chapter context', () => {
     expect(sigs('創作家一定')).toEqual([])
   })
 })
+
+describe('parseRefs — a verse list writes 節 once, at the end', () => {
+  it('reads the earlier items as verses too', () => {
+    // 「十八」 arrives at parseToken as a bare CN numeral, which it discards as a
+    // prose count unless something says it is a verse. The 節 the list is
+    // heading towards is what says so.
+    expect(sigs('在馬太二十八章十八、十九節')).toEqual(['40:28:18', '40:28:19'])
+    expect(sigs('馬太十一章二十八、二十九節')).toEqual(['40:11:28', '40:11:29'])
+    expect(sigs('約翰一章四、五、九節')).toEqual(['43:1:4', '43:1:5', '43:1:9'])
+  })
+
+  it('works for a continuation that inherits its chapter', () => {
+    const refs = parseRefs('在八、九節約翰說', { book: 40, chapter: 3 }).refs.map(sig)
+    expect(refs).toEqual(['40:3:8', '40:3:9'])
+  })
+
+  it('still refuses a CN numeral that no 節 is coming for', () => {
+    // 「七封」 counts epistles. Nothing downstream turns it into verse 7.
+    expect(sigs('啟示錄三章七封書信')).toEqual([])
+  })
+})
+
+describe('parseRefs — 「每一節」 counts verses, it does not cite one', () => {
+  const cases = ['每一節', '這一節', '上一節', '下一節', '前一節', '同二節', '各三節']
+  for (const c of cases) {
+    it(`leaves 「${c}」 as prose`, () => {
+      expect(parseRefs(c, { book: 40, chapter: 1 }).refs).toEqual([])
+    })
+  }
+
+  it('still reads the ordinal form as a citation', () => {
+    const refs = parseRefs('第一節說', { book: 40, chapter: 1 }).refs.map(sig)
+    expect(refs).toEqual(['40:1:1'])
+  })
+
+  it('leaves a citation that merely follows one of those words alone', () => {
+    // The guard keys on the word directly before the numeral, so a real
+    // reference later in the sentence is untouched.
+    const refs = parseRefs('下一節說到二十節', { book: 40, chapter: 5 }).refs.map(sig)
+    expect(refs).toEqual(['40:5:20'])
+  })
+})
+
