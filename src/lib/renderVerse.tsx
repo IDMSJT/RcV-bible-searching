@@ -626,11 +626,15 @@ function CloseButton({ onClose, label }: { onClose: () => void; label: string })
 
 export function CrossRefList({
   refs,
+  verse,
   bookNo,
   chapterNo,
   onClose,
 }: {
   refs: CrossRef[]
+  /** The verse these hang off, used only to key the card in the DOM so the
+   * reader can be taken to one that opened out of sight. */
+  verse?: number
   bookNo: number
   chapterNo: number
   /** Collapse this cross-ref again — renders the card's ✕ when given. */
@@ -642,6 +646,7 @@ export function CrossRefList({
       {refs.map((r) => (
         <li
           key={r.m}
+          data-crossref={verse != null ? `${verse}:${r.m}` : undefined}
           className="space-y-2 rounded-md bg-muted/40 px-3 py-2 text-muted-foreground"
         >
           <RefBody

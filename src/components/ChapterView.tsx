@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type RefObject,
 } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from '@tanstack/react-router'
@@ -164,6 +165,49 @@ function summarizeSelection(verseSet: Set<number>, noteSet: Set<string>): string
   }
   entries.sort((a, b) => a.v - b.v || a.note - b.note)
   return entries.map((e) => e.text).join('，')
+}
+
+/**
+ * Bring a card into view when exactly one of `open` has just appeared.
+ *
+ * Only when it isn't already there: a card that opened in plain sight must not
+ * make the page jump. One taller than the panel is aligned to the top rather
+ * than the bottom, so it starts where it will be read from. Which card opened
+ * is read from the change in `open` rather than reported by the tap — a ref
+ * written in a callback is a ref written during render, as far as the rules go,
+ * and this needs no extra signal anyway.
+ */
+function useRevealOnOpen(
+  panelRef: RefObject<HTMLDivElement | null>,
+  open: Set<string>,
+  attr: string,
+): void {
+  const shown = useRef(open)
+  useLayoutEffect(() => {
+    const before = shown.current
+    shown.current = open
+    // Expanding the whole chapter, or arriving on a link that opens several,
+    // moves more than one — there is nowhere single to go.
+    const opened = [...open].filter((k) => !before.has(k))
+    if (opened.length !== 1) return
+    const panel = panelRef.current
+    const el = panel?.querySelector<HTMLElement>(`[${attr}="${opened[0]}"]`)
+    if (!panel || !el) return
+    const pane = panel.getBoundingClientRect()
+    // The bottom bar sits over the panel's foot on a phone. The padding the
+    // panel already reserves for it is exactly how much is covered — and zero
+    // where the bar isn't there, so this needs no breakpoint of its own.
+    const covered = parseFloat(getComputedStyle(panel).paddingBottom) || 0
+    const floor = pane.bottom - covered
+    const card = el.getBoundingClientRect()
+    if (card.top >= pane.top && card.bottom <= floor) return
+    const gap = 12
+    const by =
+      card.bottom > floor
+        ? Math.min(card.bottom - floor + gap, card.top - pane.top - gap)
+        : card.top - pane.top - gap
+    panel.scrollTo({ top: panel.scrollTop + by, behavior: 'smooth' })
+  }, [open, panelRef, attr])
 }
 
 export function ChapterView({
@@ -361,8 +405,8 @@ export function ChapterView({
 
   const toggleNote = useCallback(
     (verse: number, n: number) => {
+      const key = `${verse}:${n}`
       setExpandedNotes((prev) => {
-        const key = `${verse}:${n}`
         const next = new Set(prev)
         if (next.has(key)) next.delete(key)
         else next.add(key)
@@ -372,6 +416,7 @@ export function ChapterView({
     },
     [notesKey, writeStorage],
   )
+
 
   // --- 多選經節(手機)-------------------------------------------------------
   // Tap a verse to add/remove it from `selected`; the floating bar (non-modal,
@@ -463,6 +508,12 @@ export function ChapterView({
   void toggleAll
   const book = BOOK_BY_NO.get(bookNo)
   const panelRef = useRef<HTMLDivElement | null>(null)
+
+  // A card opens below its verse, so tapping a superscript near the fold leaves
+  // it off the bottom of the screen — the reader taps and nothing appears to
+  // happen. Both kinds behave alike, so both go through this.
+  useRevealOnOpen(panelRef, expandedNotes, 'data-note')
+  useRevealOnOpen(panelRef, expandedRefs, 'data-crossref')
 
   // Track a live native text selection inside this panel (selectionchange is a
   // document-level event, so scope it to nodes within panelRef).
@@ -1003,6 +1054,7 @@ export function ChapterView({
                   {r.refs && (
                     <CrossRefList
                       refs={r.refs.filter((x) => expandedRefs.has(`${r.verse}:${x.m}`))}
+                      verse={r.verse}
                       bookNo={bookNo}
                       chapterNo={chapterNo}
                       onClose={(m) => toggleRef(r.verse, m)}
