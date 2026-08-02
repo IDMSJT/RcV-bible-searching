@@ -155,11 +155,17 @@ export function useCarousel({
     dx,
     animating,
     targetDir,
+    // Capture, not bubble: a note card, a verse preview and every citation
+    // inside them stop pointerdown from propagating, each for its own good
+    // reason — to keep the surrounding verse's long-press or the card's own
+    // select from firing. Paging the chapter is the container's gesture, not
+    // theirs to cancel, and it was going unheard anywhere inside a card.
+    // Capturing doesn't consume the event, so those handlers still run.
     trackProps: {
-      onPointerDown,
-      onPointerMove,
-      onPointerUp: () => finish(true),
-      onPointerCancel: () => finish(false),
+      onPointerDownCapture: onPointerDown,
+      onPointerMoveCapture: onPointerMove,
+      onPointerUpCapture: () => finish(true),
+      onPointerCancelCapture: () => finish(false),
     },
   }
 }

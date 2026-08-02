@@ -37,6 +37,7 @@ import {
 import { renderMarkedText, sliceMarks, NoteList, CrossRefList } from '@/lib/renderVerse'
 import { OutlineLabel } from '@/components/OutlineLabel'
 import type { HlItem } from '@/lib/highlight'
+import { revealInScroll } from '@/lib/revealInScroll'
 import { useIsTouch } from '@/lib/useIsTouch'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
@@ -178,23 +179,8 @@ function useRevealOnOpen(
     // moves more than one — there is nowhere single to go.
     const opened = [...open].filter((k) => !before.has(k))
     if (opened.length !== 1) return
-    const panel = panelRef.current
-    const el = panel?.querySelector<HTMLElement>(`[${attr}="${opened[0]}"]`)
-    if (!panel || !el) return
-    const pane = panel.getBoundingClientRect()
-    // The bottom bar sits over the panel's foot on a phone. The padding the
-    // panel already reserves for it is exactly how much is covered — and zero
-    // where the bar isn't there, so this needs no breakpoint of its own.
-    const covered = parseFloat(getComputedStyle(panel).paddingBottom) || 0
-    const floor = pane.bottom - covered
-    const card = el.getBoundingClientRect()
-    if (card.top >= pane.top && card.bottom <= floor) return
-    const gap = 12
-    const by =
-      card.bottom > floor
-        ? Math.min(card.bottom - floor + gap, card.top - pane.top - gap)
-        : card.top - pane.top - gap
-    panel.scrollTo({ top: panel.scrollTop + by, behavior: 'smooth' })
+    const el = panelRef.current?.querySelector<HTMLElement>(`[${attr}="${opened[0]}"]`)
+    if (el) revealInScroll(el)
   }, [open, panelRef, attr])
 }
 

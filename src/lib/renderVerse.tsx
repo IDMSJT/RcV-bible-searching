@@ -4,6 +4,7 @@ import { X } from 'lucide-react'
 import { parseRefs, type VerseRef } from '@/lib/parseRefs'
 import { useBible, useAnnotations, eachVerseInRange, notesForVerse } from '@/data/loadBible'
 import { formatVerseRef } from '@/lib/cite'
+import { revealInScroll } from '@/lib/revealInScroll'
 import { cn } from '@/lib/utils'
 import type { Annotation, CrossRef, Mark } from '@/types/bible'
 
@@ -247,6 +248,7 @@ function VersePreview({
   refs,
   ctx,
   divideBelow,
+  innerRef,
 }: {
   refs: VerseRef[]
   /** chapter is null where the surrounding text has none of its own — every
@@ -255,6 +257,7 @@ function VersePreview({
   /** Whether any card content follows — the closing rule is only drawn when
    * there is something below to separate from. */
   divideBelow: boolean
+  innerRef?: (el: HTMLElement | null) => void
 }): ReactNode {
   const { data: bible } = useBible()
   // A ref can point at a footnote rather than the text (「見10註2」), in which
@@ -306,6 +309,7 @@ function VersePreview({
     // Same two-column shape as the search results: a narrow citation column
     // whose labels line up, verse text flowing in the rest.
     <div
+      ref={innerRef}
       // A long span (「賽十四12～15與註」 pulls in four verses plus every note on
       // them) scrolls in place rather than being cut short — the reader can
       // still reach all of it without the card swallowing the page.
@@ -316,7 +320,7 @@ function VersePreview({
         // clear-both: the dismiss button floats inside the paragraph above, and a
         // float doesn't grow its parent, so without this it can hang over the
         // preview whenever the break lands after only a line or two.
-        'mt-2 grid clear-both max-h-96 grid-cols-[auto_1fr] gap-x-2 gap-y-1 overflow-y-auto overscroll-contain border-t border-border/60 pt-2 font-serif text-foreground',
+        'mt-2 grid clear-both max-h-96 grid-cols-[auto_1fr] gap-x-2 gap-y-1 overflow-y-auto border-t border-border/60 pt-2 font-serif text-foreground',
         divideBelow && 'mb-2 border-b pb-2',
       )}
     >
@@ -477,10 +481,28 @@ export function RefBody({
   // back the wrong line.
   const [split, setSplit] = useState<{ key: string; at: number } | null>(null)
   const paraRef = useRef<HTMLParagraphElement | null>(null)
+  const previewRef = useRef<HTMLElement | null>(null)
+  // Which reference's verses have already been brought into view, so a
+  // re-measure doesn't scroll a second time.
+  const revealed = useRef<string | null>(null)
   const refElRef = useRef<HTMLElement | null>(null)
   // Which ref's break has already been checked against what actually rendered.
   const checkedRef = useRef<string | null>(null)
   const ctx = { book: bookNo, chapter: chapterNo }
+
+  // The verses open below the citation, which on a long paragraph can leave
+  // them off the bottom of the screen — the reader taps and nothing appears to
+  // happen. Waits for the break to settle, since that is what decides where
+  // they land, and only once per reference opened.
+  useLayoutEffect(() => {
+    if (!active) {
+      revealed.current = null
+      return
+    }
+    if (split?.key !== active.key || revealed.current === active.key) return
+    revealed.current = active.key
+    if (previewRef.current) revealInScroll(previewRef.current)
+  }, [active, split])
 
   useLayoutEffect(() => {
     if (!active) return
@@ -626,6 +648,9 @@ export function RefBody({
               refs={active!.refs}
               ctx={ctx}
               divideBelow={continuous || hasTail || pi < paragraphs.length - 1}
+              innerRef={(el) => {
+                previewRef.current = el
+              }}
             />
             {hasTail && <p>{tail}</p>}
           </Fragment>
