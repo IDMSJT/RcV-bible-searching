@@ -2,9 +2,8 @@ import { Fragment, useLayoutEffect, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { BOOK_BY_NO } from '@/data/canon'
 import { useOutline } from '@/data/loadBible'
-import { formatOutlineRange, displayMarker } from '@/lib/chinese'
+import { OutlineLabel } from '@/components/OutlineLabel'
 import { RefBody, type Open } from '@/lib/renderVerse'
-import { cn } from '@/lib/utils'
 import type { BookOutline } from '@/types/bible'
 
 /** The book-outline body as a carousel panel (own vertical scroll). Mirrors the
@@ -91,19 +90,7 @@ export function OutlineView({
               style={{ paddingLeft: `${(e.level - 1) * 0.5}rem` }}
               className="group block pr-2 text-muted-foreground transition-colors hover:text-foreground"
             >
-              <span
-                className={cn(
-                  'inline-block rounded px-1 -mx-1 transition-colors group-hover:bg-muted',
-                  i === targetIdx && 'bg-highlight/30',
-                )}
-              >
-                {e.marker && <span className="mr-1.5">{displayMarker(e.marker)}</span>}
-                {e.title}
-                {e.continued && ' (續)'}
-                {e.range && (
-                  <span className="ml-1.5 text-muted-foreground/60">{formatOutlineRange(e.range)}</span>
-                )}
-              </span>
+              <OutlineLabel entry={e} highlight={i === targetIdx} />
             </Link>
           ))}
         </div>

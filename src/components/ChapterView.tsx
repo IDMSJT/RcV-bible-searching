@@ -34,8 +34,8 @@ import {
   type CitePosition,
   type CopyLang,
 } from '@/lib/cite'
-import { formatOutlineRange, displayMarker } from '@/lib/chinese'
 import { renderMarkedText, sliceMarks, NoteList, CrossRefList } from '@/lib/renderVerse'
+import { OutlineLabel } from '@/components/OutlineLabel'
 import type { HlItem } from '@/lib/highlight'
 import { useIsTouch } from '@/lib/useIsTouch'
 import { useLocalStorage } from '@/lib/useLocalStorage'
@@ -99,19 +99,7 @@ function OutlineHeading({
         !tight && 'mt-2 first:mt-0',
       )}
     >
-      <span
-        className={cn(
-          'inline-block rounded px-1 -mx-1 transition-colors group-hover:bg-muted',
-          highlight && 'bg-highlight/30',
-        )}
-      >
-        {entry.marker && <span className="mr-1.5">{displayMarker(entry.marker)}</span>}
-        {entry.title}
-        {entry.continued && ' (續)'}
-        {entry.range && (
-          <span className="ml-1.5 text-muted-foreground/60">{formatOutlineRange(entry.range)}</span>
-        )}
-      </span>
+      <OutlineLabel entry={entry} highlight={highlight} />
     </Link>
   )
 }
