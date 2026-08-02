@@ -73,7 +73,7 @@ export function sliceMarks(
 // they would be. select-none: the marker is metadata — a text selection drags
 // straight across it instead of catching on it or copying it.
 const SUP_CLS =
-  'relative -top-[0.6em] -m-1 cursor-pointer p-1 text-[0.7em] font-sans font-medium tabular-nums text-destructive select-none hover:text-destructive/80'
+  'relative -top-[0.6em] -m-1 cursor-pointer p-1 text-[0.75em] font-sans font-medium tabular-nums text-destructive select-none hover:text-destructive/80'
 
 /** Render verse text with three overlays:
  *   - semantic Marks (pn / png / add) as styled spans
@@ -237,13 +237,21 @@ export function renderNoteText(
  * card. Reading a reference is usually about "what does that verse say" rather
  * than "take me there", so the text comes to the reader instead. The citation
  * label stays a real link for when they do want the chapter. */
+/** The reference a body currently has open, and the verses it points at. */
+export interface Open {
+  key: string
+  refs: VerseRef[]
+}
+
 function VersePreview({
   refs,
   ctx,
   divideBelow,
 }: {
   refs: VerseRef[]
-  ctx: { book: number; chapter: number }
+  /** chapter is null where the surrounding text has none of its own — every
+   * label then carries its chapter, which is what a book introduction wants. */
+  ctx: { book: number; chapter: number | null }
   /** Whether any card content follows — the closing rule is only drawn when
    * there is something below to separate from. */
   divideBelow: boolean
@@ -431,19 +439,39 @@ function lineEndAfter(container: HTMLElement, refEl: HTMLElement): number {
   return lo
 }
 
-function RefBody({
+export function RefBody({
   paragraphs,
   bookNo,
   chapterNo,
   marker,
+  continuous,
+  open,
+  onOpen,
 }: {
   paragraphs: string[]
   bookNo: number
-  chapterNo: number
+  /** null when the text names no chapter of its own to inherit — a book
+   * introduction, say, where a bare number would otherwise resolve against a
+   * chapter zero that no book has. */
+  chapterNo: number | null
   /** Rendered before the first paragraph — the note number / cross-ref letter. */
   marker?: ReactNode
+  /** The body sits in running text rather than a card of its own, so more of
+   * the passage follows below whatever this paragraph ends on. A preview then
+   * always needs a rule under it; in a card it only earns one when there is
+   * something left in the card to separate from. */
+  continuous?: boolean
+  /** Which reference is open, when the caller wants to decide. A body keeps
+   * one open at a time on its own; passing this lets several share the one
+   * between them, so opening a verse in one closes whatever another had open.
+   * Keys are only compared within a body, so callers may reuse them as long as
+   * at most one body is given a non-null value. */
+  open?: Open | null
+  onOpen?: (open: Open | null) => void
 }): ReactNode {
-  const [active, setActive] = useState<{ key: string; refs: VerseRef[] } | null>(null)
+  const [ownActive, setOwnActive] = useState<Open | null>(null)
+  const active = open !== undefined ? open : ownActive
+  const setActive = (next: Open | null) => (onOpen ? onOpen(next) : setOwnActive(next))
   // Measured per active ref. Keyed so that switching refs renders unsplit for a
   // layout pass first — measuring a paragraph that is already broken would read
   // back the wrong line.
@@ -506,16 +534,27 @@ function RefBody({
 
         const activeHere = active?.key.startsWith(`${pi}:`) ?? false
 
-        const renderSeg = (seg: (typeof segments)[number], si: number, text?: string) => {
+        // `si` names the segment; `half` only keeps React's sibling keys apart
+        // where a wrap has put the two pieces of one segment in different
+        // arrays. They must not share one number: a piece keyed by a made-up
+        // index opened a reference that no unsplit rendering could hold, and
+        // since every tap re-renders unsplit to measure the break, the tap
+        // measured nothing and nothing appeared.
+        const renderSeg = (
+          seg: (typeof segments)[number],
+          si: number,
+          text?: string,
+          half?: string,
+        ) => {
           const body = text ?? seg.text
           if (!seg.refs || seg.refs.length === 0) {
-            return <Fragment key={si}>{body}</Fragment>
+            return <Fragment key={`${si}${half ?? ''}`}>{body}</Fragment>
           }
           const key = `${pi}:${si}`
           const on = active?.key === key
           return (
             <span
-              key={si}
+              key={`${si}${half ?? ''}`}
               ref={on ? (el) => { refElRef.current = el } : undefined}
               role="button"
               tabIndex={0}
@@ -572,8 +611,8 @@ function RefBody({
             // of being pushed past a citation that happened to straddle it.
             head.push(renderSeg(seg, si))
           } else {
-            head.push(renderSeg(seg, si, seg.text.slice(0, splitAt - start)))
-            tail.push(renderSeg(seg, si + segments.length, seg.text.slice(splitAt - start)))
+            head.push(renderSeg(seg, si, seg.text.slice(0, splitAt - start), 'a'))
+            tail.push(renderSeg(seg, si, seg.text.slice(splitAt - start), 'b'))
           }
         }
         const hasTail = tail.length > 0
@@ -586,7 +625,7 @@ function RefBody({
             <VersePreview
               refs={active!.refs}
               ctx={ctx}
-              divideBelow={hasTail || pi < paragraphs.length - 1}
+              divideBelow={continuous || hasTail || pi < paragraphs.length - 1}
             />
             {hasTail && <p>{tail}</p>}
           </Fragment>
@@ -656,7 +695,7 @@ export function CrossRefList({
             marker={
               <>
                 {onClose && <CloseButton onClose={() => onClose(r.m)} label={`關閉串珠 ${r.m}`} />}
-                <sup className="px-0.5 text-[0.7em] font-sans font-medium tabular-nums text-destructive">
+                <sup className="px-0.5 text-[0.75em] font-sans font-medium tabular-nums text-destructive">
                   {r.m}
                 </sup>
               </>
@@ -737,7 +776,7 @@ export function NoteList({
               marker={
                 <>
                   {onClose && <CloseButton onClose={() => onClose(n.n)} label={`關閉註釋 ${n.n}`} />}
-                  <sup className="px-0.5 text-[0.7em] font-sans font-medium tabular-nums text-destructive">
+                  <sup className="px-0.5 text-[0.75em] font-sans font-medium tabular-nums text-destructive">
                     {n.n}
                   </sup>
                 </>

@@ -47,10 +47,27 @@ export interface OutlineEntry {
   anchor: OutlineAnchor
 }
 
+/** One line of a book's introduction — 著者 as its heading, the writer's name as
+ * its body, the two separated in the source by an ideographic space.
+ *
+ * An ordered list rather than named fields, because neither the headings nor how
+ * many there are is fixed: nine kinds appear across the canon — 著者 on every
+ * book, 受者 only on the letters, 盡職時間 / 盡職地點 / 盡職對象 on the prophets,
+ * 記載地點 on three — and a book carries three or four of them. Nothing reads
+ * them by name; they are printed in the order the book prints them. */
+export interface IntroSection {
+  /** 著者 / 著時 / 著地 / 受者 / … — empty if the source gave none. */
+  label: string
+  text: string
+}
+
 export interface BookOutline {
   bookNo: number
   name: string
   outline: OutlineEntry[]
+  /** 神創造，撒但敗壞，人墮落… — the book in one line. */
+  topic?: string
+  intro?: IntroSection[]
 }
 
 export interface Outline {

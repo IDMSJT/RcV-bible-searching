@@ -41,7 +41,13 @@ const BOOK_PATTERN = ALL_BOOK_NAMES.map(escapeRe).join('|')
 // matched as the anchor 「創一1」 and the continuation loop picks up 「5」
 // separately — that way each verse becomes its own segment and can be
 // individually hovered / highlighted in the backdrop.
-const REF_CHARS = `0-9${CN_NUMERAL_CHARS}上下中章篇節標題:：~～\\-至到—–－`
+const REF_CHARS = `0-9${CN_NUMERAL_CHARS}上下中章篇節:：~～\\-至到—–－`
+
+// 標題 (a psalm's superscription) is a word, not two characters a reference may
+// use freely. Held out of REF_CHARS and allowed only as a whole suffix: with 題
+// in the class, 「三五11題到國與王」 matched 「三五11題」, which parses as nothing, and
+// the reference was lost. Most of the corpus' 題 stand alone like that.
+const SUPERSCRIPTION_PAT = '(?:標題)?'
 
 // Optional trailing chain of 「注N」 / 「註N」 footnote pointers. Eaten by the
 // match so parseRefs consumes the full 「太一21注3」 / 「二1注3與注4」 as one
@@ -59,13 +65,15 @@ const NOTE_TAIL_PAT = `(?:[\\s、，,與和及]*[注註]\\s*(?:\\d+|(?!\\d)(?!(?
 // match any casing. The match string is handed to parseToken, which decides
 // whether the whole thing is actually a valid ref.
 const ANCHOR_FULL_RE = new RegExp(
-  `^(?:${BOOK_PATTERN})[.\\s]*[${REF_CHARS}]*${NOTE_TAIL_PAT}`,
+  `^(?:${BOOK_PATTERN})[.\\s]*[${REF_CHARS}]*${SUPERSCRIPTION_PAT}${NOTE_TAIL_PAT}`,
   'i',
 )
 
 // Continuation: same kind of run, but must start with a digit or CN numeral so
 // stray 上/下/章 chars don't get matched as ref starts.
-const CONT_FULL_RE = new RegExp(`^[0-9${CN_NUMERAL_CHARS}][${REF_CHARS}]*${NOTE_TAIL_PAT}`)
+const CONT_FULL_RE = new RegExp(
+  `^[0-9${CN_NUMERAL_CHARS}][${REF_CHARS}]*${SUPERSCRIPTION_PAT}${NOTE_TAIL_PAT}`,
+)
 
 // Matches that look like a CN+節 ref but are actually proper nouns (Jewish
 // festivals) that happen to share the shape. Only 七七節 (Pentecost / Feast

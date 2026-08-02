@@ -378,3 +378,21 @@ describe('parseRefs — 「每一節」 counts verses, it does not cite one', ()
   })
 })
 
+describe('parseRefs — 標題 is a word, not two reference characters', () => {
+  it('leaves the 題 of 「題到」 out of the reference', () => {
+    // 「題」 was in the character class a reference run may use, for the sake of
+    // a psalm's 標題, so 「三五11題」 was matched whole and parsed as nothing.
+    expect(parseRefs('三五11題到國與王', { book: 1, chapter: 17 }).refs.map(sig)).toEqual([
+      '1:35:11',
+    ])
+    expect(parseRefs('13～14節題到兩種焚燒', { book: 2, chapter: 29 }).refs.map(sig)).toEqual([
+      '2:29:13-14',
+    ])
+  })
+
+  it('still reads a superscription', () => {
+    expect(sigs('詩三標題')).toEqual(['19:3:0'])
+    expect(sigs('詩五一標題')).toEqual(['19:51:0'])
+  })
+})
+
