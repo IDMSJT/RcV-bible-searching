@@ -396,3 +396,24 @@ describe('parseRefs — 標題 is a word, not two reference characters', () => {
   })
 })
 
+describe("kind: 'list'", () => {
+  const at = (t: string, kind: 'note' | 'list') =>
+    parseRefs(t, { book: 41, chapter: 4 }, { kind }).refs.map(
+      (r) => `${r.bookNo}:${r.chapter}:${r.verseStart}`,
+    )
+
+  it('carries the book through a bracket, which a note would not', () => {
+    // 可四31's cross-reference. The bracketed 十七20 is Matthew 17:20; read as
+    // a note it became chapter 17 of Mark, which has sixteen.
+    const text = '31～32：太十三31～32（十七20），路十三18～19'
+    expect(at(text, 'list')).toEqual(['41:4:31', '40:13:31', '40:17:20', '42:13:18'])
+    expect(at(text, 'note')).toEqual(['41:4:31', '40:13:31', '41:17:20', '42:13:18'])
+  })
+
+  it('is unmoved by a bracket holding a gloss rather than a citation', () => {
+    // 彼後二12's, where the bracket explains a word.
+    const text = '路一68，78（臨到，原文，眷顧），十九44，徒十五14'
+    expect(at(text, 'list')).toContain('42:19:44')
+    expect(at(text, 'note')).toContain('41:19:44')
+  })
+})

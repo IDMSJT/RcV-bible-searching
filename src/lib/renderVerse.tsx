@@ -1,7 +1,7 @@
 import { Fragment, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { X } from 'lucide-react'
-import { parseRefs, type Segment, type VerseRef } from '@/lib/parseRefs'
+import { parseRefs, type ParseOptions, type Segment, type VerseRef } from '@/lib/parseRefs'
 import { groupRefs, type RefGroup } from '@/lib/refGroups'
 import { useBible, useAnnotations, eachVerseInRange, notesForVerse } from '@/data/loadBible'
 import { formatVerseRef } from '@/lib/cite'
@@ -486,11 +486,15 @@ function lineEndAfter(container: HTMLElement, refEl: HTMLElement): number {
  * known before any paragraph is drawn, which is why this runs ahead of the
  * render rather than inside it.
  */
-function parseBody(paragraphs: string[], ctx: { book: number; chapter: number | null }) {
+function parseBody(
+  paragraphs: string[],
+  ctx: { book: number; chapter: number | null },
+  kind?: ParseOptions['kind'],
+) {
   const out: { para: string; segments: Segment[]; groups: RefGroup[]; base: number }[] = []
   let counted = 0
   for (const para of paragraphs) {
-    const { segments } = parseRefs(para, ctx)
+    const { segments } = parseRefs(para, ctx, { kind })
     const groups = segments.length > 0 ? groupRefs(segments) : []
     out.push({ para, segments, groups, base: counted })
     counted += groups.length
@@ -504,6 +508,7 @@ export function RefBody({
   chapterNo,
   marker,
   continuous,
+  kind,
   open,
   onOpen,
 }: {
@@ -520,6 +525,8 @@ export function RefBody({
    * always needs a rule under it; in a card it only earns one when there is
    * something left in the card to separate from. */
   continuous?: boolean
+  /** What sort of text this is, for the parser's sake — see ParseOptions. */
+  kind?: ParseOptions['kind']
   /** Which reference is open, when the caller wants to decide. A body keeps
    * one open at a time on its own; passing this lets several share the one
    * between them, so opening a verse in one closes whatever another had open.
@@ -547,7 +554,7 @@ export function RefBody({
   const checkedRef = useRef<Open | null>(null)
   const ctx = { book: bookNo, chapter: chapterNo }
 
-  const parsed = parseBody(paragraphs, ctx)
+  const parsed = parseBody(paragraphs, ctx, kind)
 
   // The verses open below the citation, which on a long paragraph can leave
   // them off the bottom of the screen — the reader taps and nothing appears to
@@ -819,6 +826,7 @@ export function CrossRefCard({
     >
       <RefBody
         paragraphs={[r.refs]}
+        kind="list"
         bookNo={bookNo}
         chapterNo={chapterNo}
         open={open}

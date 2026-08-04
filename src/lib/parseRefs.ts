@@ -150,8 +150,22 @@ export interface ParseOptions {
    * aside (「污靈(鬼)」) and the passage under discussion carries on past it;
    * so does a full stop, which is how a life-study message can name Matthew 12
    * in one sentence and write 「四十四節」 two sentences later. Resetting there
-   * only lost references and gained nothing. */
-  kind?: 'note' | 'prose'
+   * only lost references and gained nothing.
+   *
+   * `'list'` — nothing but citations, as a cross-reference is. A bracket here
+   * groups a related citation rather than opening an aside, so the running book
+   * carries through it: in 「太十三31～32（十七20）」 the bracketed verse is
+   * Matthew 17:20. Bounding it read that as chapter 17 of the book being read,
+   * which is how 「十七20」 came to point at a chapter Mark hasn't got. Across
+   * all 58,655 cross-references the two modes disagree on exactly two, and both
+   * are of this shape.
+   *
+   * Behaves as `'prose'` does today; it is named apart because the two are
+   * different texts and the measurements point opposite ways. A book
+   * introduction really is prose — 「（參王上六1，）… （四十17。）」 means verse
+   * 40:17 of the book being introduced — and reading one as a list gets three
+   * references wrong that bounding gets right. */
+  kind?: 'note' | 'prose' | 'list'
 }
 
 /**
