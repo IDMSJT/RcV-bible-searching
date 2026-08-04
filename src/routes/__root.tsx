@@ -6,6 +6,7 @@ import { BOOK_BY_NO } from '@/data/canon'
 import { LookupPanel } from '@/components/LookupPanel'
 import { CatalogPanel } from '@/components/CatalogPanel'
 import { ComposePanel } from '@/components/ComposePanel'
+import { NavIcon } from '@/components/NavIcon'
 import { SettingsPanel } from '@/components/SettingsPanel'
 import { ReadingPreferences } from '@/components/ReadingPreferences'
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer'
@@ -219,11 +220,11 @@ function RootComponent() {
   }
 
   // Same icon size on both viewports — desktop now stacks icon + label
-  // Slack-style in a wider rail, so the icon doesn't need to shrink.
-  // Mobile gets a slightly larger, thinner icon; desktop keeps its original
-  // size-5 / 1.8 stroke (stroke-width via CSS so it can be responsive — the
-  // lucide strokeWidth prop can't be).
-  const navIcon = 'size-6 [stroke-width:1.6] md:size-5 md:[stroke-width:1.8]'
+  // Slack-style in a wider rail, so the icon doesn't need to shrink. Mobile
+  // gets a larger, thinner icon than desktop — at that size a heavier line
+  // reads as clumsy. Stroke-width goes through CSS so it can be responsive at
+  // all; the lucide prop can't be.
+  const navIcon = 'size-6 [stroke-width:1.4] md:size-5 md:[stroke-width:1.6]'
   // All four nav buttons behave the same on both viewports: swap the active
   // panel (desktop aside / mobile drawer) into that mode.
   const goToLastChapter = () => {
@@ -271,7 +272,7 @@ function RootComponent() {
         label={catalogLabel}
         onClick={onCatalogClick}
       >
-        <BookOpen className={navIcon} />
+        <NavIcon icon={BookOpen} active={isActive('catalog')} className={navIcon} />
       </NavButton>
       <NavButton
         active={isActive('lookup')}
@@ -285,14 +286,14 @@ function RootComponent() {
           openMode('lookup', onCompose ? goToLastChapter : undefined)
         }}
       >
-        <Search className={navIcon} />
+        <NavIcon icon={Search} active={isActive('lookup')} className={navIcon} />
       </NavButton>
       <NavButton
         active={isActive('compose')}
         label="綱要"
         onClick={() => openMode('compose', () => navigate({ to: '/compose' }))}
       >
-        <ClipboardList className={navIcon} />
+        <NavIcon icon={ClipboardList} active={isActive('compose')} className={navIcon} />
       </NavButton>
     </>
   )
@@ -338,7 +339,7 @@ function RootComponent() {
           className="mt-auto"
           onClick={() => openMode('settings')}
         >
-          <Settings className={navIcon} />
+          <NavIcon icon={Settings} active={effectiveMode === 'settings'} className={navIcon} />
         </NavButton>
       </nav>
 
@@ -416,7 +417,7 @@ function RootComponent() {
             openMode('settings')
           }}
         >
-          <Settings className={navIcon} />
+          <NavIcon icon={Settings} active={effectiveMode === 'settings'} className={navIcon} />
         </NavButton>
       </nav>
 
@@ -511,9 +512,7 @@ function NavButton({
         // an odd mismatched colour. Desktop keeps the Slack-style icon chip
         // (the inner span carries the highlight, see below).
         'group inline-flex flex-col items-center justify-center gap-1.5 rounded-md transition-colors md:p-2',
-        active
-          ? 'text-primary md:text-secondary-foreground'
-          : 'text-muted-foreground hover:text-foreground',
+        active ? 'text-secondary-foreground' : 'text-muted-foreground hover:text-foreground',
         className,
       )}
     >
@@ -528,9 +527,9 @@ function NavButton({
           active
             ? 'md:bg-secondary md:text-secondary-foreground'
             : 'md:group-hover:bg-muted md:group-hover:text-foreground',
-          // Mobile: bump the active icon's stroke so the selected tab reads
-          // bolder than colour alone. Desktop is left untouched (restore 1.8).
-          active && '[&_svg]:[stroke-width:2] md:[&_svg]:[stroke-width:1.8]',
+          // The open tab's outline thickens a step on either viewport, on top
+          // of the gold it is filled with.
+          active && '[&_svg]:[stroke-width:1.6] md:[&_svg]:[stroke-width:1.8]',
         )}
       >
         {children}
