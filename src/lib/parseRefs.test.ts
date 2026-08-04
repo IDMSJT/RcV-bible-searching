@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { CONTEXT_SEEDS } from './parseExceptions'
 import { parseRefs } from './parseRefs'
 import type { VerseRef } from './parseToken'
 
@@ -464,5 +465,29 @@ describe('約參', () => {
         expect.objectContaining({ bookNo: 64, chapter: 1, verseStart: 14 }),
       ])
     }
+  })
+})
+
+describe('context seeds', () => {
+  it('reads the two passages that name no book the way they mean it', () => {
+    const at = (t: string, b: number, c: number) =>
+      parseRefs(t, { book: b, chapter: c }).refs.map((r) => `${r.bookNo}:${r.chapter}:${r.verseStart}`)
+    // 可十四20註1 — the supper is Luke 22:19-20, not Mark 14:19-20.
+    expect(at('因主的晚餐是在前面19～20節題起的。', 41, 14)).toEqual(['42:22:19'])
+    // 路十一49註1 — 「所差來的」 answers 2 Chr 24:19.
+    expect(at('而擴大前文19節的話，用於神', 42, 11)).toEqual(['14:24:19'])
+  })
+
+  it('says where each phrase is and carries the number it is there for', () => {
+    // That a phrase occurs exactly once is checked against the 29,919 notes,
+    // not here — this file may not read the corpus, since the app's types stop
+    // at the browser. Verified 2026-08-05; see scripts/PARSE_EXCEPTIONS.md.
+    // What is worth asserting here is the shape: an exception with no reason
+    // written down is one nobody can retire.
+    for (const seed of CONTEXT_SEEDS) {
+      expect(seed.find).toMatch(/[0-9]/)
+      expect(seed.why.length).toBeGreaterThan(10)
+    }
+    expect(new Set(CONTEXT_SEEDS.map((s) => s.find)).size).toBe(CONTEXT_SEEDS.length)
   })
 })

@@ -59,7 +59,8 @@ SEP = "　"
 # 代價是印出來的字多一個「太」。這裡選擇讓文字明確而非照抄,因為在會連結的版本
 # 裡,連到哪裡比少一個字更要緊。
 #
-# 所有解析例外的總表見 scripts/PARSE_EXCEPTIONS.md。
+# 所有解析例外的總表見 scripts/PARSE_EXCEPTIONS.md。新的例外別再改寫文字,
+# 走 src/lib/parseExceptions.ts 的 CONTEXT_SEEDS —— 理由記在那份筆記裡。
 FIXES: dict[tuple[int, str], list[tuple[str, str]]] = {
     (40, "受者"): [("二六17比", "太二六17比")],
 }

@@ -1,4 +1,5 @@
 import { BOOK_ALIASES } from '@/data/bookAliases'
+import { CONTEXT_SEEDS } from './parseExceptions'
 import { CANON } from '@/data/canon'
 import { CN_NUMERAL_CHARS } from './chinese'
 import { parseToken, type ParseCtx, type VerseRef } from './parseToken'
@@ -223,6 +224,10 @@ export function parseRefs(
   // Whether the bracket being read is one the context should end at. Decided
   // at the opening bracket and remembered for the closing one.
   let bracketBounds = true
+  // How far a seeded context holds. Nothing resets inside it: the seed exists
+  // precisely because the rules read this passage the other way, so leaving
+  // them switched on would undo it a character later.
+  let seedEnd = -1
 
   function flushProse(end: number): void {
     if (lastProseStart < end) {
@@ -241,8 +246,20 @@ export function parseRefs(
     // way out of a bracket was tried and is wrong here: a note's brackets hold
     // citations, and the prose between them belongs to the verse being
     // annotated, not to whatever the last bracket named.
+    // A handful of passages leave out a book name the sentence plainly means,
+    // in a shape the rules read the other way — see parseExceptions.
+    for (const seed of CONTEXT_SEEDS) {
+      if (text.startsWith(seed.find, i)) {
+        ctx.book = seed.book
+        ctx.chapter = seed.chapter
+        seedEnd = i + seed.find.length
+        break
+      }
+    }
+    const seeded = i < seedEnd
+
     const ch = text[i]
-    if (bounded && (ch === '(' || ch === ')')) {
+    if (!seeded && bounded && (ch === '(' || ch === ')')) {
       // Only a bracket holding a citation ends the context. Plenty hold a gloss
       // instead — 「（二次）」, 「（見該處註2）」, 「（原文，眷顧）」 — and ending it
       // there drops the book the surrounding list was running in, which is how
@@ -253,7 +270,7 @@ export function parseRefs(
         bracketBounds = parseRefs(inner, ctx, { kind: 'prose' }).refs.length > 0
       }
       if (bracketBounds) resetCtx()
-    } else if (bounded && SENTENCE_END.includes(ch)) {
+    } else if (!seeded && bounded && SENTENCE_END.includes(ch)) {
       resetCtx()
     }
 
@@ -285,6 +302,7 @@ export function parseRefs(
     // is on, not Hebrews. Not where a conjunction ties them to the citation
     // before: 「十一29～32和42～52節」 is two halves of one place.
     if (
+      !seeded &&
       bounded &&
       initial?.book != null &&
       BARE_VERSE_RE.test(text.slice(i)) &&
