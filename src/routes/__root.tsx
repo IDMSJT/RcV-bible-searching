@@ -125,9 +125,11 @@ function RootComponent() {
 
   // Drop ephemeral reading state on a hard refresh. sessionStorage normally
   // survives same-tab reload, but the user wants refresh to feel like a
-  // fresh load — so on initial mount, if the document was reloaded, clear
-  // both the per-pathname scroll positions and the per-chapter notes-open
-  // sets. In-app navigation (back / forward / Link clicks) is unaffected.
+  // fresh load — so on initial mount, if the document was reloaded, clear the
+  // per-pathname scroll positions and everything a chapter had open. In-app
+  // navigation (back / forward / Link clicks) is unaffected. The open state is
+  // one key now; it used to be two, and only one of them was listed here, so
+  // the cross-references quietly outlived every refresh.
   useEffect(() => {
     const nav = performance.getEntriesByType('navigation')[0] as
       | PerformanceNavigationTiming
@@ -136,7 +138,7 @@ function RootComponent() {
     const keys: string[] = []
     for (let i = 0; i < sessionStorage.length; i++) {
       const k = sessionStorage.key(i)
-      if (k && (k.startsWith('rcv/scroll') || k.startsWith('rcv/notes-open'))) {
+      if (k && (k.startsWith('rcv/scroll') || k.startsWith('rcv/open'))) {
         keys.push(k)
       }
     }

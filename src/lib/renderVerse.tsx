@@ -1,8 +1,8 @@
 import { Fragment, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { X } from 'lucide-react'
-import { parseRefs, type VerseRef } from '@/lib/parseRefs'
-import { groupRefs } from '@/lib/refGroups'
+import { parseRefs, type Segment, type VerseRef } from '@/lib/parseRefs'
+import { groupRefs, type RefGroup } from '@/lib/refGroups'
 import { useBible, useAnnotations, eachVerseInRange, notesForVerse } from '@/data/loadBible'
 import { formatVerseRef } from '@/lib/cite'
 import { revealInScroll } from '@/lib/revealInScroll'
@@ -252,11 +252,16 @@ export function renderNoteText(
  * card. Reading a reference is usually about "what does that verse say" rather
  * than "take me there", so the text comes to the reader instead. The citation
  * label stays a real link for when they do want the chapter. */
-/** The reference a body currently has open, and the verses it points at. */
-export interface Open {
-  key: string
-  refs: VerseRef[]
-}
+/**
+ * Which citation a body has open: its place among all the citations in the
+ * body, counted straight through the paragraphs.
+ *
+ * The verses it names used to travel with it. They don't now — the body
+ * re-derives them from the same parse that drew the citation, so there is one
+ * answer instead of a copy that can disagree with what is on screen. It also
+ * makes the value a number, which is all a caller needs to write down.
+ */
+export type Open = number
 
 function VersePreview({
   refs,
@@ -471,6 +476,28 @@ function lineEndAfter(container: HTMLElement, refEl: HTMLElement): number {
   return lo
 }
 
+/**
+ * Every paragraph of a body parsed once, each with the number its first
+ * citation carries.
+ *
+ * Citations are numbered straight through the body rather than restarted per
+ * paragraph, so one number names one citation and a caller can write it down
+ * without knowing how the text happens to be broken up. The count has to be
+ * known before any paragraph is drawn, which is why this runs ahead of the
+ * render rather than inside it.
+ */
+function parseBody(paragraphs: string[], ctx: { book: number; chapter: number | null }) {
+  const out: { para: string; segments: Segment[]; groups: RefGroup[]; base: number }[] = []
+  let counted = 0
+  for (const para of paragraphs) {
+    const { segments } = parseRefs(para, ctx)
+    const groups = segments.length > 0 ? groupRefs(segments) : []
+    out.push({ para, segments, groups, base: counted })
+    counted += groups.length
+  }
+  return out
+}
+
 export function RefBody({
   paragraphs,
   bookNo,
@@ -507,38 +534,42 @@ export function RefBody({
   // Measured per active ref. Keyed so that switching refs renders unsplit for a
   // layout pass first — measuring a paragraph that is already broken would read
   // back the wrong line.
-  const [split, setSplit] = useState<{ key: string; at: number } | null>(null)
+  const [split, setSplit] = useState<{ key: Open; at: number } | null>(null)
   const paraRef = useRef<HTMLParagraphElement | null>(null)
   const previewRef = useRef<HTMLElement | null>(null)
   // Which reference's verses have already been brought into view, so a
-  // re-measure doesn't scroll a second time.
-  const revealed = useRef<string | null>(null)
+  // re-measure doesn't scroll a second time. Seeded with whatever was open at
+  // mount: a citation restored from a previous visit was not tapped just now,
+  // and scrolling to it would move a page the reader hasn't touched.
+  const revealed = useRef<Open | null>(open ?? null)
   const refElRef = useRef<HTMLElement | null>(null)
   // Which ref's break has already been checked against what actually rendered.
-  const checkedRef = useRef<string | null>(null)
+  const checkedRef = useRef<Open | null>(null)
   const ctx = { book: bookNo, chapter: chapterNo }
+
+  const parsed = parseBody(paragraphs, ctx)
 
   // The verses open below the citation, which on a long paragraph can leave
   // them off the bottom of the screen — the reader taps and nothing appears to
   // happen. Waits for the break to settle, since that is what decides where
   // they land, and only once per reference opened.
   useLayoutEffect(() => {
-    if (!active) {
+    if (active == null) {
       revealed.current = null
       return
     }
-    if (split?.key !== active.key || revealed.current === active.key) return
-    revealed.current = active.key
+    if (split?.key !== active || revealed.current === active) return
+    revealed.current = active
     if (previewRef.current) revealInScroll(previewRef.current)
   }, [active, split])
 
   useLayoutEffect(() => {
-    if (!active) return
-    if (split?.key === active.key) return
+    if (active == null) return
+    if (split?.key === active) return
     const p = paraRef.current
     const r = refElRef.current
     if (!p || !r) return
-    setSplit({ key: active.key, at: lineEndAfter(p, r) })
+    setSplit({ key: active, at: lineEndAfter(p, r) })
   }, [active, split])
 
   // The head is a paragraph in its own right once the break lands, and the
@@ -548,9 +579,9 @@ export function RefBody({
   // and pull the break in front of the stranded characters. Runs once per ref;
   // the pulled-back break ends on a full line, so it settles immediately.
   useLayoutEffect(() => {
-    if (!active || !split || split.key !== active.key) return
-    if (checkedRef.current === active.key) return
-    checkedRef.current = active.key
+    if (active == null || !split || split.key !== active) return
+    if (checkedRef.current === active) return
+    checkedRef.current = active
     const p = paraRef.current
     if (!p) return
     const nodes = textNodesOf(p)
@@ -564,15 +595,14 @@ export function RefBody({
       if (topOf(nodes, mid) >= lastTop - 1) hi = mid
       else lo = mid + 1
     }
-    if (lo > 0 && total - lo <= ORPHAN_MAX) setSplit({ key: active.key, at: lo })
+    if (lo > 0 && total - lo <= ORPHAN_MAX) setSplit({ key: active, at: lo })
   }, [active, split])
 
-  const splitAt = active && split?.key === active.key ? split.at : null
+  const splitAt = active != null && split?.key === active ? split.at : null
 
   return (
     <>
-      {paragraphs.map((para, pi) => {
-        const { segments } = parseRefs(para, ctx)
+      {parsed.map(({ para, segments, groups, base }, pi) => {
         if (segments.length === 0) {
           return (
             <p key={pi}>
@@ -582,14 +612,13 @@ export function RefBody({
           )
         }
 
-        const activeHere = active?.key.startsWith(`${pi}:`) ?? false
-
         // Citations of one chapter written in a row — 「賽十一1，2」 — are one
         // citation with two verses in it, and open together. A different
         // chapter is a different place however close it is written, so
         // 「撒上十六1，11～13，十七12」 stays two. The punctuation between members
-        // belongs to the group, so the tint runs unbroken across it.
-        const groups = groupRefs(segments)
+        // belongs to the group, so the tint runs unbroken across it. (Grouped
+        // above, with the rest of the parse.)
+        const activeHere = active != null && active >= base && active < base + groups.length
 
         // What the paragraph is built from: a group of citations, or a run of
         // plain text between two of them. This is the unit the break cuts, so a
@@ -637,8 +666,8 @@ export function RefBody({
           if (u.gi < 0) {
             return <Fragment key={`${u.start}${half ?? ''}`}>{body}</Fragment>
           }
-          const key = `${pi}:g${u.gi}`
-          const on = active?.key === key
+          const key = base + u.gi
+          const on = active === key
           return (
             <span
               key={`${u.start}${half ?? ''}`}
@@ -659,7 +688,7 @@ export function RefBody({
               onClick={(e) => {
                 e.stopPropagation()
                 checkedRef.current = null
-                setActive(on ? null : { key, refs: groups[u.gi].refs })
+                setActive(on ? null : key)
               }}
               className={cn(
                 'cursor-pointer rounded-sm text-primary hover:text-primary/80',
@@ -690,7 +719,7 @@ export function RefBody({
         for (const u of units) {
           if (u.end <= splitAt) head.push(renderUnit(u))
           else if (u.start >= splitAt) tail.push(renderUnit(u))
-          else if (active?.key === `${pi}:g${u.gi}`) {
+          else if (active === base + u.gi) {
             // The citation being read stays whole: it is the element the break
             // is measured from, and cutting it would move the anchor the next
             // measurement reads. Everything else wraps like the prose around it,
@@ -710,7 +739,7 @@ export function RefBody({
               {head}
             </p>
             <VersePreview
-              refs={active!.refs}
+              refs={groups[active! - base].refs}
               ctx={ctx}
               divideBelow={continuous || hasTail || pi < paragraphs.length - 1}
               innerRef={(el) => {
@@ -762,6 +791,8 @@ export function CrossRefCard({
   bookNo,
   chapterNo,
   onClose,
+  open,
+  onOpen,
 }: {
   crossRef: CrossRef
   /** The verse this hangs off, used only to key the card in the DOM so the
@@ -770,6 +801,11 @@ export function CrossRefCard({
   bookNo: number
   chapterNo: number
   onClose?: (m: string) => void
+  /** Which citation inside this card is open. Omitted, the card keeps its own
+   * — a caller passes these only to hold the choice somewhere that outlives the
+   * card, such as the chapter's saved state. */
+  open?: Open | null
+  onOpen?: (open: Open | null) => void
 }): ReactNode {
   return (
     <li
@@ -785,6 +821,8 @@ export function CrossRefCard({
         paragraphs={[r.refs]}
         bookNo={bookNo}
         chapterNo={chapterNo}
+        open={open}
+        onOpen={onOpen}
         marker={
           <>
             {onClose && <CloseButton onClose={() => onClose(r.m)} label={`關閉串珠 ${r.m}`} />}
@@ -849,6 +887,8 @@ export function NoteCard({
   highlighted,
   selected,
   onSelect,
+  open,
+  onOpen,
 }: {
   note: Annotation
   verse?: number
@@ -858,6 +898,9 @@ export function NoteCard({
   highlighted?: boolean
   selected?: boolean
   onSelect?: (n: number) => void
+  /** Which citation inside this card is open — see CrossRefCard. */
+  open?: Open | null
+  onOpen?: (open: Open | null) => void
 }): ReactNode {
   // Split the note body on the restored paragraph breaks so we can render each
   // as its own <p> with space-y between — whitespace-pre-line would collapse
@@ -893,6 +936,8 @@ export function NoteCard({
         paragraphs={paras}
         bookNo={bookNo}
         chapterNo={chapterNo}
+        open={open}
+        onOpen={onOpen}
         marker={
           <>
             {onClose && <CloseButton onClose={() => onClose(n.n)} label={`關閉註釋 ${n.n}`} />}

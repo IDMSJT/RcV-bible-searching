@@ -42,6 +42,8 @@ import {
   CrossRefCard,
   type MarkersAt,
 } from '@/lib/renderVerse'
+import { emptyOpenState, parseOpen, serializeOpen, type OpenState } from '@/lib/openState'
+import type { Open } from '@/lib/renderVerse'
 import { OutlineLabel } from '@/components/OutlineLabel'
 import type { HlItem } from '@/lib/highlight'
 import { revealInScroll } from '@/lib/revealInScroll'
@@ -316,26 +318,33 @@ export function ChapterView({
   // would clobber the saved set with the empty initial state. Highlighted
   // notes from hl are unioned in so an inbound 「?hl=…:N」 link auto-expands
   // that body.
-  const notesKey = `rcv/notes-open/${bookNo}/${chapterNo}`
-  const refsKey = `rcv/refs-open/${bookNo}/${chapterNo}`
-  const readStorage = useCallback((key: string): Set<string> => {
+  const openKey = `rcv/open/${bookNo}/${chapterNo}`
+  // Read the whole of a chapter's open state. The cards and the citations
+  // inside them share one entry each, so there is nothing to keep in step.
+  const readOpen = useCallback((key: string): OpenState => {
     try {
       const saved = sessionStorage.getItem(key)
-      if (saved) return new Set(JSON.parse(saved) as string[])
+      if (saved) return parseOpen(JSON.parse(saved))
     } catch {
       /* malformed JSON — start fresh */
     }
-    return new Set<string>()
+    return emptyOpenState()
   }, [])
-  const writeStorage = useCallback((key: string, set: Set<string>) => {
-    if (set.size > 0) {
-      sessionStorage.setItem(key, JSON.stringify(Array.from(set)))
-    } else {
-      sessionStorage.removeItem(key)
-    }
-  }, [])
+  const readStorage = useCallback((key: string) => readOpen(key).notes, [readOpen])
+  // Write one part back, reading the rest from what is stored rather than from
+  // state: each caller knows only the part it changed, and sessionStorage is
+  // synchronous, so the store itself is the one place they can all agree on.
+  const persist = useCallback(
+    (part: Partial<OpenState>) => {
+      const next = { ...readOpen(openKey), ...part }
+      const list = serializeOpen(next)
+      if (list.length > 0) sessionStorage.setItem(openKey, JSON.stringify(list))
+      else sessionStorage.removeItem(openKey)
+    },
+    [openKey, readOpen],
+  )
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(() => {
-    const initial = readStorage(`rcv/notes-open/${bookNo}/${chapterNo}`)
+    const initial = readOpen(`rcv/open/${bookNo}/${chapterNo}`).notes
     for (const k of noteHighlights) initial.add(k)
     return initial
   })
@@ -353,20 +362,20 @@ export function ChapterView({
   //   - same chapter, hl changed → ADD the new hl notes; don't reset, or a
   //     note opened by a prior hl (or by hand) would close.
   const initialMountRef = useRef(true)
-  const prevNotesKeyRef = useRef(notesKey)
+  const prevNotesKeyRef = useRef(openKey)
   // useLayoutEffect (not useEffect) so the hl note expands BEFORE the browser
   // paints — otherwise the user sees one frame without it, then it pops in.
   useLayoutEffect(() => {
     if (initialMountRef.current) {
       initialMountRef.current = false
-      prevNotesKeyRef.current = notesKey
+      prevNotesKeyRef.current = openKey
       // Persist the mount-time hl seeds so a later return restores them.
-      if (noteHighlights.size > 0) writeStorage(notesKey, expandedNotesRef.current)
+      if (noteHighlights.size > 0) persist({ notes: expandedNotesRef.current })
       return
     }
-    const chapterChanged = prevNotesKeyRef.current !== notesKey
-    prevNotesKeyRef.current = notesKey
-    const base = chapterChanged ? readStorage(notesKey) : new Set(expandedNotesRef.current)
+    const chapterChanged = prevNotesKeyRef.current !== openKey
+    prevNotesKeyRef.current = openKey
+    const base = chapterChanged ? readStorage(openKey) : new Set(expandedNotesRef.current)
     let added = false
     for (const k of noteHighlights) {
       if (!base.has(k)) {
@@ -376,27 +385,55 @@ export function ChapterView({
     }
     if (chapterChanged || added) {
       setExpandedNotes(base)
-      writeStorage(notesKey, base)
+      persist({ notes: base })
     }
-  }, [notesKey, noteHighlights, readStorage, writeStorage])
+  }, [openKey, noteHighlights, readStorage, persist])
 
   // Which cross-ref letters are open, keyed `${verse}:${marker}`. Persisted per
   // chapter like the notes are, so paging away and back keeps what you opened.
   // (No hl equivalent — nothing links straight to a 串珠.)
-  const [expandedRefs, setExpandedRefs] = useState<Set<string>>(() => readStorage(refsKey))
+  const [expandedRefs, setExpandedRefs] = useState<Set<string>>(() => readOpen(openKey).refs)
+  // Which citation is open inside each card, keyed by the card. A card holds
+  // one at a time, so this is a value per card rather than a set.
+  const [cites, setCites] = useState<Record<string, Open>>(() => readOpen(openKey).cites)
+  const setCite = useCallback(
+    (card: string, at: Open | null) => {
+      setCites((prev) => {
+        const next = { ...prev }
+        if (at == null) delete next[card]
+        else next[card] = at
+        persist({ cites: next })
+        return next
+      })
+    },
+    [persist],
+  )
+  // A card that closes takes whatever it had open with it, so opening it again
+  // starts where a first opening would. Storage drops these on its own — this
+  // is the same rule applied to the copy already in hand.
+  const forgetCites = useCallback((cards: string[]) => {
+    setCites((prev) => {
+      if (!cards.some((c) => c in prev)) return prev
+      const next = { ...prev }
+      for (const c of cards) delete next[c]
+      return next
+    })
+  }, [])
   const isTouch = useIsTouch()
   const toggleRef = useCallback(
     (verse: number, m: string) => {
       setExpandedRefs((prev) => {
         const key = `${verse}:${m}`
         const next = new Set(prev)
-        if (next.has(key)) next.delete(key)
-        else next.add(key)
-        writeStorage(refsKey, next)
+        if (next.has(key)) {
+          next.delete(key)
+          forgetCites([`r${key}`])
+        } else next.add(key)
+        persist({ refs: next })
         return next
       })
     },
-    [refsKey, writeStorage],
+    [persist, forgetCites],
   )
 
   // A marker written 「1ab」 is one button standing for everything anchored at
@@ -411,13 +448,16 @@ export function ChapterView({
       const refKeys = at.refs.map((m) => `${verse}:${m}`)
       const allOpen =
         noteKeys.every((k) => expandedNotes.has(k)) && refKeys.every((k) => expandedRefs.has(k))
+      if (allOpen) {
+        forgetCites([...noteKeys.map((k) => `n${k}`), ...refKeys.map((k) => `r${k}`)])
+      }
       setExpandedNotes((prev) => {
         const next = new Set(prev)
         for (const k of noteKeys) {
           if (allOpen) next.delete(k)
           else next.add(k)
         }
-        writeStorage(notesKey, next)
+        persist({ notes: next })
         return next
       })
       setExpandedRefs((prev) => {
@@ -426,11 +466,11 @@ export function ChapterView({
           if (allOpen) next.delete(k)
           else next.add(k)
         }
-        writeStorage(refsKey, next)
+        persist({ refs: next })
         return next
       })
     },
-    [expandedNotes, expandedRefs, notesKey, refsKey, writeStorage],
+    [expandedNotes, expandedRefs, persist, forgetCites],
   )
 
   const toggleNote = useCallback(
@@ -438,13 +478,15 @@ export function ChapterView({
       const key = `${verse}:${n}`
       setExpandedNotes((prev) => {
         const next = new Set(prev)
-        if (next.has(key)) next.delete(key)
-        else next.add(key)
-        writeStorage(notesKey, next)
+        if (next.has(key)) {
+          next.delete(key)
+          forgetCites([`n${key}`])
+        } else next.add(key)
+        persist({ notes: next })
         return next
       })
     },
-    [notesKey, writeStorage],
+    [persist, forgetCites],
   )
 
 
@@ -487,9 +529,13 @@ export function ChapterView({
   useEffect(() => {
     setSelected(new Set())
     setSelectedNotes(new Set())
-    // Not cleared but reloaded — the opened cross-refs are saved per chapter.
-    setExpandedRefs(readStorage(`rcv/refs-open/${bookNo}/${chapterNo}`))
-  }, [bookNo, chapterNo, readStorage])
+    // Not cleared but reloaded — the cross-refs and the citations inside every
+    // card are saved per chapter. (The notes have their own sync effect above,
+    // which also has the hl seeds to fold in.)
+    const saved = readOpen(`rcv/open/${bookNo}/${chapterNo}`)
+    setExpandedRefs(saved.refs)
+    setCites(saved.cites)
+  }, [bookNo, chapterNo, readOpen])
 
   // Bring a verse to the top of the panel, matching the gap the ?hl / ?oh jumps
   // land with. Instant, because the rail is dragged and has to track the finger.
@@ -533,8 +579,8 @@ export function ChapterView({
   const toggleAll = useCallback(() => {
     const next = allExpanded ? new Set<string>() : new Set(allNoteKeys)
     setExpandedNotes(next)
-    writeStorage(notesKey, next)
-  }, [allExpanded, allNoteKeys, notesKey, writeStorage])
+    persist({ notes: next })
+  }, [allExpanded, allNoteKeys, persist])
   void toggleAll
   const book = BOOK_BY_NO.get(bookNo)
   const panelRef = useRef<HTMLDivElement | null>(null)
@@ -1139,6 +1185,8 @@ export function ChapterView({
                             bookNo={bookNo}
                             chapterNo={chapterNo}
                             onClose={(n) => toggleNote(r.verse, n)}
+                            open={cites[`n${r.verse}:${card.note.n}`] ?? null}
+                            onOpen={(at) => setCite(`n${r.verse}:${card.note!.n}`, at)}
                             highlighted={noteHighlights.has(`${r.verse}:${card.note.n}`)}
                             selected={selectedNotes.has(`${r.verse}:${card.note.n}`)}
                             onSelect={
@@ -1160,6 +1208,8 @@ export function ChapterView({
                             bookNo={bookNo}
                             chapterNo={chapterNo}
                             onClose={(m) => toggleRef(r.verse, m)}
+                            open={cites[`r${r.verse}:${card.ref!.m}`] ?? null}
+                            onOpen={(at) => setCite(`r${r.verse}:${card.ref!.m}`, at)}
                           />
                           ),
                         )}

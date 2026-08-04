@@ -150,7 +150,9 @@ function BookIntro({ book, bookNo }: { book?: BookOutline; bookNo: number }) {
               // second beside it reads as a mistake.
               continuous={i < rows.length - 1}
               open={open?.row === i ? open.at : null}
-              onOpen={(at) => setOpen(at ? { row: i, at } : null)}
+              // An index, so the first citation on a line is 0 — testing it for
+              // truth would refuse to open exactly that one.
+              onOpen={(at) => setOpen(at == null ? null : { row: i, at })}
             />
           </div>
         </Fragment>
