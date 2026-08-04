@@ -351,9 +351,23 @@ function VersePreview({
             {formatVerseRef(r.bookNo, r.chapterNo, r.verse, 'colon')}
             {r.note != null && `註${r.note}`}
           </Link>
-          {/* A note body carries its own paragraph breaks. */}
+          {/* A note body carries its own paragraph breaks, and its own
+            * citations — 「見弗一2註1」 opens a note that in turn points somewhere
+            * else. Those read like any other, so they go through RefBody too:
+            * tapping one shows its verses here, and tapping it again puts them
+            * away, however deep the reader has gone. Verse text is scripture and
+            * cites nothing, so it stays plain. */}
           <div className={r.note != null ? 'space-y-1' : undefined}>
-            {r.note != null ? r.text.split('\n').map((para, k) => <p key={k}>{para}</p>) : <p>{r.text}</p>}
+            {r.note != null ? (
+              <RefBody
+                paragraphs={r.text.split('\n')}
+                bookNo={r.bookNo}
+                chapterNo={r.chapterNo}
+                continuous={i < rows.length - 1}
+              />
+            ) : (
+              <p>{r.text}</p>
+            )}
           </div>
         </Fragment>
       ))}
@@ -760,6 +774,11 @@ export function CrossRefCard({
   return (
     <li
       data-crossref={verse != null ? `${verse}:${r.m}` : undefined}
+      // The card sits inside the verse, which selects itself when tapped. A tap
+      // in here is aimed at the card, so it stops here. (The note card gets this
+      // from the handler that selects it; this one has nothing else to do, so it
+      // has to say so.) Citations inside stop their own clicks and still work.
+      onClick={(e) => e.stopPropagation()}
       className="space-y-2 rounded-md bg-muted/40 px-3 py-2 text-muted-foreground"
     >
       <RefBody

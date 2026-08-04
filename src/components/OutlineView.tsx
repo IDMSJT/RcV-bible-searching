@@ -4,6 +4,7 @@ import { BOOK_BY_NO } from '@/data/canon'
 import { useOutline } from '@/data/loadBible'
 import { OutlineLabel } from '@/components/OutlineLabel'
 import { RefBody, type Open } from '@/lib/renderVerse'
+import { cn } from '@/lib/utils'
 import type { BookOutline } from '@/types/bible'
 
 /** The book-outline body as a carousel panel (own vertical scroll). Mirrors the
@@ -119,6 +120,7 @@ function BookIntro({ book, bookNo }: { book?: BookOutline; bookNo: number }) {
     ...(book?.topic ? [{ label: '主題', text: book.topic }] : []),
     ...(book?.intro ?? []),
   ]
+  const topicRow = book?.topic ? 0 : -1
   const chapterNo = BOOK_BY_NO.get(bookNo)?.chapterCount === 1 ? 1 : null
   // One open reference for the whole introduction rather than one per line: it
   // reads as a single block, and two sets of verses under different lines of it
@@ -135,7 +137,10 @@ function BookIntro({ book, bookNo }: { book?: BookOutline; bookNo: number }) {
           <span className="flex font-medium text-foreground">
             <span className="flex-1 text-justify [text-align-last:justify]">{r.label}</span>：
           </span>
-          <div className="min-w-0">
+          {/* The subject is what the book is; the rest is who wrote it and
+            * when. It carries the weight of a heading even though it sits in
+            * the same list. */}
+          <div className={cn('min-w-0', i === topicRow && 'font-medium text-foreground')}>
             <RefBody
               paragraphs={[r.text]}
               bookNo={bookNo}
