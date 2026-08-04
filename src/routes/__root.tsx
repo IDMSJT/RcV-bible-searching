@@ -1,4 +1,4 @@
-import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
 import { Outlet, createRootRoute, useLocation, useNavigate } from '@tanstack/react-router'
 // import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 import { BookOpen, ClipboardList, Search, Settings } from 'lucide-react'
@@ -40,8 +40,6 @@ function RootComponent() {
   // window.location — the router updates its own location state before it
   // flushes the URL to the history API, so window.location.search can still
   // be the *previous* page's query string when our layout effect runs.
-  const hlParam = (location.search as { hl?: string }).hl
-  const ohParam = (location.search as { oh?: string }).oh
   const match = pathname.match(/^\/(\d+)(?:\/(\d+))?/)
   const activeBookNo = match ? Number(match[1]) : null
   const activeChapterNo = match && match[2] ? Number(match[2]) : null
@@ -145,51 +143,7 @@ function RootComponent() {
     keys.forEach((k) => sessionStorage.removeItem(k))
   }, [])
 
-  // Per-pathname scroll restoration for the <main> element. TanStack Router's
-  // `scrollToTopSelectors` resets main → 0 on every navigation (push AND pop),
-  // so the browser's back-button doesn't bring you back to where you were —
-  // it always lands at the top. We mirror the scroll offset into sessionStorage
-  // on every scroll, then in a layout effect re-apply the saved value after the
-  // router's reset has run. sessionStorage is bounded to the current tab.
-  useLayoutEffect(() => {
-    const main = document.querySelector<HTMLElement>('[data-scroll-restoration-id="main"]')
-    if (!main) return
-    // Key the saved scroll by pathname AND search, so the plain reading view
-    // (/43/1) and a verse-focused view of the same chapter (/43/1?hl=29) keep
-    // separate positions. Otherwise jumping to a note ref overwrites the spot
-    // you were reading, and 返回 lands on the note's verse instead of yours.
-    const key = `rcv/scroll${pathname}${location.searchStr}`
-    // If the URL is asking us to focus a specific verse (?hl=…) or outline
-    // heading (?oh=…), let ChapterView's own scrollIntoView win and skip
-    // restoration — the user clearly wants to land on the verse, not back
-    // at wherever they left the page.
-    const skipRestore = hlParam != null || ohParam != null
-    if (!skipRestore) {
-      const saved = sessionStorage.getItem(key)
-      if (saved !== null) {
-        const y = Number(saved)
-        // Two rAFs: first frame lets the router's scroll-to-top fire; second
-        // frame overrides it with the saved position before paint.
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            main.scrollTop = y
-          })
-        })
-      }
-    }
-    let raf = 0
-    const onScroll = () => {
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(() => {
-        sessionStorage.setItem(key, String(main.scrollTop))
-      })
-    }
-    main.addEventListener('scroll', onScroll, { passive: true })
-    return () => {
-      main.removeEventListener('scroll', onScroll)
-      cancelAnimationFrame(raf)
-    }
-  }, [pathname, location.searchStr, hlParam, ohParam])
+  // Scroll restoration lives in ScrollBody, which every scrolling page uses.
 
   // If the viewport crosses from mobile to desktop while the drawer is open
   // (rare but possible — rotate, resize), force it closed so we don't keep

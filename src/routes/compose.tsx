@@ -347,7 +347,7 @@ function ComposePage() {
 
   if (input.trim() === '') {
     return (
-      <ScrollBody>
+      <ScrollBody className="min-h-0 flex-1 print:overflow-visible print:pb-0">
         <article className="mx-auto max-w-3xl px-4 py-6 md:px-8 md:py-10">
           <p className="text-base text-muted-foreground md:text-sm">
             <span className="md:hidden">
@@ -384,7 +384,7 @@ function ComposePage() {
   })
 
   return (
-    <ScrollBody>
+    <ScrollBody className="min-h-0 flex-1 print:overflow-visible print:pb-0">
     {/* pb-20 clears the floating 複製/列印 toolbar so the last outline line
      * isn't covered when scrolled to the end (md:py-10 would otherwise reset
      * the bottom, so it gets its own md:pb-20). */}

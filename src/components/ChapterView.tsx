@@ -45,6 +45,8 @@ import {
 import { emptyOpenState, parseOpen, serializeOpen, type OpenState } from '@/lib/openState'
 import type { Open } from '@/lib/renderVerse'
 import { OutlineLabel } from '@/components/OutlineLabel'
+import { ScrollBody } from '@/components/ScrollBody'
+import { rememberScroll } from '@/lib/scrollMemory'
 import type { HlItem } from '@/lib/highlight'
 import { revealInScroll } from '@/lib/revealInScroll'
 import { useIsTouch } from '@/lib/useIsTouch'
@@ -636,15 +638,8 @@ export function ChapterView({
     const chapterKey = `${bookNo}/${chapterNo}`
     const chapterChanged = prevChapterKey.current !== chapterKey
     prevChapterKey.current = chapterKey
-    // Defer one frame so this runs AFTER the router's own scroll handling.
+    // Defer one frame so this runs after the layout has settled.
     const id = requestAnimationFrame(() => {
-      // Belt-and-suspenders for chapter changes: clear any stale offset the
-      // reused container kept from the (taller) previous chapter, so worst
-      // case we land at the top — never in blank space past the content.
-      if (chapterChanged) {
-        const main = document.querySelector<HTMLElement>('[data-scroll-restoration-id="main"]')
-        if (main) main.scrollTop = 0
-      }
       // A link that named a note is asking for the note, not the verse it hangs
       // off — and the note can sit well below it. Land on the card, bringing the
       // verse along when there is room for both.
@@ -668,51 +663,12 @@ export function ChapterView({
     return () => cancelAnimationFrame(id)
   }, [active, data, bookNo, chapterNo, firstHlVerse, ohKey, noteHighlights])
 
-  // Per-panel scroll restoration. EVERY panel (including the off-screen prev/
-  // next previews) is positioned to its saved offset up front, so a chapter is
-  // already where it should be before you swipe to it — no jump after landing —
-  // and it can't inherit a neighbour's scrollTop from a reused DOM node. Only
-  // the active panel writes back. The active verse-jump view (?hl / ?oh) opts
-  // out so the oh-scroll above can land on the verse instead.
+  // A verse/heading-focused view (?hl / ?oh) is transient: ScrollBody neither
+  // restores into it nor records it, so the jump lands on the verse and the
+  // plain reading position underneath is left alone. So are the two carousel
+  // panels either side of the one being read.
   const isJumpView = ohIndex != null || firstHlVerse != null
-  useLayoutEffect(() => {
-    const el = panelRef.current
-    if (!el) return
-    const key = `rcv/scroll/${bookNo}/${chapterNo}`
-    const reapply: number[] = []
-    if (!(active && isJumpView)) {
-      const saved = sessionStorage.getItem(key)
-      const target = saved !== null ? Number(saved) : 0
-      const apply = () => {
-        el.scrollTop = target
-      }
-      // Set before paint, then re-assert across the next couple of frames:
-      // iOS WKWebView (standalone PWA) restores a freshly-mounted scroll
-      // container to the old position AFTER our effect, so a one-shot set gets
-      // clobbered — hence the inheritance only showing up in the installed app.
-      apply()
-      reapply.push(requestAnimationFrame(apply))
-      reapply.push(requestAnimationFrame(() => reapply.push(requestAnimationFrame(apply))))
-    }
-    if (!active) return () => reapply.forEach(cancelAnimationFrame)
-    // A verse/heading-focused view (?hl / ?oh) is transient: it skips restore
-    // (above) and must also skip write-back. Otherwise scrolling to the target
-    // verse would overwrite the plain reading position stored under the same
-    // chapter key, so 返回 to /book/chapter would land on the verse instead of
-    // where you were reading.
-    if (isJumpView) return
-    let raf = 0
-    const onScroll = () => {
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(() => sessionStorage.setItem(key, String(el.scrollTop)))
-    }
-    el.addEventListener('scroll', onScroll, { passive: true })
-    return () => {
-      reapply.forEach(cancelAnimationFrame)
-      el.removeEventListener('scroll', onScroll)
-      cancelAnimationFrame(raf)
-    }
-  }, [active, bookNo, chapterNo, isJumpView])
+
 
   if (error) {
     return <p className="p-8 text-sm text-destructive">資料載入失敗：{error}</p>
@@ -945,8 +901,7 @@ export function ChapterView({
   // the restore that fires when hl clears keeps us on the verse instead of
   // jumping back to the old reading position.
   const clearHl = () => {
-    const el = panelRef.current
-    if (el) sessionStorage.setItem(`rcv/scroll/${bookNo}/${chapterNo}`, String(el.scrollTop))
+    rememberScroll(panelRef.current, `/${bookNo}/${chapterNo}`)
     navigate({
       to: '/$bookNo/$chapterNo',
       params: { bookNo, chapterNo },
@@ -1054,10 +1009,11 @@ export function ChapterView({
     <>
       {/* One carousel panel: its own vertical scroll. The header / paging /
        * swipe live in the pager above; this is just the chapter body. */}
-      <div
+      <ScrollBody
         ref={panelRef}
+        paused={!active || isJumpView}
         onCopy={handleCopy}
-        className="h-full overflow-y-auto overscroll-y-contain scroll-pt-6 pb-[var(--nav-h)] [overflow-anchor:none] md:pb-0"
+        className="h-full overscroll-y-contain scroll-pt-6 [overflow-anchor:none]"
       >
       <article
         className={cn(
@@ -1227,7 +1183,7 @@ export function ChapterView({
           </div>
         )}
       </article>
-      </div>
+      </ScrollBody>
 
       {/* Non-modal selection card (no overlay) so the verses behind it stay
        * tappable and you can keep adding to the selection. Portalled to <body>
