@@ -176,6 +176,13 @@ export interface ParseOptions {
    * 40:17 of the book being introduced — and reading one as a list gets three
    * references wrong that bounding gets right. */
   kind?: 'note' | 'prose' | 'list'
+  /** Character positions where the context starts over, on top of whatever
+   * `kind` decides. The publisher marks its own citation blocks inside a note
+   * (getFootnoteLinks); feeding their starts in here is what
+   * scripts/check_footnote_links.py compares our reading against. Nothing in
+   * the app passes this — see scripts/PARSE_EXCEPTIONS.md for why the blocks
+   * are not imported. */
+  cuts?: ReadonlySet<number>
 }
 
 /**
@@ -257,6 +264,7 @@ export function parseRefs(
       }
     }
     const seeded = i < seedEnd
+    if (!seeded && options?.cuts?.has(i)) resetCtx()
 
     const ch = text[i]
     if (!seeded && bounded && (ch === '(' || ch === ')')) {
