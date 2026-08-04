@@ -2,6 +2,7 @@ import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type
 import { useNavigate, useLocation } from '@tanstack/react-router'
 import { X } from 'lucide-react'
 import { parseRefs, type Segment, type VerseRef } from '@/lib/parseRefs'
+import { groupRefs } from '@/lib/refGroups'
 import { hasVariant, tokenPattern } from '@/lib/variants'
 import {
   useBible,
@@ -45,6 +46,11 @@ const PLACEHOLDER =
   '輸入經文出處，例如：\n約翰福音一章一節，三章十六節，十四章六節'
 
 interface ResolvedVerse {
+  /** Which entry of the flat ref list produced this row — several rows come
+   * from one ref when it names a range, and the input's citations are grouped
+   * by that index. Absent on the keyword tab, whose rows come from matching
+   * text rather than from a citation. */
+  refIndex?: number
   bookNo: number
   chapterNo: number
   verse: Verse
@@ -142,51 +148,80 @@ function renderBackdrop(
   refFound: boolean[],
   activeKey: string | null,
   hoveredVerse: { bookNo: number; chapter: number; verse: number } | null,
+  hoveredGroup: number | null,
 ) {
+  // Citations of one chapter written in a row — 「賽十一1，2」 — read as one
+  // citation, the way they do in the reading view: lit together, and with the
+  // punctuation between them inside the tint so it runs unbroken.
+  const groups = groupRefs(segments)
+
   // Segments are emitted in input order; ref segments carry the resolved
-  // VerseRefs while everything else (prose, separators) renders plain. We
-  // walk a flat `refFound` cursor that's keyed to the same VerseRef order
-  // as the results list, so a segment with multiple refs (a 創一1、5 token
-  // that yields two refs) consumes that many slots.
-  let refIndex = 0
-  return segments.map((seg, i) => {
-    if (!seg.refs || seg.refs.length === 0) {
-      return <Fragment key={i}>{seg.text}</Fragment>
-    }
-    const startIdx = refIndex
-    refIndex += seg.refs.length
-    let allResolved = true
+  // VerseRefs while everything else (prose, separators) renders plain. The flat
+  // `refFound` cursor is keyed to the same VerseRef order as the results list,
+  // so a segment with several refs (a 創一1、5 token that yields two) consumes
+  // that many slots.
+  const startOf: number[] = []
+  let cursor = 0
+  for (const seg of segments) {
+    startOf.push(cursor)
+    cursor += seg.refs?.length ?? 0
+  }
+
+  const state = groups.map((g) => {
+    let resolved = true
     let lit = false
-    for (let j = 0; j < seg.refs.length; j++) {
-      if (refFound[startIdx + j] === false) allResolved = false
-      const ref = seg.refs[j]
-      // active = the exact open ref; hover lights any token whose range covers
-      // the hovered row's verse, so 與註-expanded note rows light it too.
-      if (refKey(ref.bookNo, ref.chapter, refHl(ref)) === activeKey) lit = true
-      if (
-        hoveredVerse &&
-        refCoversVerse(ref, hoveredVerse.bookNo, hoveredVerse.chapter, hoveredVerse.verse)
-      ) {
-        lit = true
-      }
+    for (let i = g.from; i <= g.to; i++) {
+      const seg = segments[i]
+      if (!seg.refs?.length) continue
+      seg.refs.forEach((ref, j) => {
+        if (refFound[startOf[i] + j] === false) resolved = false
+        // active = the exact open ref; hover lights any token whose range covers
+        // the hovered row's verse, so 與註-expanded note rows light it too.
+        if (refKey(ref.bookNo, ref.chapter, refHl(ref)) === activeKey) lit = true
+        if (
+          hoveredVerse &&
+          refCoversVerse(ref, hoveredVerse.bookNo, hoveredVerse.chapter, hoveredVerse.verse)
+        ) {
+          lit = true
+        }
+      })
     }
-    if (!allResolved) {
-      return (
-        <span key={i} className="rounded-sm bg-destructive/15 text-destructive">
-          {seg.text}
-        </span>
-      )
-    }
+    return { resolved, lit }
+  })
+
+  // One span per group, so the tint is one box rather than several stitched
+  // together. Prose between groups keeps its own place in the run.
+  const out: ReactNode[] = []
+  let at = 0
+  for (const [gi, g] of groups.entries()) {
+    for (; at < g.from; at++) out.push(<Fragment key={at}>{segments[at].text}</Fragment>)
+    const { resolved, lit } = state[gi]
     // Same look a cross-reference has in the reading view: recognised refs read
     // as links, and the one in play picks up the tint. Colour and background
     // only — the backdrop has to stay glyph-for-glyph with the textarea above
     // it, so anything affecting metrics (weight, spacing) would break alignment.
-    return (
-      <span key={i} className={cn('rounded-sm text-primary', lit && 'bg-primary/15')}>
-        {seg.text}
-      </span>
+    out.push(
+      <span
+        key={g.from}
+        // Read back by the pointer hit-test: the backdrop can't be hovered, so
+        // which citation the mouse is over is worked out from these boxes.
+        data-group={gi}
+        className={cn(
+          'rounded-sm',
+          resolved ? 'text-primary' : 'bg-destructive/15 text-destructive',
+          resolved && (lit || hoveredGroup === gi) && 'bg-primary/15',
+        )}
+      >
+        {segments
+          .slice(g.from, g.to + 1)
+          .map((s) => s.text)
+          .join('')}
+      </span>,
     )
-  })
+    at = g.to + 1
+  }
+  for (; at < segments.length; at++) out.push(<Fragment key={at}>{segments[at].text}</Fragment>)
+  return out
 }
 
 type LookupTab = 'ref' | 'kw'
@@ -251,8 +286,12 @@ const ResultList = memo(function ResultList({
   onHover,
   onOpen,
   onToggle,
+  fromHoveredRef,
 }: {
   rows: ResolvedVerse[]
+  /** Rows produced by the citation under the mouse, as a range over the flat
+   * ref list — the whole block lights so it reads as one answer. */
+  fromHoveredRef?: [number, number] | null
   tokens: string[]
   error: string | null
   loading: boolean
@@ -285,13 +324,18 @@ const ResultList = memo(function ResultList({
       {rows.map((r, i) => {
         const active =
           activeBookNo === r.bookNo && activeChapterNo === r.chapterNo && activeHl === refHl(r.ref)
+        const fromHovered =
+          fromHoveredRef != null &&
+          r.refIndex != null &&
+          r.refIndex >= fromHoveredRef[0] &&
+          r.refIndex < fromHoveredRef[1]
         return (
           <ResultRow
             key={`${r.bookNo}-${r.chapterNo}-${r.verse.verse}-${i}`}
             resolved={r}
             highlightTokens={tokens}
             active={active}
-            hover={hovered === i}
+            hover={hovered === i || fromHovered}
             selected={selected.has(i)}
             selecting={selecting}
             onHover={(h) => onHover(i, h)}
@@ -386,7 +430,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   const resolvedRefs = useMemo<ResolvedVerse[]>(() => {
     if (!data) return []
     const out: ResolvedVerse[] = []
-    for (const ref of refs) {
+    for (const [refIndex, ref] of refs.entries()) {
       // A note only attaches to a single verse in one chapter — a range or a
       // cross-chapter span can't say which verse the 「注N」 belongs to.
       const wantsNote =
@@ -417,6 +461,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
             // opens the verse + all its notes in reading (hl 「v,v:*」), like the
             // 與註1 connected form does for a single note.
             out.push({
+              refIndex,
               bookNo: ref.bookNo,
               chapterNo: vCh,
               verse: v,
@@ -426,6 +471,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
           }
           for (const note of vNotes) {
             out.push({
+              refIndex,
               bookNo: ref.bookNo,
               chapterNo: vCh,
               verse: v,
@@ -454,7 +500,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
         // verse. Drop it entirely when the note doesn't exist (typo / OOR N).
         if (isAttachedVerse && ref.noteDirect) {
           if (!noteToShow) continue
-          out.push({ bookNo: ref.bookNo, chapterNo: vCh, verse: v, noteToShow, noteOnly: true, ref })
+          out.push({ refIndex, bookNo: ref.bookNo, chapterNo: vCh, verse: v, noteToShow, noteOnly: true, ref })
           continue
         }
 
@@ -462,13 +508,13 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
         const enText = showEnglish
           ? findChapter(bibleEn, ref.bookNo, vCh)?.verses.find((x) => x.verse === v.verse)?.text
           : undefined
-        out.push({ bookNo: ref.bookNo, chapterNo: vCh, verse: v, enText, ref })
+        out.push({ refIndex, bookNo: ref.bookNo, chapterNo: vCh, verse: v, enText, ref })
 
         // Connected 注N (啟二一23與註1) → ALSO add a separate note-only row
         // right after the verse, so the user sees both targets as distinct
         // results.
         if (isAttachedVerse && !ref.noteDirect && noteToShow) {
-          out.push({ bookNo: ref.bookNo, chapterNo: vCh, verse: v, noteToShow, noteOnly: true, ref })
+          out.push({ refIndex, bookNo: ref.bookNo, chapterNo: vCh, verse: v, noteToShow, noteOnly: true, ref })
         }
       }
     }
@@ -559,6 +605,41 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     })
   }, [refs, data])
 
+  // Which citation in the input the mouse is over, and the rows it produced.
+  // The backdrop is behind the textarea and can't be hovered, so the pointer is
+  // tested against the boxes those spans occupy — they sit glyph-for-glyph over
+  // the text, which is what makes that reliable.
+  const [hoveredGroup, setHoveredGroup] = useState<number | null>(null)
+  const groupRefRange = useMemo(() => {
+    const ranges: [number, number][] = []
+    const startOf: number[] = []
+    let cursor = 0
+    for (const seg of segments) {
+      startOf.push(cursor)
+      cursor += seg.refs?.length ?? 0
+    }
+    for (const g of groupRefs(segments)) {
+      const last = segments[g.to]
+      ranges.push([startOf[g.from], startOf[g.to] + (last.refs?.length ?? 0)])
+    }
+    return ranges
+  }, [segments])
+
+  const onBackdropHover = (e: React.MouseEvent) => {
+    const bd = backdropRef.current
+    if (!bd) return
+    const { clientX: x, clientY: y } = e
+    for (const el of bd.querySelectorAll<HTMLElement>('[data-group]')) {
+      for (const r of el.getClientRects()) {
+        if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
+          setHoveredGroup(Number(el.dataset.group))
+          return
+        }
+      }
+    }
+    setHoveredGroup(null)
+  }
+
   // Key of the result row currently under the mouse — so its source token in
   // the input backdrop highlights along with the row's own lit state.
   const hoveredRow = hovered != null ? resolved[hovered] : null
@@ -605,7 +686,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   // Reset the selection when the active tab or its query changes — stale indices
   // would point at the wrong rows. Done during render (React's "adjust state when
   // an input changes" pattern), not an effect.
-  const selScope = `${tab} ${tab === 'kw' ? kw : q}`
+  const selScope = `${tab}\u0000${tab === 'kw' ? kw : q}`
   const [prevSelScope, setPrevSelScope] = useState(selScope)
   if (prevSelScope !== selScope) {
     setPrevSelScope(selScope)
@@ -631,11 +712,13 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
           'pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-words text-foreground [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
         )}
       >
-        {renderBackdrop(segments, refFound, activeKey, hoveredVerse)}
+        {renderBackdrop(segments, refFound, activeKey, hoveredVerse, hoveredGroup)}
       </div>
       <Textarea
         ref={textareaRef}
         value={q}
+        onMouseMove={onBackdropHover}
+        onMouseLeave={() => setHoveredGroup(null)}
         onChange={(e) => setQ(e.target.value)}
         placeholder={PLACEHOLDER}
         spellCheck={false}
@@ -705,6 +788,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     >
       <ResultList
         rows={resolvedRefs}
+        fromHoveredRef={hoveredGroup != null ? groupRefRange[hoveredGroup] : null}
         tokens={NO_TOKENS}
         error={error}
         loading={!data}

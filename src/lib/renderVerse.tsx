@@ -2,6 +2,7 @@ import { Fragment, useLayoutEffect, useRef, useState, type ReactNode } from 'rea
 import { Link } from '@tanstack/react-router'
 import { X } from 'lucide-react'
 import { parseRefs, type VerseRef } from '@/lib/parseRefs'
+import { groupRefs } from '@/lib/refGroups'
 import { useBible, useAnnotations, eachVerseInRange, notesForVerse } from '@/data/loadBible'
 import { formatVerseRef } from '@/lib/cite'
 import { revealInScroll } from '@/lib/revealInScroll'
@@ -556,43 +557,85 @@ export function RefBody({
 
         const activeHere = active?.key.startsWith(`${pi}:`) ?? false
 
-        // `si` names the segment; `half` only keeps React's sibling keys apart
-        // where a wrap has put the two pieces of one segment in different
-        // arrays. They must not share one number: a piece keyed by a made-up
-        // index opened a reference that no unsplit rendering could hold, and
-        // since every tap re-renders unsplit to measure the break, the tap
-        // measured nothing and nothing appeared.
-        const renderSeg = (
-          seg: (typeof segments)[number],
-          si: number,
-          text?: string,
-          half?: string,
-        ) => {
-          const body = text ?? seg.text
-          if (!seg.refs || seg.refs.length === 0) {
-            return <Fragment key={`${si}${half ?? ''}`}>{body}</Fragment>
+        // Citations of one chapter written in a row — 「賽十一1，2」 — are one
+        // citation with two verses in it, and open together. A different
+        // chapter is a different place however close it is written, so
+        // 「撒上十六1，11～13，十七12」 stays two. The punctuation between members
+        // belongs to the group, so the tint runs unbroken across it.
+        const groups = groupRefs(segments)
+
+        // What the paragraph is built from: a group of citations, or a run of
+        // plain text between two of them. This is the unit the break cuts, so a
+        // group is one span until a wrap actually divides it.
+        type Unit = { gi: number; text: string; start: number; end: number }
+        const units: Unit[] = []
+        {
+          let at = 0
+          let plain = ''
+          let plainStart = 0
+          const flushPlain = () => {
+            if (!plain) return
+            units.push({ gi: -1, text: plain, start: plainStart, end: at })
+            plain = ''
           }
-          const key = `${pi}:${si}`
+          for (let si = 0; si < segments.length; si++) {
+            const gi = groups.findIndex((g) => si === g.from)
+            if (gi < 0) {
+              if (!plain) plainStart = at
+              plain += segments[si].text
+              at += segments[si].text.length
+              continue
+            }
+            flushPlain()
+            const g = groups[gi]
+            const text = segments
+              .slice(g.from, g.to + 1)
+              .map((x) => x.text)
+              .join('')
+            units.push({ gi, text, start: at, end: at + text.length })
+            at += text.length
+            si = g.to
+          }
+          flushPlain()
+        }
+
+        // `half` keeps React's sibling keys apart where a wrap has put the two
+        // pieces of one unit in different arrays. It must not touch the key the
+        // open citation is named by: a piece keyed by a made-up index once
+        // opened a reference no unsplit rendering could hold, and since every
+        // tap re-renders unsplit to measure the break, the tap measured nothing
+        // and nothing appeared.
+        const renderUnit = (u: Unit, text?: string, half?: string) => {
+          const body = text ?? u.text
+          if (u.gi < 0) {
+            return <Fragment key={`${u.start}${half ?? ''}`}>{body}</Fragment>
+          }
+          const key = `${pi}:g${u.gi}`
           const on = active?.key === key
           return (
             <span
-              key={`${si}${half ?? ''}`}
-              ref={on ? (el) => { refElRef.current = el } : undefined}
+              key={`${u.start}${half ?? ''}`}
+              // The break is measured from where the citation starts, so only a
+              // leading piece is the anchor.
+              ref={
+                on && half !== 'b'
+                  ? (el) => {
+                      refElRef.current = el
+                    }
+                  : undefined
+              }
               role="button"
               tabIndex={0}
               // The card itself may select the note on tap (and lookup rows
               // navigate) — keep both off this ref.
               onPointerDown={(e) => e.stopPropagation()}
-              // Mouse users just sweep across the refs to read them; gated on
-              // pointerType so a touch's synthetic hover doesn't fire ahead of
-              // the tap on mobile.
               onClick={(e) => {
                 e.stopPropagation()
                 checkedRef.current = null
-                setActive(on ? null : { key, refs: seg.refs! })
+                setActive(on ? null : { key, refs: groups[u.gi].refs })
               }}
               className={cn(
-                'cursor-pointer rounded text-primary hover:text-primary/80',
+                'cursor-pointer rounded-sm text-primary hover:text-primary/80',
                 on && 'bg-primary/15',
               )}
             >
@@ -607,7 +650,7 @@ export function RefBody({
           return (
             <p key={pi} ref={activeHere ? paraRef : undefined}>
               {pi === 0 && marker}
-              {segments.map((seg, si) => renderSeg(seg, si))}
+              {units.map((u) => renderUnit(u))}
             </p>
           )
         }
@@ -617,24 +660,19 @@ export function RefBody({
         // line keeps its full measure rather than stopping at the ref.
         const head: ReactNode[] = []
         const tail: ReactNode[] = []
-        let pos = 0
-        for (let si = 0; si < segments.length; si++) {
-          const seg = segments[si]
-          const start = pos
-          const end = pos + seg.text.length
-          pos = end
-          if (end <= splitAt) head.push(renderSeg(seg, si))
-          else if (start >= splitAt) tail.push(renderSeg(seg, si))
-          else if (seg.refs && seg.refs.length > 0 && active?.key === `${pi}:${si}`) {
+        for (const u of units) {
+          if (u.end <= splitAt) head.push(renderUnit(u))
+          else if (u.start >= splitAt) tail.push(renderUnit(u))
+          else if (active?.key === `${pi}:g${u.gi}`) {
             // The citation being read stays whole: it is the element the break
             // is measured from, and cutting it would move the anchor the next
-            // measurement reads. Every other citation wraps like the prose
-            // around it, so the rule lands where the line really ended instead
-            // of being pushed past a citation that happened to straddle it.
-            head.push(renderSeg(seg, si))
+            // measurement reads. Everything else wraps like the prose around it,
+            // so the rule lands where the line really ended instead of being
+            // pushed past whatever happened to straddle it.
+            head.push(renderUnit(u))
           } else {
-            head.push(renderSeg(seg, si, seg.text.slice(0, splitAt - start), 'a'))
-            tail.push(renderSeg(seg, si, seg.text.slice(splitAt - start), 'b'))
+            head.push(renderUnit(u, u.text.slice(0, splitAt - u.start), 'a'))
+            tail.push(renderUnit(u, u.text.slice(splitAt - u.start), 'b'))
           }
         }
         const hasTail = tail.length > 0
@@ -681,7 +719,7 @@ function CloseButton({ onClose, label }: { onClose: () => void; label: string })
       }}
       // Sized in em so it tracks the reading font-size setting along with the
       // text it sits beside.
-      className="float-right -mr-[0.25em] ml-[0.125em] rounded p-[0.25em] text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
+      className="float-right m-[0.0625em] -mr-[0.25em] ml-[0.125em] rounded p-[0.25em] text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
     >
       <X className="size-[1em]" />
     </button>
