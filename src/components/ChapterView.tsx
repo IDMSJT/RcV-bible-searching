@@ -1113,8 +1113,20 @@ export function ChapterView({
                         .filter((n) => expandedNotes.has(`${r.verse}:${n.n}`))
                         .map((n) => ({ at: Math.min(...n.offsets), note: n, ref: null })),
                     ]
-                      // Same position → the footnote first, as its marker reads.
-                      .sort((a, b) => a.at - b.at || (a.note ? -1 : 1))
+                      // Same position → in the order the marker spells them:
+                      // footnotes before cross-references, each in its own
+                      // sequence. Comparing only the kind was not a comparator
+                      // at all — two footnotes each claimed to come first, and
+                      // the sort read that as "move it further" and reversed
+                      // them, so 「12a」 opened as 2, 1, a.
+                      .sort(
+                        (a, b) =>
+                          a.at - b.at ||
+                          Number(!a.note) - Number(!b.note) ||
+                          (a.note && b.note
+                            ? a.note.n - b.note.n
+                            : a.ref!.m.localeCompare(b.ref!.m)),
+                      )
                     if (cards.length === 0) return null
                     return (
                       <CardList>
