@@ -2,16 +2,15 @@ import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type
 import { useNavigate, useLocation } from '@tanstack/react-router'
 import { X } from 'lucide-react'
 import { parseRefs, type Segment, type VerseRef } from '@/lib/parseRefs'
-import { groupRefs } from '@/lib/refGroups'
-import { hasVariant, tokenPattern } from '@/lib/variants'
 import {
-  useBible,
-  useBibleEn,
-  useAnnotations,
-  findChapter,
-  notesForVerse,
-  eachVerseInRange,
-} from '@/data/loadBible'
+  refsExist,
+  resolveRefs,
+  searchKeyword,
+  type ResolvedVerse,
+} from '@/lib/lookupResults'
+import { groupRefs } from '@/lib/refGroups'
+import { tokenPattern } from '@/lib/variants'
+import { useBible, useBibleEn, useAnnotations } from '@/data/loadBible'
 import { BOOK_ABBREV } from '@/data/abbrev'
 import { BOOK_ABBREV_EN } from '@/data/abbrevEn'
 import {
@@ -31,7 +30,6 @@ import { useLocalStorage } from '@/lib/useLocalStorage'
 import { renderMarkedText, renderNoteText } from '@/lib/renderVerse'
 import { InputActions } from '@/components/InputActions'
 import { cn } from '@/lib/utils'
-import type { Annotation, Verse } from '@/types/bible'
 
 // Shared text/padding rules so the visible Textarea above the highlight-aware
 // backdrop renders glyphs at exactly the same positions. text-base on mobile
@@ -44,33 +42,6 @@ const HEADER_CLS =
 
 const PLACEHOLDER =
   '輸入經文出處，例如：\n約翰福音一章一節，三章十六節，十四章六節'
-
-interface ResolvedVerse {
-  /** Which entry of the flat ref list produced this row — several rows come
-   * from one ref when it names a range, and the input's citations are grouped
-   * by that index. Absent on the keyword tab, whose rows come from matching
-   * text rather than from a citation. */
-  refIndex?: number
-  bookNo: number
-  chapterNo: number
-  verse: Verse
-  /** English translation, when 顯示英文 is on and the English bible has the
-   * matching verse. Stored as a plain string because the English DB doesn't
-   * carry the same marks / segment structure. */
-  enText?: string
-  /** Single note attached to the ref via 注N / 註N suffix.
-   *
-   * - With a connector (與註1, ，註1) the verse is the row's main content and
-   *   the note renders inline below it.
-   * - Without a connector (啟二一23註1) the row is "note-only": the verse
-   *   text is suppressed and the right column shows just the note body, with
-   *   the label extended to 「<verse>註<N>」. */
-  noteToShow?: Annotation
-  /** True for the direct-attach form (no connector before 注N). Drives the
-   * note-only display + the `${verse}:${n}` hl URL form. */
-  noteOnly?: boolean
-  ref: VerseRef
-}
 
 function refHl(ref: VerseRef): string {
   // Cross-chapter range → 「chA:vA-chB:vB」. ChapterView clips it to the
@@ -427,183 +398,20 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     return () => ta.removeEventListener('scroll', sync)
   }, [tab, isMobile])
 
-  const resolvedRefs = useMemo<ResolvedVerse[]>(() => {
-    if (!data) return []
-    const out: ResolvedVerse[] = []
-    for (const [refIndex, ref] of refs.entries()) {
-      // A note only attaches to a single verse in one chapter — a range or a
-      // cross-chapter span can't say which verse the 「注N」 belongs to.
-      const wantsNote =
-        ref.note != null && ref.verseStart === ref.verseEnd && ref.chapter === ref.endChapter
+  const resolvedRefs = useMemo(
+    () => resolveRefs(refs, { bible: data, bibleEn, annotations, showEnglish }),
+    [refs, data, bibleEn, annotations, showEnglish],
+  )
 
-      // Walk every verse the ref covers — spans chapters for a cross-chapter
-      // range. English / annotation lookups key off each verse's REAL chapter
-      // (vCh), not the ref's start chapter.
-      for (const { chapterNo: vCh, verse: v } of eachVerseInRange(
-        data,
-        ref.bookNo,
-        ref.chapter,
-        ref.endChapter,
-        ref.verseStart,
-        ref.verseEnd,
-      )) {
-        // Bare 註 (noteAll): every footnote on this verse becomes its own
-        // note-only row. Each row carries a synthesised single-note ref so the
-        // existing refHl / navigation / backdrop machinery works unchanged.
-        // Connected form (太八2與註) also emits the verse row first.
-        if (ref.noteAll) {
-          const vNotes = notesForVerse(annotations, ref.bookNo, vCh, v.verse)
-          if (!ref.noteDirect) {
-            const enText = showEnglish
-              ? findChapter(bibleEn, ref.bookNo, vCh)?.verses.find((x) => x.verse === v.verse)?.text
-              : undefined
-            // Keep noteAll (narrowed to this verse) so clicking the verse row
-            // opens the verse + all its notes in reading (hl 「v,v:*」), like the
-            // 與註1 connected form does for a single note.
-            out.push({
-              refIndex,
-              bookNo: ref.bookNo,
-              chapterNo: vCh,
-              verse: v,
-              enText,
-              ref: { ...ref, chapter: vCh, endChapter: vCh, verseStart: v.verse, verseEnd: v.verse },
-            })
-          }
-          for (const note of vNotes) {
-            out.push({
-              refIndex,
-              bookNo: ref.bookNo,
-              chapterNo: vCh,
-              verse: v,
-              noteToShow: note,
-              noteOnly: true,
-              // 與註 (non-direct): every listed row — verse and each note —
-              // targets the whole verse + all its notes (7,7:*), so clicking any
-              // of them lights the same set in reading. Direct 註 keeps the note
-              // alone as the target.
-              ref: ref.noteDirect
-                ? { ...ref, noteAll: undefined, note: note.n, noteDirect: true }
-                : { ...ref, chapter: vCh, endChapter: vCh, verseStart: v.verse, verseEnd: v.verse },
-            })
-          }
-          continue
-        }
-
-        const isAttachedVerse = wantsNote && vCh === ref.chapter && v.verse === ref.verseStart
-        const noteToShow = isAttachedVerse
-          ? (wantsNote ? notesForVerse(annotations, ref.bookNo, ref.chapter, v.verse) : []).find(
-              (n) => n.n === ref.note,
-            )
-          : undefined
-
-        // Direct 注N (啟二一23註1) → ONE note-only row in place of the
-        // verse. Drop it entirely when the note doesn't exist (typo / OOR N).
-        if (isAttachedVerse && ref.noteDirect) {
-          if (!noteToShow) continue
-          out.push({ refIndex, bookNo: ref.bookNo, chapterNo: vCh, verse: v, noteToShow, noteOnly: true, ref })
-          continue
-        }
-
-        // Otherwise emit the verse row.
-        const enText = showEnglish
-          ? findChapter(bibleEn, ref.bookNo, vCh)?.verses.find((x) => x.verse === v.verse)?.text
-          : undefined
-        out.push({ refIndex, bookNo: ref.bookNo, chapterNo: vCh, verse: v, enText, ref })
-
-        // Connected 注N (啟二一23與註1) → ALSO add a separate note-only row
-        // right after the verse, so the user sees both targets as distinct
-        // results.
-        if (isAttachedVerse && !ref.noteDirect && noteToShow) {
-          out.push({ refIndex, bookNo: ref.bookNo, chapterNo: vCh, verse: v, noteToShow, noteOnly: true, ref })
-        }
-      }
-    }
-    return out
-  }, [refs, data, bibleEn, showEnglish, annotations])
-
-  // Keyword-search results. Same shape as ref results so the renderer / copy
-  // machinery don't care which tab is active. Caps at KW_RESULT_CAP so a
-  // 1-char query doesn't dump every verse into the DOM at once.
-  const resolvedKw = useMemo<{ rows: ResolvedVerse[]; total: number }>(() => {
-    const query = kw.trim()
-    if (!data || !query) return { rows: [], total: 0 }
-    const tokens = query.toLowerCase().split(/\s+/).filter(Boolean)
-    if (!tokens.length) return { rows: [], total: 0 }
-    // Per-token zh matcher: a variant-expanded regex (吃 also matches 喫) when the
-    // token carries a variant char, otherwise the plain fast `includes`. Built
-    // once per query and reused across every verse.
-    const matchers = tokens.map((t) => {
-      if (hasVariant(t)) {
-        const re = new RegExp(tokenPattern(t))
-        return { t, zh: (h: string) => re.test(h) }
-      }
-      return { t, zh: (h: string) => h.includes(t) }
-    })
-    // Count every match for an accurate total, but only build rows up to the
-    // cap — so a broad query reports "共 N 節" honestly without dumping N rows
-    // into the unvirtualized list.
-    const out: ResolvedVerse[] = []
-    let total = 0
-    for (const book of data.books) {
-      for (const chapter of book.chapters) {
-        const enChapter = showEnglish ? findChapter(bibleEn, book.bookNo, chapter.chapterNo) : null
-        for (const v of chapter.verses) {
-          const haystackZh = v.text
-          const haystackEn = enChapter?.verses.find((x) => x.verse === v.verse)?.text ?? ''
-          // Each token must appear in either zh or en — gives a forgiving
-          // mixed-language search without needing a language toggle.
-          const haystackEnLower = haystackEn.toLowerCase()
-          const matched = matchers.every(
-            (m) => m.zh(haystackZh) || haystackEnLower.includes(m.t),
-          )
-          if (!matched) continue
-          total++
-          if (out.length >= KW_RESULT_CAP) continue
-          out.push({
-            bookNo: book.bookNo,
-            chapterNo: chapter.chapterNo,
-            verse: v,
-            enText: haystackEn || undefined,
-            ref: {
-              bookNo: book.bookNo,
-              chapter: chapter.chapterNo,
-              endChapter: chapter.chapterNo,
-              verseStart: v.verse,
-              verseEnd: v.verse,
-              seg: null,
-              source: '',
-            },
-          })
-        }
-      }
-    }
-    return { rows: out, total }
-  }, [kw, data, bibleEn, showEnglish])
+  const resolvedKw = useMemo(
+    () => searchKeyword(kw, { bible: data, bibleEn, annotations, showEnglish }, KW_RESULT_CAP),
+    [kw, data, bibleEn, annotations, showEnglish],
+  )
 
   const resolved = tab === 'ref' ? resolvedRefs : resolvedKw.rows
 
   // Per-ref: did it resolve to at least one real verse? (parsed but not found → error)
-  const refFound = useMemo<boolean[]>(() => {
-    if (!data) return refs.map(() => true)
-    // Resolved iff at least one real verse falls in the (possibly
-    // cross-chapter) span — mirror the result-row expansion so a valid
-    // 十一27～十二37 doesn't render red just because its end verse exceeds
-    // the start chapter.
-    return refs.map((ref) => {
-      for (const _ of eachVerseInRange(
-        data,
-        ref.bookNo,
-        ref.chapter,
-        ref.endChapter,
-        ref.verseStart,
-        ref.verseEnd,
-      )) {
-        void _
-        return true
-      }
-      return false
-    })
-  }, [refs, data])
+  const refFound = useMemo(() => refsExist(refs, data), [refs, data])
 
   // Which citation in the input the mouse is over, and the rows it produced.
   // The backdrop is behind the textarea and can't be hovered, so the pointer is
