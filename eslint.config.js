@@ -18,5 +18,12 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      // U+3000 is the space Chinese typesetting uses — it separates an outline
+      // marker from its heading and a label from its value. It belongs in the
+      // text, so comments and templates are exempt; the rule stays on
+      // everywhere else, where one really would be a typo for a plain space.
+      'no-irregular-whitespace': ['error', { skipComments: true, skipTemplates: true }],
+    },
   },
 ])

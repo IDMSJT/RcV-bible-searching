@@ -57,10 +57,11 @@ const MARKER_RE = new RegExp(
 const BARE_NUM_HEADING_RE = /^(\d+)([一-鿿][^。，；：？！『』]*)$/
 const HEADING_MAX = 30
 
-// 【週一】 (bracketed) is the legacy form; 「週　一」 (the char then a full /
-// half-width space then the day character) is the newer copy-paste format.
-// Both should render as the same centered small heading.
-const WEEK_RE = /^(?:【\s*週|週[　\s]+[一二三四五六七日])/
+// 【週一】 (bracketed) is the legacy form; 「週　一」 (the char, a space, then
+// the day) is the newer copy-paste format. Both should render as the same
+// centered small heading. The space is usually the ideographic U+3000, which
+// `\s` already covers — spelling it out as well only looked like it did more.
+const WEEK_RE = /^(?:【\s*週|週\s+[一二三四五六七日])/
 
 // The deepest two levels are sometimes shipped as the precomposed enclosed
 // numerals ㈠ / ⑴ instead of the spelled-out 「（一）」 / 「（1）」. Expand them so

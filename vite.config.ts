@@ -17,7 +17,7 @@ function resolveAppVersion(): string {
     readFileSync(new URL('./package.json', import.meta.url), 'utf-8'),
   ) as { version: string }
   const [major = '0', minor = '0'] = version.split('.')
-  let commits = '0'
+  let commits: string
   try {
     commits = execSync('git rev-list --count HEAD', { encoding: 'utf-8' }).trim()
   } catch {
