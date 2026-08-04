@@ -885,7 +885,7 @@ export function NoteCard({
         (selected
           ? 'bg-blue-500/20 text-foreground dark:bg-blue-400/25'
           : highlighted
-            ? 'bg-highlight/20 text-foreground'
+            ? 'bg-highlight/25 text-foreground'
             : 'bg-muted/40 text-muted-foreground')
       }
     >

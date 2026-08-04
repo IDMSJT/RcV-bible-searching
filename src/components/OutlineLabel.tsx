@@ -27,7 +27,7 @@ export function OutlineLabel({
     <span
       className={cn(
         'inline-grid grid-cols-[auto_1fr] gap-x-1.5 rounded px-1 -mx-1 transition-colors group-hover:bg-muted',
-        highlight && 'bg-highlight/20',
+        highlight && 'bg-highlight/25',
       )}
     >
       {/* tabular-nums so 「1」 and 「2」 occupy the same width and the titles of

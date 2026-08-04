@@ -1067,7 +1067,7 @@ export function ChapterView({
                     className={cn(
                       r.hl &&
                         !selected.has(r.verse) &&
-                        'rounded bg-highlight/20 px-1 py-1 -mx-1 font-semibold text-foreground',
+                        'rounded-sm bg-highlight/25 px-1 py-1 -mx-1 font-semibold text-foreground',
                     )}
                   >
                     {r.num}
@@ -1224,7 +1224,7 @@ export function ChapterView({
           <span className="flex min-w-0 flex-1 items-center gap-2 text-sm text-muted-foreground">
             {/* The gold swatch signals it's the highlight, not a selection —
               * the same shape the selection bar uses, in its own colour. */}
-            <span aria-hidden className="size-3 shrink-0 rounded-sm bg-highlight/20" />
+            <span aria-hidden className="size-3 shrink-0 rounded-sm bg-highlight/25" />
             <span className="truncate">
               已標示 {hlVerseSet.size > 0 ? `${hlVerseSet.size} 節` : `${hlNoteSet.size} 註`}：
               {summarizeSelection(hlVerseSet, hlNoteSet)}
