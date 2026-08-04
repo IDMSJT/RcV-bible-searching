@@ -1054,7 +1054,24 @@ export function ChapterView({
                   {...versePress(r.verse)}
                   className="pt-[0.25em] text-right text-[0.75em] font-sans tabular-nums text-muted-foreground select-none"
                 >
-                  {r.num}
+                  {/* The tint goes on the digits, not on this cell: the cell is
+                    * a grid item whose area is the whole row, and a row holding
+                    * open cards is tall — painting it drew a band the height of
+                    * everything below.
+                    *
+                    * px-1/-mx-1 gives the tint room without moving the digits
+                    * out of their column. py-1 needs no such pairing: vertical
+                    * padding on an inline box paints without taking space, so
+                    * the chip grows and the line doesn't. */}
+                  <span
+                    className={cn(
+                      r.hl &&
+                        !selected.has(r.verse) &&
+                        'rounded bg-highlight/20 px-1 py-1 -mx-1 font-semibold text-foreground',
+                    )}
+                  >
+                    {r.num}
+                  </span>
                 </span>
                 {/* No select-none here: the verse text is natively selectable so
                  * the user can drag / long-press to copy just part of it. */}
@@ -1073,12 +1090,7 @@ export function ChapterView({
                       selected.has(r.verse) && 'bg-blue-500/20 dark:bg-blue-400/25',
                     )}
                   >
-                    <p
-                      className={cn(
-                        'px-1 -mx-1 font-medium leading-relaxed',
-                        r.hl && !selected.has(r.verse) && 'rounded bg-highlight/30',
-                      )}
-                    >
+                    <p className="px-1 -mx-1 font-medium leading-relaxed">
                       {renderMarkedText(r.text, r.marks, r.notes, r.refs, (at) =>
                         toggleMarkers(r.verse, at),
                       )}
@@ -1210,7 +1222,9 @@ export function ChapterView({
         createPortal(
           <div className="fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-40 flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur md:inset-x-auto md:right-3 md:bottom-3 md:min-w-[384px]">
           <span className="flex min-w-0 flex-1 items-center gap-2 text-sm text-muted-foreground">
-            <span aria-hidden className="size-3 shrink-0 rounded-sm bg-highlight/30" />
+            {/* The gold swatch signals it's the highlight, not a selection —
+              * the same shape the selection bar uses, in its own colour. */}
+            <span aria-hidden className="size-3 shrink-0 rounded-sm bg-highlight/20" />
             <span className="truncate">
               已標示 {hlVerseSet.size > 0 ? `${hlVerseSet.size} 節` : `${hlNoteSet.size} 註`}：
               {summarizeSelection(hlVerseSet, hlNoteSet)}
