@@ -73,6 +73,10 @@ function RootComponent() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerSnap, setDrawerSnap] = useState<number | string | null>(1)
   const [changelogOpen, setChangelogOpen] = useState(false)
+  // Whether settings is the surface on mobile. The desktop aside is always
+  // there, so `effectiveMode` alone answers it; on mobile the drawer has to be
+  // open too, since the mode outlives a dismiss.
+  const settingsOpen = drawerOpen && effectiveMode === 'settings'
   const navigate = useNavigate()
 
   // Vaul's `onOpenChange` is just `(open: boolean) => void` — it doesn't tell
@@ -406,18 +410,23 @@ function RootComponent() {
           /^\/\d+/.test(pathname) && !drawerOpen ? '目錄' : '閱讀',
         )}
         <NavButton
-          active={drawerOpen && effectiveMode === 'settings'}
+          // The drawer is what makes settings the surface: `effectiveMode`
+          // only remembers which pane it last held, so it still says
+          // 'settings' after a dismiss. Read by the icon too — when the two
+          // were written out separately they drifted, and a dismissed drawer
+          // left the gear filled beside a lit 目錄.
+          active={settingsOpen}
           label="設定"
           // Tapping 設定 while it's already the open pane is a no-op (not a
           // toggle-close like the other buttons) — easy to hit accidentally
           // when fiddling with sliders / switches and the drawer disappearing
           // would feel like a glitch.
           onClick={() => {
-            if (drawerOpen && effectiveMode === 'settings') return
+            if (settingsOpen) return
             openMode('settings')
           }}
         >
-          <NavIcon icon={Settings} active={effectiveMode === 'settings'} className={navIcon} />
+          <NavIcon icon={Settings} active={settingsOpen} className={navIcon} />
         </NavButton>
       </nav>
 
