@@ -640,6 +640,16 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     setHoveredGroup(null)
   }
 
+  // The block of rows one citation produced. Hovering the citation in the input
+  // or any row it produced lights all of them: they are one answer, and the
+  // rows sit flush against each other so the tint reads as a single block.
+  const litRefRange = useMemo(() => {
+    if (hoveredGroup != null) return groupRefRange[hoveredGroup] ?? null
+    const from = hovered != null ? resolvedRefs[hovered]?.refIndex : undefined
+    if (from == null) return null
+    return groupRefRange.find(([a, b]) => from >= a && from < b) ?? null
+  }, [hoveredGroup, groupRefRange, hovered, resolvedRefs])
+
   // Key of the result row currently under the mouse — so its source token in
   // the input backdrop highlights along with the row's own lit state.
   const hoveredRow = hovered != null ? resolved[hovered] : null
@@ -788,7 +798,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     >
       <ResultList
         rows={resolvedRefs}
-        fromHoveredRef={hoveredGroup != null ? groupRefRange[hoveredGroup] : null}
+        fromHoveredRef={litRefRange}
         tokens={NO_TOKENS}
         error={error}
         loading={!data}
