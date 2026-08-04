@@ -351,20 +351,20 @@ function VersePreview({
             {formatVerseRef(r.bookNo, r.chapterNo, r.verse, 'colon')}
             {r.note != null && `註${r.note}`}
           </Link>
-          {/* A note body carries its own paragraph breaks, and its own
-            * citations — 「見弗一2註1」 opens a note that in turn points somewhere
-            * else. Those read like any other, so they go through RefBody too:
-            * tapping one shows its verses here, and tapping it again puts them
-            * away, however deep the reader has gone. Verse text is scripture and
-            * cites nothing, so it stays plain. */}
+          {/* A note body carries its own paragraph breaks, and often its own
+            * citations — 「見弗一2註1」 opens a note that cites two more. Those go
+            * to the verse rather than opening here: a second set of verses
+            * inside this one would sit behind the column of labels above it,
+            * and further right again at every step. The label beside each row
+            * already navigates, so this reads the same way. Verse text is
+            * scripture and cites nothing, so it stays plain. */}
           <div className={r.note != null ? 'space-y-1' : undefined}>
             {r.note != null ? (
-              <RefBody
-                paragraphs={r.text.split('\n')}
-                bookNo={r.bookNo}
-                chapterNo={r.chapterNo}
-                continuous={i < rows.length - 1}
-              />
+              r.text
+                .split('\n')
+                .map((para, k) => (
+                  <p key={k}>{renderNoteText(para, { book: r.bookNo, chapter: r.chapterNo })}</p>
+                ))
             ) : (
               <p>{r.text}</p>
             )}

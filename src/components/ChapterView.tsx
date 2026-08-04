@@ -599,6 +599,18 @@ export function ChapterView({
         const main = document.querySelector<HTMLElement>('[data-scroll-restoration-id="main"]')
         if (main) main.scrollTop = 0
       }
+      // A link that named a note is asking for the note, not the verse it hangs
+      // off — and the note can sit well below it. Land on the card, bringing the
+      // verse along when there is room for both.
+      const noteKey = [...noteHighlights][0]
+      const noteEl = noteKey
+        ? panelRef.current?.querySelector<HTMLElement>(`[data-note="${noteKey}"]`)
+        : null
+      if (noteEl) {
+        const verseEl = scrollRef.current
+        revealInScroll(verseEl ? [verseEl, noteEl] : noteEl, 'last')
+        return
+      }
       scrollRef.current?.scrollIntoView({
         block: 'start',
         // An outline-heading jump (?oh=) lands instantly — it's a deliberate
@@ -608,7 +620,7 @@ export function ChapterView({
       })
     })
     return () => cancelAnimationFrame(id)
-  }, [active, data, bookNo, chapterNo, firstHlVerse, ohKey])
+  }, [active, data, bookNo, chapterNo, firstHlVerse, ohKey, noteHighlights])
 
   // Per-panel scroll restoration. EVERY panel (including the off-screen prev/
   // next previews) is positioned to its saved offset up front, so a chapter is

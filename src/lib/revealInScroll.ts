@@ -20,6 +20,11 @@ function scrollParent(el: HTMLElement): HTMLElement | null {
  * starts at the first, so losing it to gain the end of the last would be the
  * wrong trade.
  *
+ * `keep` says which end matters when the block is taller than the view. The
+ * default keeps the first, which is where reading starts. Keeping the last
+ * suits arriving at a footnote: the note is what was asked for, and the verse
+ * above it comes along only if there is room.
+ *
  * Something that opened in plain sight must not make the page jump, so a block
  * already visible is left alone. One taller than the view is aligned to the top
  * rather than the bottom, since that is where reading it starts.
@@ -32,17 +37,33 @@ function scrollParent(el: HTMLElement): HTMLElement | null {
  * container already reserves for it is exactly how much — zero where there is
  * no bar, so no breakpoint of its own to keep in step.
  */
-export function revealInScroll(target: HTMLElement | HTMLElement[]): void {
-  const els = Array.isArray(target) ? target : [target]
+export function revealInScroll(
+  target: HTMLElement | HTMLElement[],
+  keep: 'first' | 'last' = 'first',
+): void {
+  let els = Array.isArray(target) ? target : [target]
   if (els.length === 0) return
   const pane = scrollParent(els[0])
   if (!pane) return
   const box = pane.getBoundingClientRect()
   const covered = parseFloat(getComputedStyle(pane).paddingBottom) || 0
   const floor = box.bottom - covered
-  const rects = els.map((el) => el.getBoundingClientRect())
-  const top = Math.min(...rects.map((r) => r.top))
-  const bottom = Math.max(...rects.map((r) => r.bottom))
+  const span = (list: HTMLElement[]) => {
+    const rects = list.map((el) => el.getBoundingClientRect())
+    return {
+      top: Math.min(...rects.map((r) => r.top)),
+      bottom: Math.max(...rects.map((r) => r.bottom)),
+    }
+  }
+  // Keeping the last: drop what leads it, one at a time, until the rest fits.
+  if (keep === 'last') {
+    while (els.length > 1) {
+      const { top: t, bottom: b } = span(els)
+      if (b - t <= floor - box.top - GAP * 2) break
+      els = els.slice(1)
+    }
+  }
+  const { top, bottom } = span(els)
   if (top >= box.top && bottom <= floor) return
   // Reaching the bottom, unless that would carry the top past the ceiling.
   const by =
