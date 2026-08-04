@@ -135,6 +135,15 @@ function trimRefTail(t: string): string {
  * introduces a list rather than closing one, and adding it changed nothing. */
 const SENTENCE_END = '。！？；'
 
+/** A run of verse numbers carrying the 節 unit and naming no chapter of its
+ * own — 「17～18節」, 「25～27節」. */
+const BARE_VERSE_RE = /^[0-9０-９一二三四五六七八九十百○]+(?:[～~—-][0-9０-９一二三四五六七八九十百○]+)?節/
+
+/** Words that name the text being annotated rather than another place. 「本書」
+ * is handled on its own below: it takes a chapter, where these two are already
+ * standing in a chapter and take verses. */
+const SELF_CHAPTER = ['本篇', '本章']
+
 export interface ParseOptions {
   /** What kind of text this is, which decides what bounds a citation's context.
    *
@@ -211,6 +220,9 @@ export function parseRefs(
 
   let i = 0
   let lastProseStart = 0
+  // Whether the bracket being read is one the context should end at. Decided
+  // at the opening bracket and remembered for the closing one.
+  let bracketBounds = true
 
   function flushProse(end: number): void {
     if (lastProseStart < end) {
@@ -230,7 +242,57 @@ export function parseRefs(
     // citations, and the prose between them belongs to the verse being
     // annotated, not to whatever the last bracket named.
     const ch = text[i]
-    if (bounded && (ch === '(' || ch === ')' || SENTENCE_END.includes(ch))) resetCtx()
+    if (bounded && (ch === '(' || ch === ')')) {
+      // Only a bracket holding a citation ends the context. Plenty hold a gloss
+      // instead — 「（二次）」, 「（見該處註2）」, 「（原文，眷顧）」 — and ending it
+      // there drops the book the surrounding list was running in, which is how
+      // 「二17、29，三4（二次）、7、8」 came to read 7 as chapter one's.
+      if (ch === '(') {
+        const close = text.indexOf(')', i)
+        const inner = close < 0 ? text.slice(i + 1) : text.slice(i + 1, close)
+        bracketBounds = parseRefs(inner, ctx, { kind: 'prose' }).refs.length > 0
+      }
+      if (bracketBounds) resetCtx()
+    } else if (bounded && SENTENCE_END.includes(ch)) {
+      resetCtx()
+    }
+
+    // 「本篇」/「本章」 name the psalm or chapter being annotated, the way 「本書」
+    // names its book: 「本篇18～19節」 in a note on Psalm 72 is 72:18-19, whatever
+    // was cited before it. The context stays there afterwards, so a citation
+    // following on — 「本章8～12節和十16～17」 — comes home too.
+    if (initial?.book != null && SELF_CHAPTER.some((w) => text.startsWith(w, i))) {
+      const m = CONT_FULL_RE.exec(text.slice(i + 2))
+      if (m && m.index === 0 && /[0-9章篇節]/.test(m[0])) {
+        const selfCtx: ParseCtx = { book: initial.book, chapter: initial.chapter ?? null }
+        const out = parseToken(m[0], selfCtx)
+        if (out.ok && out.refs.length > 0) {
+          flushProse(i)
+          const len = 2 + m[0].length
+          segments.push({ text: input.slice(i, i + len), refs: out.refs })
+          refs.push(...out.refs)
+          ctx.book = selfCtx.book
+          ctx.chapter = selfCtx.chapter
+          i += len
+          lastProseStart = i
+          continue
+        }
+      }
+    }
+
+    // Verse numbers wearing the 節 unit and naming no chapter belong to the
+    // chapter being annotated — 「來一10～12引用25～27節」 quotes the psalm the note
+    // is on, not Hebrews. Not where a conjunction ties them to the citation
+    // before: 「十一29～32和42～52節」 is two halves of one place.
+    if (
+      bounded &&
+      initial?.book != null &&
+      BARE_VERSE_RE.test(text.slice(i)) &&
+      !'和與及'.includes(i > 0 ? text[i - 1] : '')
+    ) {
+      ctx.book = initial.book
+      ctx.chapter = initial.chapter ?? null
+    }
 
     // 「本書」 = the book this note belongs to — the *initial* context book, not
     // whatever book was last cited (「…來十三16，與本書十二13…」 means Romans, the

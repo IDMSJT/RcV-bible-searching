@@ -410,10 +410,59 @@ describe("kind: 'list'", () => {
     expect(at(text, 'note')).toEqual(['41:4:31', '40:13:31', '41:17:20', '42:13:18'])
   })
 
-  it('is unmoved by a bracket holding a gloss rather than a citation', () => {
-    // 彼後二12's, where the bracket explains a word.
+  it('reads a bracketed gloss the same either way', () => {
+    // 彼後二12's cross-reference, where the bracket explains a word. Nothing in
+    // it is a citation, so it is not a boundary in either mode.
     const text = '路一68，78（臨到，原文，眷顧），十九44，徒十五14'
     expect(at(text, 'list')).toContain('42:19:44')
-    expect(at(text, 'note')).toContain('41:19:44')
+    expect(at(text, 'note')).toContain('42:19:44')
+  })
+})
+
+describe('what ends a context', () => {
+  const at = (t: string, book = 62, chapter = 1) =>
+    parseRefs(t, { book, chapter }).refs.map((r) => `${r.bookNo}:${r.chapter}:${r.verseStart}`)
+
+  it('ends it at a bracket that holds a citation', () => {
+    // In a note the bracket is its own citation and the text resumes belonging
+    // to the verse being annotated — so inside 「（十七20）」 the book is Mark's,
+    // the one the note hangs on. (A cross-reference reads the same line the
+    // other way; see kind: 'list' above.)
+    expect(at('太十三31～32（十七20），5', 41, 4)).toEqual(['40:13:31', '41:17:20', '41:4:5'])
+  })
+
+  it('leaves it alone at a bracket that holds a gloss', () => {
+    // 約壹一6註5. 「（二次）」 is not a citation, so 7 is still in chapter three.
+    expect(at('這辭也用在二17、29，三4（二次）、7')).toEqual(['62:2:17', '62:2:29', '62:3:4', '62:3:7'])
+  })
+
+  it('brings 「本篇」/「本章」 home, and what follows with them', () => {
+    // 來八6註4: 本章 returns to Hebrews, so 十16～17 is Hebrews too.
+    expect(at('在耶三一31～34所賜，而在本章8～12節和十16～17所引用的', 58, 8)).toEqual([
+      '24:31:31',
+      '58:8:8',
+      '58:10:16',
+    ])
+  })
+
+  it('reads a bare 「N節」 as the annotated chapter', () => {
+    // 詩一○二1註1: the psalm is what Hebrews quotes, not Hebrews itself.
+    expect(at('這由來一10～12引用25～27節所指明', 19, 102)).toEqual(['58:1:10', '19:102:25'])
+  })
+
+  it('keeps a bare 「N節」 with the citation a conjunction ties it to', () => {
+    // 路十三6註2: 「十一29～32和42～52節」 is one place in two halves.
+    expect(at('十一29～32和42～52節這兩段話', 42, 13)).toEqual(['42:11:29', '42:11:42'])
+  })
+})
+
+describe('約參', () => {
+  it('reads the epistle either way its number is written', () => {
+    // 約貳一12's cross-reference is 「約參14」. The canon spells it 約叁.
+    for (const t of ['約參14', '約叁14']) {
+      expect(parseRefs(t, { book: 63, chapter: 1 }).refs).toEqual([
+        expect.objectContaining({ bookNo: 64, chapter: 1, verseStart: 14 }),
+      ])
+    }
   })
 })

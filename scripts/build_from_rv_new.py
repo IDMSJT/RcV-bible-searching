@@ -50,6 +50,23 @@ ENDPOINTS = {
 }
 
 
+# 兩處註解的引經,寫成裸的「N節」而句意指著上一個引經所在的書卷。解析器讀不出來
+# ——「前面19～20節」的形狀和「本篇25～27節」一模一樣,而後者確實指本篇,全語料 20
+# 處都是。所以規則照顧多數,這兩處補書名。
+#
+# 這兩處恢復本官網自己也標錯(getFootnoteLinks 把它們切成獨立的 span,等於解成本
+# 書),所以不是我們讀錯,是原文省略得太多。查證見 scripts/PARSE_EXCEPTIONS.md。
+#
+# 代價是印出來的字多幾個。和書介的 FIXES 一樣,在會連結的版本裡,連到哪裡比少幾
+# 個字更要緊。note_loc 是經文裡的位置,不在註解文字裡,所以改這裡不動錨點。
+NOTE_FIXES: dict[tuple[int, int, int, int], list[tuple[str, str]]] = {
+    # 可十四20註1:「主的晚餐」在路二二19～20,不在可十四19～20。
+    (41, 14, 20, 1): [("是在前面19～20節題起的", "是在前面路二二19～20節題起的")],
+    # 路十一49註1:「所差來的」對應代下二四19「但神仍遣申言者到他們那裏」。
+    (42, 11, 49, 1): [("而擴大前文19節的話", "而擴大前文代下二四19節的話")],
+}
+
+
 def log(*a):
     print(*a, file=sys.stderr, flush=True)
 
@@ -214,6 +231,10 @@ def main() -> int:
                     o for r in rows
                     if (o := off(seg, r.get("unit_code", 0), r["note_loc"])) is not None
                 )
+                for old, new in NOTE_FIXES.get((b, c, seg, num), []):
+                    if old not in body:
+                        log(f"  ⚠ NOTE_FIXES 找不到 {b}.{c}.{seg} 註{num}「{old}」")
+                    body = body.replace(old, new)
                 if not body or not offs:
                     stats["orphan_note"] += 1
                     continue

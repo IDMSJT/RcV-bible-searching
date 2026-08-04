@@ -44,6 +44,10 @@ function buildAliasMap(): Map<string, number> {
     const en = BOOK_ABBREV_EN[b.bookNo]
     if (en) add(en.toLowerCase(), b.bookNo)
   }
+  // 叁 and 參 are the same word, and the canon spells 3 John with the first
+  // while the annotations write the second — 「約參14」 found no book, and the
+  // 14 went on to the epistle being read, which has thirteen verses.
+  add('約參', 64)
   return map
 }
 
