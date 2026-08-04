@@ -84,13 +84,19 @@ const SUP_CLS =
  * Any may be empty / omitted — when all are, returns the bare string so callers
  * can short-circuit the ReactNode wrapper.
  */
+/** Everything anchored at one position in the verse: what a merged marker
+ * stands for, and what a tap on it acts on. */
+export interface MarkersAt {
+  notes: number[]
+  refs: string[]
+}
+
 export function renderMarkedText(
   text: string,
   marks?: Mark[],
   notes?: Annotation[],
-  onNoteClick?: (n: number) => void,
   crossRefs?: CrossRef[],
-  onRefClick?: (m: string) => void,
+  onMarkers?: (at: MarkersAt) => void,
 ): ReactNode {
   const ms = (marks ?? [])
     .filter((m) => MARK_CLASS[m.k] && m.e > m.s)
@@ -120,31 +126,38 @@ export function renderMarkedText(
   let mIdx = 0
   let sIdx = 0
 
+  // Markers sharing one position are one button. Written 「1ab」 they look like
+  // one already, and 13% of the corpus' 38,000 marker positions carry more than
+  // a single marker — each of them a target a fraction of a character wide,
+  // where a miss opens the wrong thing. Position, not adjacency, is what joins
+  // them: two markers on neighbouring characters read as close together but
+  // belong to different words.
   const flushSupsAt = (p: number) => {
-    while (sIdx < sups.length && sups[sIdx].offset === p) {
-      const s = sups[sIdx++]
-      const handler = s.kind === 'note' ? onNoteClick : onRefClick
-      out.push(
-        <sup
-          key={`s${keyCounter++}`}
-          onClick={
-            handler
-              ? (e) => {
-                  // Stop the surrounding row's click handler (e.g. lookup
-                  // result rows that navigate on tap) from also firing.
-                  e.stopPropagation()
-                  ;(handler as (v: string | number) => void)(
-                    s.kind === 'note' ? Number(s.id) : s.id,
-                  )
-                }
-              : undefined
-          }
-          className={SUP_CLS}
-        >
-          {s.label}
-        </sup>,
-      )
+    const here: typeof sups = []
+    while (sIdx < sups.length && sups[sIdx].offset === p) here.push(sups[sIdx++])
+    if (here.length === 0) return
+    const at: MarkersAt = {
+      notes: here.filter((s) => s.kind === 'note').map((s) => Number(s.id)),
+      refs: here.filter((s) => s.kind === 'ref').map((s) => s.id),
     }
+    out.push(
+      <sup
+        key={`s${keyCounter++}`}
+        onClick={
+          onMarkers
+            ? (e) => {
+                // Stop the surrounding row's click handler (e.g. lookup result
+                // rows that navigate on tap) from also firing.
+                e.stopPropagation()
+                onMarkers(at)
+              }
+            : undefined
+        }
+        className={SUP_CLS}
+      >
+        {here.map((s) => s.label).join('')}
+      </sup>,
+    )
   }
 
   while (pos < text.length) {
@@ -726,6 +739,55 @@ function CloseButton({ onClose, label }: { onClose: () => void; label: string })
   )
 }
 
+/** The card for one cross-reference: its letter, the verses it points at, and a
+ * ✕ when it can be dismissed. Split out of CrossRefList so a caller can put
+ * these in whatever order it needs. */
+export function CrossRefCard({
+  crossRef: r,
+  verse,
+  bookNo,
+  chapterNo,
+  onClose,
+}: {
+  crossRef: CrossRef
+  /** The verse this hangs off, used only to key the card in the DOM so the
+   * reader can be taken to one that opened out of sight. */
+  verse?: number
+  bookNo: number
+  chapterNo: number
+  onClose?: (m: string) => void
+}): ReactNode {
+  return (
+    <li
+      data-crossref={verse != null ? `${verse}:${r.m}` : undefined}
+      className="space-y-2 rounded-md bg-muted/40 px-3 py-2 text-muted-foreground"
+    >
+      <RefBody
+        paragraphs={[r.refs]}
+        bookNo={bookNo}
+        chapterNo={chapterNo}
+        marker={
+          <>
+            {onClose && <CloseButton onClose={() => onClose(r.m)} label={`關閉串珠 ${r.m}`} />}
+            <sup className="px-0.5 text-[0.75em] font-sans font-medium tabular-nums text-destructive">
+              {r.m}
+            </sup>
+          </>
+        }
+      />
+    </li>
+  )
+}
+
+/** The list these cards sit in, on its own so several kinds can share one. */
+export function CardList({ children }: { children: ReactNode }): ReactNode {
+  return (
+    <ul className="mt-2 space-y-2 font-sans text-[0.95em] font-light leading-relaxed">
+      {children}
+    </ul>
+  )
+}
+
 export function CrossRefList({
   refs,
   verse,
@@ -734,8 +796,6 @@ export function CrossRefList({
   onClose,
 }: {
   refs: CrossRef[]
-  /** The verse these hang off, used only to key the card in the DOM so the
-   * reader can be taken to one that opened out of sight. */
   verse?: number
   bookNo: number
   chapterNo: number
@@ -744,29 +804,86 @@ export function CrossRefList({
 }): ReactNode {
   if (refs.length === 0) return null
   return (
-    <ul className="mt-2 space-y-2 font-sans text-[0.95em] font-light leading-relaxed">
+    <CardList>
       {refs.map((r) => (
-        <li
+        <CrossRefCard
           key={r.m}
-          data-crossref={verse != null ? `${verse}:${r.m}` : undefined}
-          className="space-y-2 rounded-md bg-muted/40 px-3 py-2 text-muted-foreground"
-        >
-          <RefBody
-            paragraphs={[r.refs]}
-            bookNo={bookNo}
-            chapterNo={chapterNo}
-            marker={
-              <>
-                {onClose && <CloseButton onClose={() => onClose(r.m)} label={`關閉串珠 ${r.m}`} />}
-                <sup className="px-0.5 text-[0.75em] font-sans font-medium tabular-nums text-destructive">
-                  {r.m}
-                </sup>
-              </>
-            }
-          />
-        </li>
+          crossRef={r}
+          verse={verse}
+          bookNo={bookNo}
+          chapterNo={chapterNo}
+          onClose={onClose}
+        />
       ))}
-    </ul>
+    </CardList>
+  )
+}
+
+/** The card for one footnote. Split out of NoteList for the same reason as the
+ * cross-reference's. */
+export function NoteCard({
+  note: n,
+  verse,
+  bookNo,
+  chapterNo,
+  onClose,
+  highlighted,
+  selected,
+  onSelect,
+}: {
+  note: Annotation
+  verse?: number
+  bookNo: number
+  chapterNo: number
+  onClose?: (n: number) => void
+  highlighted?: boolean
+  selected?: boolean
+  onSelect?: (n: number) => void
+}): ReactNode {
+  // Split the note body on the restored paragraph breaks so we can render each
+  // as its own <p> with space-y between — whitespace-pre-line would collapse
+  // the inter-paragraph gap too tight.
+  const paras = n.text.split('\n')
+  return (
+    <li
+      data-note={verse != null ? `${verse}:${n.n}` : undefined}
+      // stopPropagation on pointerdown keeps the surrounding verse's long-press
+      // from firing; onClick selects the note (ref links inside stop their own
+      // propagation, so they still navigate).
+      onPointerDown={onSelect ? (e) => e.stopPropagation() : undefined}
+      onClick={
+        onSelect
+          ? (e) => {
+              e.stopPropagation()
+              onSelect(n.n)
+            }
+          : undefined
+      }
+      // No select-none: the body is selectable so a reader can copy part of a
+      // note the same way they copy part of a verse.
+      className={
+        'space-y-2 rounded-md px-3 py-2 ' +
+        (selected
+          ? 'bg-blue-500/20 text-foreground dark:bg-blue-400/25'
+          : highlighted
+            ? 'bg-highlight/30 text-foreground'
+            : 'bg-muted/40 text-muted-foreground')
+      }
+    >
+      <RefBody
+        paragraphs={paras}
+        bookNo={bookNo}
+        chapterNo={chapterNo}
+        marker={
+          <>
+            {onClose && <CloseButton onClose={() => onClose(n.n)} label={`關閉註釋 ${n.n}`} />}
+            <sup className="px-0.5 text-[0.75em] font-sans font-medium tabular-nums text-destructive">
+              {n.n}
+            </sup>
+          </>
+        }
+      />
+    </li>
   )
 }
 
@@ -797,57 +914,20 @@ export function NoteList({
 }): ReactNode {
   if (notes.length === 0) return null
   return (
-    <ul className="mt-2 space-y-2 font-sans text-[0.95em] font-light leading-relaxed">
-      {notes.map((n) => {
-        // Split the note body on the restored paragraph breaks so we can
-        // render each as its own <p> with space-y between — whitespace-pre-line
-        // would collapse the inter-paragraph gap too tight.
-        const paras = n.text.split('\n')
-        const hit = highlightedNs?.has(n.n)
-        const sel = selectedNs?.has(n.n)
-        return (
-          <li
-            key={n.n}
-            data-note={verse != null ? `${verse}:${n.n}` : undefined}
-            // stopPropagation on pointerdown keeps the surrounding verse's
-            // long-press from firing; onClick selects the note (ref links inside
-            // stop their own propagation, so they still navigate).
-            onPointerDown={onSelectNote ? (e) => e.stopPropagation() : undefined}
-            onClick={
-              onSelectNote
-                ? (e) => {
-                    e.stopPropagation()
-                    onSelectNote(n.n)
-                  }
-                : undefined
-            }
-            // No select-none: the body is selectable so a reader can copy part
-            // of a note the same way they copy part of a verse.
-            className={
-              'space-y-2 rounded-md px-3 py-2 ' +
-              (sel
-                ? 'bg-blue-500/20 text-foreground dark:bg-blue-400/25'
-                : hit
-                  ? 'bg-highlight/30 text-foreground'
-                  : 'bg-muted/40 text-muted-foreground')
-            }
-          >
-            <RefBody
-              paragraphs={paras}
-              bookNo={bookNo}
-              chapterNo={chapterNo}
-              marker={
-                <>
-                  {onClose && <CloseButton onClose={() => onClose(n.n)} label={`關閉註釋 ${n.n}`} />}
-                  <sup className="px-0.5 text-[0.75em] font-sans font-medium tabular-nums text-destructive">
-                    {n.n}
-                  </sup>
-                </>
-              }
-            />
-          </li>
-        )
-      })}
-    </ul>
+    <CardList>
+      {notes.map((n) => (
+        <NoteCard
+          key={n.n}
+          note={n}
+          verse={verse}
+          bookNo={bookNo}
+          chapterNo={chapterNo}
+          onClose={onClose}
+          highlighted={highlightedNs?.has(n.n)}
+          selected={selectedNs?.has(n.n)}
+          onSelect={onSelectNote}
+        />
+      ))}
+    </CardList>
   )
 }

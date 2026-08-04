@@ -34,7 +34,14 @@ import {
   type CitePosition,
   type CopyLang,
 } from '@/lib/cite'
-import { renderMarkedText, sliceMarks, NoteList, CrossRefList } from '@/lib/renderVerse'
+import {
+  renderMarkedText,
+  sliceMarks,
+  CardList,
+  NoteCard,
+  CrossRefCard,
+  type MarkersAt,
+} from '@/lib/renderVerse'
 import { OutlineLabel } from '@/components/OutlineLabel'
 import type { HlItem } from '@/lib/highlight'
 import { revealInScroll } from '@/lib/revealInScroll'
@@ -156,32 +163,47 @@ function summarizeSelection(verseSet: Set<number>, noteSet: Set<string>): string
   return entries.map((e) => e.text).join('，')
 }
 
+/** The most markers the corpus puts at one position, and so the most cards one
+ * tap can open. Anything above this is the reader expanding the chapter, or a
+ * link arriving with a set of its own, and there is nowhere single to go. */
+const MOST_AT_ONE_POSITION = 4
+
 /**
- * Bring a card into view when exactly one of `open` has just appeared.
+ * Bring into view whatever a tap on a marker just opened.
  *
  * Only when it isn't already there: a card that opened in plain sight must not
  * make the page jump. One taller than the panel is aligned to the top rather
- * than the bottom, so it starts where it will be read from. Which card opened
- * is read from the change in `open` rather than reported by the tap — a ref
- * written in a callback is a ref written during render, as far as the rules go,
- * and this needs no extra signal anyway.
+ * than the bottom, so it starts where it will be read from.
+ *
+ * Notes and cross-references are watched together rather than one hook each.
+ * A marker written 「1ab」 opens both kinds at once, and two effects would each
+ * scroll to their own card; taken together they are one block to land on.
+ *
+ * What opened is read from the change in the sets rather than reported by the
+ * tap: a ref written in a callback is a ref written during render, as far as
+ * the rules go, and this needs no extra signal.
  */
 function useRevealOnOpen(
   panelRef: RefObject<HTMLDivElement | null>,
-  open: Set<string>,
-  attr: string,
+  notes: Set<string>,
+  refs: Set<string>,
 ): void {
-  const shown = useRef(open)
+  const shown = useRef({ notes, refs })
   useLayoutEffect(() => {
     const before = shown.current
-    shown.current = open
-    // Expanding the whole chapter, or arriving on a link that opens several,
-    // moves more than one — there is nowhere single to go.
-    const opened = [...open].filter((k) => !before.has(k))
-    if (opened.length !== 1) return
-    const el = panelRef.current?.querySelector<HTMLElement>(`[${attr}="${opened[0]}"]`)
-    if (el) revealInScroll(el)
-  }, [open, panelRef, attr])
+    shown.current = { notes, refs }
+    const opened = [
+      ...[...notes].filter((k) => !before.notes.has(k)).map((k) => `[data-note="${k}"]`),
+      ...[...refs].filter((k) => !before.refs.has(k)).map((k) => `[data-crossref="${k}"]`),
+    ]
+    if (opened.length === 0 || opened.length > MOST_AT_ONE_POSITION) return
+    const panel = panelRef.current
+    if (!panel) return
+    const els = opened
+      .map((sel) => panel.querySelector<HTMLElement>(sel))
+      .filter((el): el is HTMLElement => el != null)
+    revealInScroll(els)
+  }, [notes, refs, panelRef])
 }
 
 export function ChapterView({
@@ -377,6 +399,40 @@ export function ChapterView({
     [refsKey, writeStorage],
   )
 
+  // A marker written 「1ab」 is one button standing for everything anchored at
+  // that spot, so it has two states: all of them showing, or not. Tapping when
+  // some are missing brings those back rather than inverting each — from 1 and
+  // b open and a closed, toggling each would have left only a open, which is
+  // neither what was there nor what was asked for. The ✕ on a card is still the
+  // way to put one away on its own.
+  const toggleMarkers = useCallback(
+    (verse: number, at: MarkersAt) => {
+      const noteKeys = at.notes.map((n) => `${verse}:${n}`)
+      const refKeys = at.refs.map((m) => `${verse}:${m}`)
+      const allOpen =
+        noteKeys.every((k) => expandedNotes.has(k)) && refKeys.every((k) => expandedRefs.has(k))
+      setExpandedNotes((prev) => {
+        const next = new Set(prev)
+        for (const k of noteKeys) {
+          if (allOpen) next.delete(k)
+          else next.add(k)
+        }
+        writeStorage(notesKey, next)
+        return next
+      })
+      setExpandedRefs((prev) => {
+        const next = new Set(prev)
+        for (const k of refKeys) {
+          if (allOpen) next.delete(k)
+          else next.add(k)
+        }
+        writeStorage(refsKey, next)
+        return next
+      })
+    },
+    [expandedNotes, expandedRefs, notesKey, refsKey, writeStorage],
+  )
+
   const toggleNote = useCallback(
     (verse: number, n: number) => {
       const key = `${verse}:${n}`
@@ -486,8 +542,7 @@ export function ChapterView({
   // A card opens below its verse, so tapping a superscript near the fold leaves
   // it off the bottom of the screen — the reader taps and nothing appears to
   // happen. Both kinds behave alike, so both go through this.
-  useRevealOnOpen(panelRef, expandedNotes, 'data-note')
-  useRevealOnOpen(panelRef, expandedRefs, 'data-crossref')
+  useRevealOnOpen(panelRef, expandedNotes, expandedRefs)
 
   // Track a live native text selection inside this panel (selectionchange is a
   // document-level event, so scope it to nodes within panelRef).
@@ -1012,68 +1067,69 @@ export function ChapterView({
                         r.hl && !selected.has(r.verse) && 'rounded bg-highlight/30',
                       )}
                     >
-                      {renderMarkedText(
-                        r.text,
-                        r.marks,
-                        r.notes,
-                        (n) => toggleNote(r.verse, n),
-                        r.refs,
-                        (m) => toggleRef(r.verse, m),
+                      {renderMarkedText(r.text, r.marks, r.notes, r.refs, (at) =>
+                        toggleMarkers(r.verse, at),
                       )}
                     </p>
                     {r.en && (
                       <p className="mt-0.5 font-sans text-[0.9em] text-muted-foreground">{r.en}</p>
                     )}
                   </div>
-                  {r.refs && (
-                    <CrossRefList
-                      refs={r.refs.filter((x) => expandedRefs.has(`${r.verse}:${x.m}`))}
-                      verse={r.verse}
-                      bookNo={bookNo}
-                      chapterNo={chapterNo}
-                      onClose={(m) => toggleRef(r.verse, m)}
-                    />
-                  )}
-                  {/* Only the notes the user has actually expanded via sup
-                   * tap are rendered inline — keeps the reading surface clean
-                   * until they ask for the detail. */}
-                  {r.notes && (
-                    <NoteList
-                      notes={r.notes.filter((n) =>
-                        expandedNotes.has(`${r.verse}:${n.n}`),
-                      )}
-                      verse={r.verse}
-                      onClose={(n) => toggleNote(r.verse, n)}
-                      bookNo={bookNo}
-                      chapterNo={chapterNo}
-                      highlightedNs={
-                        new Set(
-                          r.notes
-                            .filter((n) => noteHighlights.has(`${r.verse}:${n.n}`))
-                            .map((n) => n.n),
-                        )
-                      }
-                      selectedNs={
-                        selectedNotes.size > 0
-                          ? new Set(
-                              r.notes
-                                .filter((n) => selectedNotes.has(`${r.verse}:${n.n}`))
-                                .map((n) => n.n),
-                            )
-                          : undefined
-                      }
-                      onSelectNote={
-                        active
-                          ? (n) => {
-                              // A drag that ends on the card is the reader
-                              // selecting text, not asking to select the note.
-                              if (textSelecting) return
-                              toggleNoteSelect(r.verse, n)
+                  {/* Notes and cross-references share one list, ordered by
+                    * where their markers sit in the verse rather than kind
+                    * before kind: the cards then read in the order the eye met
+                    * the markers. A marker anchored in several places is placed
+                    * by its first. */}
+                  {(() => {
+                    const cards = [
+                      ...(r.refs ?? [])
+                        .filter((x) => expandedRefs.has(`${r.verse}:${x.m}`))
+                        .map((x) => ({ at: Math.min(...x.offsets), note: null, ref: x })),
+                      ...(r.notes ?? [])
+                        .filter((n) => expandedNotes.has(`${r.verse}:${n.n}`))
+                        .map((n) => ({ at: Math.min(...n.offsets), note: n, ref: null })),
+                    ]
+                      // Same position → the footnote first, as its marker reads.
+                      .sort((a, b) => a.at - b.at || (a.note ? -1 : 1))
+                    if (cards.length === 0) return null
+                    return (
+                      <CardList>
+                        {cards.map((card) =>
+                        card.note ? (
+                          <NoteCard
+                            key={`n${card.note.n}`}
+                            note={card.note}
+                            verse={r.verse}
+                            bookNo={bookNo}
+                            chapterNo={chapterNo}
+                            onClose={(n) => toggleNote(r.verse, n)}
+                            highlighted={noteHighlights.has(`${r.verse}:${card.note.n}`)}
+                            selected={selectedNotes.has(`${r.verse}:${card.note.n}`)}
+                            onSelect={
+                              active
+                                ? (n) => {
+                                    // A drag that ends on the card is the reader
+                                    // selecting text, not asking to select the note.
+                                    if (textSelecting) return
+                                    toggleNoteSelect(r.verse, n)
+                                  }
+                                : undefined
                             }
-                          : undefined
-                      }
-                    />
-                  )}
+                          />
+                        ) : (
+                          <CrossRefCard
+                            key={`r${card.ref!.m}`}
+                            crossRef={card.ref!}
+                            verse={r.verse}
+                            bookNo={bookNo}
+                            chapterNo={chapterNo}
+                            onClose={(m) => toggleRef(r.verse, m)}
+                          />
+                          ),
+                        )}
+                      </CardList>
+                    )
+                  })()}
                 </div>
               </Fragment>
             ),
