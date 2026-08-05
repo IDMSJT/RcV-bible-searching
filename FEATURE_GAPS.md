@@ -16,7 +16,6 @@
 
 - **英文書名只認 RcV 縮寫** — `John 1:1`、`Gen. 1:1`、`1 Cor 13:4` 可以;全名 `Genesis 1:1` 和別家縮寫 `Ps 23:1`(RcV 寫 `Psa`)不行。要補就在 `BOOK_ABBREV_EN` 之外再加一張全名/常見縮寫表。
 - **章層級引經無法連結** — 串珠裡有 34 處指的是整章(最長 詩篇11～32,共 307 節),`VerseRef` 沒有「整章」這個表示法,所以不連。註解裡也有(`書1:12註1「民三二」`、`該1:1註3「拉四」`,`scripts/check_footnote_links.py` 會列出來)。要做得先決定預覽怎麼呈現——compose 的 `COLLAPSE_OVER = 12` 是現成的先例。
-- **死碼** — `ChapterView.tsx:599` 和 `__root.tsx:153` 去清 `[data-scroll-restoration-id="main"]` 的捲動位置,但閱讀頁自己捲動的是 panel,不是那個元素。確認後刪掉。
 
 ## 待決
 
