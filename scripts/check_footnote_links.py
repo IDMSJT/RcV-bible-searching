@@ -87,41 +87,63 @@ def fetch(job: tuple[int, int]) -> dict:
 
 
 def cuts_for(chapter: dict) -> list[dict]:
-    """把 span 換算成「每則註自己的文字裡,哪些位置是新的引經區塊起點」。
+    """把區塊換算成「每則註自己的文字裡,哪些位置是新的引經區塊起點」。
 
-    站方的 start_loc 是 1-based,切進「同一節的註依 note_num 串接」的那份文字;我們
-    存的是一則一則的,所以要拆回去。(驗證:創12:1 三則註串成 692 字,14 個 span 全部
-    切出引經。)
+    站方的 start_loc 是 1-based,切進「同一節的註依 note_num 串接、**並移除分段符
+    ˍ (U+02CD)**」的那份文字。三層都要還原:
+
+    1. 同一個 note_num 可有多列 —— 第一列帶內文,其餘只是額外的掛載位置。
+    2. 分段符不計入他們的位置;我們存的是把它換成換行(等長),所以要補回來。
+    3. 我們一則一則存,所以最後要從串接位置減去該則註的起點。
+
+    (驗證:創1:1 四則註 29 個區塊,補上第 2 步之後全部切出引經;沒補之前從第 4 個
+    起就整段偏掉。)
     """
+    PARA = "\u02cd"
     out: list[dict] = []
     by_seg: dict[tuple[int, int], list[dict]] = {}
     for n in chapter["notes"]:
         by_seg.setdefault((n["segment_code"], n.get("unit_code", 0)), []).append(n)
-    for (seg, unit), notes in by_seg.items():
-        notes = sorted(notes, key=lambda x: x["note_num"])
+    for (seg, unit), rows in by_seg.items():
         spans = [
             l for l in chapter["links"]
             if l["segment_code"] == seg and l.get("unit_code", 0) == unit
         ]
         if not spans:
             continue
-        # 每則註在串接文字裡的起點
+        merged: dict[int, str] = {}
+        for r in rows:
+            if r.get("note_content"):
+                merged.setdefault(r["note_num"], r["note_content"])
+        nums = sorted(merged)
+        cat = "".join(merged[k] for k in nums)
+        marks = [i for i, ch in enumerate(cat) if ch == PARA]
+
+        def to_raw(p: int) -> int:
+            for m in marks:
+                if m <= p:
+                    p += 1
+                else:
+                    break
+            return p
+
         base, starts = 0, []
-        for n in notes:
+        for k in nums:
             starts.append(base)
-            base += len(n.get("note_content") or "")
+            base += len(merged[k])
+
         for l in spans:
-            at = l["start_loc"] - 1
-            # 落在哪一則註裡
-            idx = max((i for i, s in enumerate(starts) if s <= at), default=None)
-            if idx is None or at >= starts[idx] + len(notes[idx].get("note_content") or ""):
+            at = to_raw(l["start_loc"] - 1)
+            end = to_raw(l["end_loc"] - 1) + 1
+            idx = max((i for i, st in enumerate(starts) if st <= at), default=None)
+            if idx is None or at >= starts[idx] + len(merged[nums[idx]]):
                 continue
             out.append(
                 {
                     "key": f"{chapter['b']}.{chapter['c']}.{seg}",
-                    "n": notes[idx]["note_num"],
+                    "n": nums[idx],
                     "at": at - starts[idx],
-                    "len": l["end_loc"] - l["start_loc"] + 1,
+                    "len": end - at,
                 }
             )
     return out
