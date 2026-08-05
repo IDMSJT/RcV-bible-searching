@@ -108,9 +108,15 @@ const ORDINAL_CV_RE = new RegExp(`^第([${CN}]+)章的?第([${CN}]+)節`)
 const ORDINAL_V_RE = new RegExp(`^第([${CN}]+)節`)
 const ORDINAL_C_RE = new RegExp(`^第[${CN}]+章`)
 
-// Normalise outline-style copy-paste so anchor matching doesn't depend on the
-// variant the source happened to ship (啓 vs 啟, full-width parens, …).
-function normalize(t: string): string {
+/**
+ * Normalise outline-style copy-paste so anchor matching doesn't depend on the
+ * variant the source happened to ship (啓 vs 啟, full-width parens, …).
+ *
+ * Exported because anyone asking 「does this text start with a book name?」 has
+ * to ask it of the same spelling the parser matched — a segment keeps the
+ * caller's own characters, so 「啓五5」 would answer no.
+ */
+export function normalizeRefText(t: string): string {
   return t
     .replace(/啓/g, '啟')
     .replace(/（/g, '(')
@@ -215,7 +221,7 @@ export function parseRefs(
   // `initial` seeds the parse context — pass the current book/chapter when
   // parsing footnote text so refs like 「十八20」 inside a Matthew 1 note
   // resolve to Matt 18:20 rather than dropping for lack of a book.
-  const text = normalize(input)
+  const text = normalizeRefText(input)
   const refs: VerseRef[] = []
   const segments: Segment[] = []
   const errors: ParseError[] = []
