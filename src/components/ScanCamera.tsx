@@ -38,6 +38,12 @@ export function ScanCamera({ onPick, onClose }: { onPick: (q: string) => void; o
   // first time. Without saying so, the picture looks live and the list looks
   // broken.
   const [progress, setProgress] = useState<Progress>({ phase: 'starting' })
+  // A phone's back camera is several lenses, and opening one at a high
+  // resolution starts a default mode and then reconfigures — which reads as the
+  // picture jumping once before it settles. The switch can't be prevented from
+  // here, but it needn't be watched: the stream is revealed once its reported
+  // size has held still for a moment.
+  const [settled, setSettled] = useState(false)
   // The camera is asked for once and the request is held here. In development
   // React mounts an effect, tears it down and mounts it again; without this the
   // second mount asks a second time while the first dialog is still open, and
@@ -105,11 +111,16 @@ export function ScanCamera({ onPick, onClose }: { onPick: (q: string) => void; o
       }
     }
 
-    // Ask for as much resolution as the camera will give. Left to itself a
-    // browser hands over something like 640x480, and at that size the print in
-    // a band across the frame is too small to read — halving a page's pixels
-    // was measured taking recognition from 94% to 13%. `ideal` degrades to
-    // whatever the device actually has.
+    // As much resolution as the camera will give. Left to itself a browser
+    // hands over something like 640x480, and at that size the print in a band
+    // across the frame is too small to read — halving a page's pixels was
+    // measured taking recognition from 94% to 13%. `ideal` degrades to whatever
+    // the device actually has.
+    // Which lens is left to the phone. Its rear camera is usually a virtual
+    // device standing for two or three of them and it changes between them as
+    // the subject gets nearer — the jump when a page moves in and out. Naming
+    // one lens stops that, but the one that focuses closest is exactly the one
+    // it switches to, so the cure would be a page that won't focus.
     asked.current ??= navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: { ideal: 'environment' },
@@ -120,7 +131,21 @@ export function ScanCamera({ onPick, onClose }: { onPick: (q: string) => void; o
     asked.current
       .then((s) => {
         if (stop) return
-        if (videoRef.current) videoRef.current.srcObject = s
+        const v = videoRef.current
+        if (!v) return
+        v.srcObject = s
+        // Every reconfiguration changes the frame size, so each one pushes the
+        // reveal back; when they stop, what is left is a steady picture.
+        let hold = 0
+        const wait = () => {
+          clearTimeout(hold)
+          hold = window.setTimeout(() => {
+            if (!stop) setSettled(true)
+          }, 400)
+        }
+        v.addEventListener('resize', wait)
+        v.addEventListener('loadeddata', wait)
+        wait()
         void loop()
       })
       .catch(() => setError('沒辦法開啟相機'))
@@ -149,7 +174,16 @@ export function ScanCamera({ onPick, onClose }: { onPick: (q: string) => void; o
   return createPortal(
     <div className="fixed inset-0 z-[80] flex flex-col bg-black">
       <div className="relative min-h-0 flex-1">
-        <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className={cn(
+            'h-full w-full object-cover transition-opacity duration-300',
+            settled ? 'opacity-100' : 'opacity-0',
+          )}
+        />
         {/* The band the reader aims with: everything outside it is dimmed, so
           * where to put the line needs no instructions beyond the one line. */}
         <div className="pointer-events-none absolute inset-0 flex flex-col">
@@ -159,7 +193,7 @@ export function ScanCamera({ onPick, onClose }: { onPick: (q: string) => void; o
         </div>
         <p className="pointer-events-none absolute inset-x-0 top-[calc(50%+var(--band))] mt-4 text-center text-sm text-white/90"
            style={{ ['--band' as string]: `${(BAND / 2) * 100}%` }}>
-          {error ?? '把「讀經」那一行對進框裡'}
+          {error ?? (settled ? '把「讀經」那一行對進框裡' : '相機啟動中…')}
         </p>
         <button
           type="button"
