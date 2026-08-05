@@ -27,11 +27,55 @@ type Service = { initialize: () => Promise<void>; recognize: (c: unknown) => Pro
 
 let ready: Promise<Service> | null = null
 
+/** How far along getting ready is. `downloading` carries a fraction of the
+ * model files; `starting` is the runtime, whose own fetch we don't see. */
+export type Progress =
+  | { phase: 'downloading'; done: number; total: number }
+  | { phase: 'starting' }
+  | { phase: 'ready' }
+
+/** Fetch the model files ourselves so their size can be reported, and so the
+ * library's own request for them lands on a warm cache. Best-effort: if any of
+ * it fails the library fetches as it always would, only without a number to
+ * show for it. */
+async function fetchModels(onProgress: (done: number, total: number) => void): Promise<void> {
+  const { DEFAULT_MODEL } = (await import('ppu-paddle-ocr/web')) as unknown as {
+    DEFAULT_MODEL: Record<string, string>
+  }
+  const urls = Object.values(DEFAULT_MODEL).filter((u) => typeof u === 'string')
+  const bodies = await Promise.all(
+    urls.map((u) => fetch(u).catch(() => null)),
+  )
+  const total = bodies.reduce((n, r) => n + Number(r?.headers.get('content-length') ?? 0), 0)
+  let done = 0
+  await Promise.all(
+    bodies.map(async (r) => {
+      const body = r?.body
+      if (!body) return
+      const reader = body.getReader()
+      for (;;) {
+        const { done: end, value } = await reader.read()
+        if (end) break
+        done += value.byteLength
+        onProgress(done, total)
+      }
+    }),
+  )
+}
+
 /** The service, started on the first scan and shared by every one after —
  * including the viewfinder, which reads a frame the same way a photograph is
- * read and must not load a second copy of the model to do it. */
-export function ocrService(): Promise<Service> {
+ * read and must not load a second copy of the model to do it.
+ *
+ * `onProgress` is only meaningful the first time; afterwards everything is in
+ * the browser's cache and it goes straight to ready.
+ */
+export function ocrService(onProgress?: (p: Progress) => void): Promise<Service> {
   ready ??= (async () => {
+    await fetchModels((done, total) => onProgress?.({ phase: 'downloading', done, total })).catch(
+      () => {},
+    )
+    onProgress?.({ phase: 'starting' })
     const { PaddleOcrService } = (await import('ppu-paddle-ocr/web')) as unknown as {
       PaddleOcrService: new () => Service
     }
@@ -39,6 +83,7 @@ export function ocrService(): Promise<Service> {
     await s.initialize()
     return s
   })()
+  ready.then(() => onProgress?.({ phase: 'ready' })).catch(() => {})
   return ready
 }
 

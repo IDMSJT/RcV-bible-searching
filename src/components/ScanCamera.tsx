@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { citationsIn } from '@/lib/scannedText'
-import { readCanvas } from '@/lib/scanPhoto'
+import { ocrService, readCanvas, type Progress } from '@/lib/scanPhoto'
 import { cn } from '@/lib/utils'
 
 /**
@@ -34,6 +34,10 @@ export function ScanCamera({ onPick, onClose }: { onPick: (q: string) => void; o
   // the list doesn't blink out between two good looks at the same line.
   const [found, setFound] = useState<{ key: string; text: string }[]>([])
   const [error, setError] = useState<string | null>(null)
+  // The camera opens straight away; the recogniser behind it is about 12 MB the
+  // first time. Without saying so, the picture looks live and the list looks
+  // broken.
+  const [progress, setProgress] = useState<Progress>({ phase: 'starting' })
   // The camera is asked for once and the request is held here. In development
   // React mounts an effect, tears it down and mounts it again; without this the
   // second mount asks a second time while the first dialog is still open, and
@@ -47,6 +51,9 @@ export function ScanCamera({ onPick, onClose }: { onPick: (q: string) => void; o
     let stop = false
     let timer = 0
     const canvas = document.createElement('canvas')
+    void ocrService((p) => {
+      if (!stop) setProgress(p)
+    })
 
     const read = async () => {
       const v = videoRef.current
@@ -170,7 +177,28 @@ export function ScanCamera({ onPick, onClose }: { onPick: (q: string) => void; o
         * holding a page still. Two rows of citations fit; more scroll. */}
       <div className="flex h-44 shrink-0 flex-col bg-card px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {found.length === 0 ? (
+          {progress.phase !== 'ready' ? (
+            <div className="py-3 text-center">
+              {progress.phase === 'downloading' && progress.total ? (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    {`正在下載辨識模型　${(progress.done / 1048576).toFixed(1)} / ${(progress.total / 1048576).toFixed(1)} MB`}
+                  </p>
+                  <div className="mx-auto mt-2 h-1 max-w-xs overflow-hidden rounded-full bg-secondary">
+                    <div
+                      className="h-full rounded-full bg-primary transition-[width]"
+                      style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }}
+                    />
+                  </div>
+                </>
+              ) : (
+                // No bar here. The runtime's own loading isn't ours to see, and
+                // a bar that moves without measuring anything looks like one
+                // that does.
+                <p className="text-sm text-muted-foreground">正在啟動辨識…</p>
+              )}
+            </div>
+          ) : found.length === 0 ? (
             <p className="py-3 text-center text-sm text-muted-foreground">還沒讀到引經</p>
           ) : (
             <div className="flex flex-wrap gap-2">
