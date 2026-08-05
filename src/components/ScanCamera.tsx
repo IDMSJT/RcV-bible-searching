@@ -175,8 +175,13 @@ export function ScanCamera({ onPick, onClose }: { onPick: (q: string) => void; o
         * with every frame, and a panel that grew and shrank with it would move
         * the band the reader is aiming with — under their hands, while they are
         * holding a page still. Two rows of citations fit; more scroll. */}
-      <div className="flex h-44 shrink-0 flex-col bg-card px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* Padded clear of the bottom nav on a phone. The overlay covers it, but
+        * a tap that dismisses the overlay is finished by hitting whatever now
+        * sits at those coordinates — and 搜尋這 N 筆 sat exactly on 綱要, so
+        * picking a citation landed on the outline page. --nav-h already carries
+        * the safe-area inset. */}
+      <div className="flex shrink-0 flex-col bg-card px-4 pt-3 pb-[calc(var(--nav-h)+0.5rem)] md:pb-3">
+        <div className="h-24 overflow-y-auto">
           {progress.phase !== 'ready' ? (
             <div className="py-3 text-center">
               {progress.phase === 'downloading' && progress.total ? (
