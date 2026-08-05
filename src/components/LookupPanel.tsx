@@ -547,7 +547,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
           'relative block h-[120px] w-full resize-none break-words border-0 bg-transparent text-transparent caret-foreground shadow-none focus-visible:ring-0 [field-sizing:fixed]',
         )}
       />
-      <InputActions value={q} onChange={setQ} focusRef={textareaRef} />
+      <InputActions value={q} onChange={setQ} focusRef={textareaRef} scan />
     </div>
   )
 

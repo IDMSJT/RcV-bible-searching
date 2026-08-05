@@ -53,6 +53,20 @@ export function useRegisterSW() {
 
 export default defineConfig(({ command }) => ({
   base: command === 'build' ? '/RcV-bible-searching/' : '/',
+  build: {
+    rollupOptions: {
+      output: {
+        // Anything reached only through the scanner goes in its own folder, so
+        // the service worker can leave the whole of it out of the precache.
+        chunkFileNames: (chunk) =>
+          /ScanCamera|scanPhoto|ppu-paddle-ocr|ppu-ocv|onnxruntime/.test(
+            chunk.facadeModuleId ?? chunk.moduleIds?.join(' ') ?? '',
+          )
+            ? 'assets/ocr/[name]-[hash].js'
+            : 'assets/[name]-[hash].js',
+      },
+    },
+  },
   define: {
     __APP_VERSION__: JSON.stringify(resolveAppVersion()),
   },
@@ -99,6 +113,11 @@ export default defineConfig(({ command }) => ({
         // Precache the app shell (hashed JS/CSS/HTML/fonts). The big bible
         // JSONs are deliberately NOT precached — they're runtime-cached below.
         globPatterns: ['**/*.{js,css,html,svg,woff,woff2}'],
+        // Nor is the text recogniser. It is only reached by tapping 掃描, and
+        // it arrives with a 25 MB runtime and 6 MB of model behind it — the
+        // reader who never scans should not carry any of that. Everything it
+        // needs is built into assets/ocr/ so one rule covers it.
+        globIgnores: ['**/ocr/**'],
         navigateFallbackDenylist: [/^\/[^/]+\.\w+$/],
         runtimeCaching: [
           {

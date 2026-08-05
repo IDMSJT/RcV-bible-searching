@@ -2,5 +2,9 @@
 # but we generate icons with Pillow and never invoke it at build time. pnpm 11
 # treats its un-run build script as a fatal error in CI; acknowledge it here so
 # `pnpm install --frozen-lockfile` passes. false = don't build it (not needed).
+#
+# protobufjs arrives with onnxruntime-web. Its build script generates the CLI's
+# type stubs; nothing on the OCR path calls them. false = don't build it.
 allowBuilds:
+  protobufjs: false
   sharp: false
