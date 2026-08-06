@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { citationsIn } from '@/lib/scannedText'
-import { ocrService, readCanvas, type Progress } from '@/lib/scanPhoto'
+import { prepareOcr, readBand, type Progress } from '@/lib/scanPhoto'
 import { cn } from '@/lib/utils'
 
 /**
@@ -65,42 +65,32 @@ export function ScanCamera({ onPick, onClose }: { onPick: (q: string) => void; o
     clearTimeout(closing.current)
     let stop = false
     let timer = 0
-    const canvas = document.createElement('canvas')
-    void ocrService((p) => {
+    void prepareOcr((p) => {
       if (!stop) setProgress(p)
     })
 
     const read = async () => {
       const v = videoRef.current
-      if (stop || !v || !v.videoWidth) return
+      if (stop || !v || !v.videoWidth || !v.clientHeight) return
       // What the band shows. Filling the screen means cropping the stream to
       // its shape, so the picture is a slice of what the camera has; reading
       // past that would take in print nobody can see or aim at. Every pixel of
       // the screen is picture, so a band that is a share of the screen is the
-      // same share of the slice.
+      // same share of the slice — and it follows the band up past the panel, or
+      // the frame would be in one place and the reading from another.
       const scale = Math.max(v.clientWidth / v.videoWidth, v.clientHeight / v.videoHeight)
       const shownW = Math.min(v.videoWidth, v.clientWidth / scale)
       const shownH = Math.min(v.videoHeight, v.clientHeight / scale)
-      const sw = Math.round(shownW)
-      const sh = Math.round(shownH * BAND)
-      const sx = Math.round((v.videoWidth - shownW) / 2)
-      // Follows the band up past the panel, or the frame would sit in one place
-      // and the reading be taken from another.
-      const sy = Math.round(
-        (v.videoHeight - shownH) / 2 + (centre(v.clientHeight) - BAND / 2) * shownH,
-      )
-      // At the stream's own scale — shrinking it is what costs accuracy.
-      canvas.width = sw
-      canvas.height = sh
-      canvas.getContext('2d')?.drawImage(v, sx, sy, sw, sh, 0, 0, sw, sh)
+      const rect = {
+        x: Math.round((v.videoWidth - shownW) / 2),
+        y: Math.round((v.videoHeight - shownH) / 2 + (centre(v.clientHeight) - BAND / 2) * shownH),
+        width: Math.round(shownW),
+        height: Math.round(shownH * BAND),
+      }
       try {
-        // The whole frame is parsed at once and the citations come back with
-        // the references already worked out. Splitting the line up and parsing
-        // the pieces again would lose every citation that names no book — 「5」
-        // means chapter one's fifth verse beside 「啟一1～2」 and nothing at all
-        // on its own — which is most of what a reading line is made of.
+        // At the stream's own scale — shrinking it is what costs accuracy.
         const seen: { key: string; text: string }[] = []
-        for (const c of citationsIn(await readCanvas(canvas))) {
+        for (const c of citationsIn(await readBand(v, rect))) {
           const key = c.refs
             .map((r) => `${r.bookNo}.${r.chapter}.${r.verseStart}.${r.verseEnd}.${r.note ?? ''}`)
             .join('|')

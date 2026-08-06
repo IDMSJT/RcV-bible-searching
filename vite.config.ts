@@ -59,11 +59,23 @@ export default defineConfig(({ command }) => ({
         // Anything reached only through the scanner goes in its own folder, so
         // the service worker can leave the whole of it out of the precache.
         chunkFileNames: (chunk) =>
-          /ScanCamera|scanPhoto|ppu-paddle-ocr|ppu-ocv|onnxruntime/.test(
+          /ScanCamera|scanPhoto|ocrWorker|ppu-paddle-ocr|ppu-ocv|onnxruntime/.test(
             chunk.facadeModuleId ?? chunk.moduleIds?.join(' ') ?? '',
           )
             ? 'assets/ocr/[name]-[hash].js'
             : 'assets/[name]-[hash].js',
+      },
+    },
+  },
+  // The worker is a build of its own, so the folder has to be named again here
+  // or it lands beside the app and the service worker precaches all 422 KB of
+  // recogniser for readers who never scan.
+  worker: {
+    format: 'es',
+    rollupOptions: {
+      output: {
+        entryFileNames: 'assets/ocr/[name]-[hash].js',
+        chunkFileNames: 'assets/ocr/[name]-[hash].js',
       },
     },
   },

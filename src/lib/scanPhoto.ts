@@ -16,16 +16,18 @@ import { citationsOnly, tidyScanned } from '@/lib/scannedText'
  * model did worse — 87% at 30 MB, 77% at 132 MB — so the smallest is not a
  * compromise here, it is the best of them.
  *
+ * All of it runs in a worker. Inference blocks whichever thread it is on, and
+ * on the main one that is every tap and every frame of the preview: closing the
+ * viewfinder took as long as the frame being read at the time.
+ *
  * Everything is loaded on first use and never at startup: the library, the
  * runtime and about 6 MB of model, none of which a reader who doesn't scan
  * should pay for. The browser keeps them afterwards.
  *
  * Without the cross-origin isolation headers GitHub Pages can't send, the
- * runtime falls back to a single thread. That costs speed, not function.
+ * runtime falls back to a single thread inside that worker. That costs speed,
+ * not function, and not responsiveness — the thread it isn't sharing is ours.
  */
-type Service = { initialize: () => Promise<void>; recognize: (c: unknown) => Promise<{ text?: string }> }
-
-let ready: Promise<Service> | null = null
 
 /** How far along getting ready is. `downloading` carries a fraction of the
  * model files; `starting` is the runtime, whose own fetch we don't see. */
@@ -34,73 +36,78 @@ export type Progress =
   | { phase: 'starting' }
   | { phase: 'ready' }
 
-/** Fetch the model files ourselves so their size can be reported, and so the
- * library's own request for them lands on a warm cache. Best-effort: if any of
- * it fails the library fetches as it always would, only without a number to
- * show for it. */
-async function fetchModels(onProgress: (done: number, total: number) => void): Promise<void> {
-  const { DEFAULT_MODEL } = (await import('ppu-paddle-ocr/web')) as unknown as {
-    DEFAULT_MODEL: Record<string, string>
-  }
-  const urls = Object.values(DEFAULT_MODEL).filter((u) => typeof u === 'string')
-  const bodies = await Promise.all(
-    urls.map((u) => fetch(u).catch(() => null)),
-  )
-  const total = bodies.reduce((n, r) => n + Number(r?.headers.get('content-length') ?? 0), 0)
-  let done = 0
-  await Promise.all(
-    bodies.map(async (r) => {
-      const body = r?.body
-      if (!body) return
-      const reader = body.getReader()
-      for (;;) {
-        const { done: end, value } = await reader.read()
-        if (end) break
-        done += value.byteLength
-        onProgress(done, total)
-      }
-    }),
-  )
+type FromWorker =
+  | { type: 'progress'; done: number; total: number }
+  | { type: 'ready' }
+  | { type: 'failed'; message: string }
+  | { type: 'text'; id: number; text: string }
+
+let worker: Worker | null = null
+let ready: Promise<void> | null = null
+let nextId = 1
+const waiting = new Map<number, (text: string) => void>()
+let report: ((p: Progress) => void) | undefined
+
+function ocr(): Worker {
+  worker ??= new Worker(new URL('./ocrWorker.ts', import.meta.url), { type: 'module' })
+  return worker
 }
 
-/** The service, started on the first scan and shared by every one after —
- * including the viewfinder, which reads a frame the same way a photograph is
- * read and must not load a second copy of the model to do it.
+/**
+ * Start the recogniser, once, and say how it is going.
  *
  * `onProgress` is only meaningful the first time; afterwards everything is in
  * the browser's cache and it goes straight to ready.
  */
-export function ocrService(onProgress?: (p: Progress) => void): Promise<Service> {
-  ready ??= (async () => {
-    await fetchModels((done, total) => onProgress?.({ phase: 'downloading', done, total })).catch(
-      () => {},
-    )
-    onProgress?.({ phase: 'starting' })
-    const { PaddleOcrService } = (await import('ppu-paddle-ocr/web')) as unknown as {
-      PaddleOcrService: new () => Service
-    }
-    const s = new PaddleOcrService()
-    await s.initialize()
-    return s
-  })()
+export function prepareOcr(onProgress?: (p: Progress) => void): Promise<void> {
+  report = onProgress
+  ready ??= new Promise<void>((resolve, reject) => {
+    const w = ocr()
+    w.addEventListener('message', (e: MessageEvent<FromWorker>) => {
+      const m = e.data
+      if (m.type === 'progress') report?.({ phase: 'downloading', done: m.done, total: m.total })
+      else if (m.type === 'ready') resolve()
+      else if (m.type === 'failed') reject(new Error(m.message))
+      else waiting.get(m.id)?.(m.text)
+    })
+    w.postMessage({ type: 'start' })
+  })
+  // Told every time, not only the first. A second opening finds the promise
+  // already settled, and a viewfinder waiting to hear it was left saying 正在
+  // 啟動辨識 over a recogniser that had been ready since the first.
   ready.then(() => onProgress?.({ phase: 'ready' })).catch(() => {})
   return ready
 }
 
-/** The photograph, as something the recogniser can read. Kept at its own size:
- * scaling down loses the small print the citations are set in. */
-async function toCanvas(file: Blob): Promise<HTMLCanvasElement> {
-  const bitmap = await createImageBitmap(file)
-  const canvas = document.createElement('canvas')
-  canvas.width = bitmap.width
-  canvas.height = bitmap.height
-  canvas.getContext('2d')?.drawImage(bitmap, 0, 0)
-  bitmap.close()
-  return canvas
+/** Hand one image over and get its text back, tidied of the habits that stop a
+ * citation parsing. Each answer carries the id it belongs to, so a slow frame
+ * can't come back after a newer one and be taken for it. */
+function read(image: ImageBitmap | ArrayBuffer): Promise<string> {
+  const id = nextId++
+  return new Promise<string>((resolve) => {
+    waiting.set(id, (text) => {
+      waiting.delete(id)
+      resolve(tidyScanned(text))
+    })
+    ocr().postMessage({ type: 'read', id, image }, [image as Transferable])
+  })
 }
 
-/** The text of one frame, tidied but not filtered — the viewfinder collects
- * across frames, so it does its own keeping. */
+/**
+ * One band of the viewfinder, cropped out of the video.
+ *
+ * The crop goes through createImageBitmap rather than a canvas of our own: it
+ * takes the rectangle itself, and what it hands back moves to the worker
+ * without being copied.
+ */
+export async function readBand(
+  video: HTMLVideoElement,
+  rect: { x: number; y: number; width: number; height: number },
+): Promise<string> {
+  const bitmap = await createImageBitmap(video, rect.x, rect.y, rect.width, rect.height)
+  return read(bitmap)
+}
+
 /**
  * The citations on a photographed page, as a line to search with.
  *
@@ -110,14 +117,8 @@ async function toCanvas(file: Blob): Promise<HTMLCanvasElement> {
  * citation the tidied text comes back instead: better to hand over something to
  * correct than an empty box.
  */
-export async function readCanvas(canvas: HTMLCanvasElement): Promise<string> {
-  const { text } = await (await ocrService()).recognize(canvas)
-  return tidyScanned(text ?? '')
-}
-
 export async function scanPhoto(file: Blob): Promise<string> {
-  const [s, canvas] = await Promise.all([ocrService(), toCanvas(file)])
-  const { text } = await s.recognize(canvas)
-  const page = tidyScanned(text ?? '')
+  await prepareOcr()
+  const page = await read(await file.arrayBuffer())
   return citationsOnly(page) || page
 }
