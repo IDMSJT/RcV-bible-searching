@@ -11,6 +11,7 @@ import { SettingsPanel } from '@/components/SettingsPanel'
 import { ReadingPreferences } from '@/components/ReadingPreferences'
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer'
 import { ChangelogDrawer } from '@/components/ChangelogDrawer'
+import { ScanProvider } from '@/components/ScanProvider'
 import { SwUpdate } from '@/components/SwUpdate'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
@@ -287,6 +288,10 @@ function RootComponent() {
   const sidebarFlexCol = effectiveMode === 'compose' || effectiveMode === 'settings'
 
   return (
+    // The viewfinder is held out here. It is opened from a button inside the
+    // lookup panel, and the layout moves that panel between a drawer and a
+    // sidebar as the phone turns — which unmounted the camera mid-scan.
+    <ScanProvider>
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-card pt-[env(safe-area-inset-top)] text-foreground md:flex-row md:pt-0 print:block print:h-auto print:overflow-visible">
       <ReadingPreferences />
 
@@ -417,6 +422,13 @@ function RootComponent() {
             } as CSSProperties
           }
           className="h-[100dvh] pb-[calc(var(--nav-h)-1px)] md:hidden"
+          // The scanner is opened from in here but rendered on the body, so to
+          // a modal drawer every tap in it reads as a tap outside — which
+          // dismissed the drawer the reader is meant to come back to with their
+          // citations. It is not outside; it is this panel, full screen.
+          onInteractOutside={(e) => {
+            if ((e.target as Element | null)?.closest?.('[data-scanner]')) e.preventDefault()
+          }}
         >
           <DrawerTitle className="sr-only">
             {effectiveMode === 'lookup'
@@ -447,6 +459,7 @@ function RootComponent() {
 
       {/* <TanStackRouterDevtools position="bottom-right" /> */}
     </div>
+    </ScanProvider>
   )
 }
 

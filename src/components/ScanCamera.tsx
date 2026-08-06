@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { citationsIn } from '@/lib/scannedText'
@@ -24,6 +24,15 @@ const BAND = 0.22 // of the viewfinder's height — a couple of printed lines
 /** How long to wait between reads. Long enough that the interface stays
  * responsive between them, short enough to feel like it is watching. */
 const EVERY_MS = 200
+
+/** The results panel's height. The band is centred in what is left of the
+ * camera above it, not in the screen — half the reason to hold a phone still is
+ * knowing where the middle is, and the middle of the picture the reader can
+ * actually use is higher than the middle of the glass. */
+const PANEL = 176
+
+/** Where the band's centre sits, as a share of the screen's height. */
+const centre = (screenH: number) => 0.5 - PANEL / (2 * screenH)
 
 export function ScanCamera({ onPick, onClose }: { onPick: (q: string) => void; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -63,20 +72,24 @@ export function ScanCamera({ onPick, onClose }: { onPick: (q: string) => void; o
 
     const read = async () => {
       const v = videoRef.current
-      if (stop || !v || !v.videoWidth || !v.clientWidth) return
-      // What the band actually shows. object-cover scales the video to fill the
-      // frame and throws away the overflow, so the picture on screen is a crop
-      // of the stream — reading the stream's full width would take in print the
-      // reader can't see and has no way to aim.
+      if (stop || !v || !v.videoWidth) return
+      // What the band shows. Filling the screen means cropping the stream to
+      // its shape, so the picture is a slice of what the camera has; reading
+      // past that would take in print nobody can see or aim at. Every pixel of
+      // the screen is picture, so a band that is a share of the screen is the
+      // same share of the slice.
       const scale = Math.max(v.clientWidth / v.videoWidth, v.clientHeight / v.videoHeight)
       const shownW = Math.min(v.videoWidth, v.clientWidth / scale)
       const shownH = Math.min(v.videoHeight, v.clientHeight / scale)
       const sw = Math.round(shownW)
       const sh = Math.round(shownH * BAND)
       const sx = Math.round((v.videoWidth - shownW) / 2)
-      const sy = Math.round((v.videoHeight - sh) / 2)
-      // At the stream's own scale: this is already just a band, and shrinking
-      // it is exactly what costs accuracy.
+      // Follows the band up past the panel, or the frame would sit in one place
+      // and the reading be taken from another.
+      const sy = Math.round(
+        (v.videoHeight - shownH) / 2 + (centre(v.clientHeight) - BAND / 2) * shownH,
+      )
+      // At the stream's own scale — shrinking it is what costs accuracy.
       canvas.width = sw
       canvas.height = sh
       canvas.getContext('2d')?.drawImage(v, sx, sy, sw, sh, 0, 0, sw, sh)
@@ -172,50 +185,60 @@ export function ScanCamera({ onPick, onClose }: { onPick: (q: string) => void; o
   // trapped in the sheet in portrait and only escaped in landscape, where the
   // layout is wide enough to drop the drawer for the sidebar.
   return createPortal(
-    <div className="fixed inset-0 z-[80] flex flex-col bg-black">
-      <div className="relative min-h-0 flex-1">
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className={cn(
-            'h-full w-full object-cover transition-opacity duration-300',
-            settled ? 'opacity-100' : 'opacity-0',
-          )}
-        />
-        {/* The band the reader aims with: everything outside it is dimmed, so
-          * where to put the line needs no instructions beyond the one line. */}
-        <div className="pointer-events-none absolute inset-0 flex flex-col">
-          <div className="flex-1 bg-black/50" />
-          <div style={{ height: `${BAND * 100}%` }} className="border-y-2 border-white/80" />
-          <div className="flex-1 bg-black/50" />
-        </div>
-        <p className="pointer-events-none absolute inset-x-0 top-[calc(50%+var(--band))] mt-4 text-center text-sm text-white/90"
-           style={{ ['--band' as string]: `${(BAND / 2) * 100}%` }}>
+    // pointer-events-auto is not decoration. vaul's drawer is a modal, so while
+    // it is open the body is pointer-events:none and only the drawer's own
+    // content sets itself back — and that property inherits. Portalled to the
+    // body, every button in here was dead, and taps went to whatever had put
+    // itself back: the drawer underneath, and the bottom nav, which is why
+    // picking a citation opened 綱要. The nav does the same thing for the same
+    // reason.
+    <div data-scanner className="pointer-events-auto fixed inset-0 z-[80] bg-black">
+      {/* The camera fills the screen; everything else floats over it. */}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        className={cn(
+          'absolute inset-0 h-full w-full object-cover transition-opacity duration-300',
+          settled ? 'opacity-100' : 'opacity-0',
+        )}
+      />
+      {/* The band the reader aims with: everything outside it is dimmed, so
+        * where to put the line needs no instructions beyond the one line. Held
+        * as a share of the screen, which is all picture — the same share of
+        * what the camera sees, whichever way the phone is turned. */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={
+          {
+            // Top of the band: the middle of the camera left showing, less half
+            // the band. In CSS so it follows the screen without measuring.
+            '--band-top': `calc(50% - ${PANEL / 2}px - ${BAND * 50}%)`,
+            '--band-h': `${BAND * 100}%`,
+          } as CSSProperties
+        }
+      >
+        <div className="absolute inset-x-0 top-0 h-[var(--band-top)] bg-black/45" />
+        <div className="absolute inset-x-0 top-[var(--band-top)] h-[var(--band-h)] border-y-2 border-white/80" />
+        <div className="absolute inset-x-0 top-[calc(var(--band-top)+var(--band-h))] bottom-0 bg-black/45" />
+        <p className="absolute inset-x-0 top-[calc(var(--band-top)+var(--band-h))] mt-4 text-center text-sm text-white/90">
           {error ?? (settled ? '把「讀經」那一行對進框裡' : '相機啟動中…')}
         </p>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="關閉"
-          className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 rounded-full bg-black/50 p-2 text-white"
-        >
-          <X className="size-5" />
-        </button>
       </div>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="關閉"
+        className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 rounded-full bg-black/50 p-2 text-white"
+      >
+        <X className="size-5" />
+      </button>
 
-      {/* A fixed height, not one that follows the contents. The list changes
-        * with every frame, and a panel that grew and shrank with it would move
-        * the band the reader is aiming with — under their hands, while they are
-        * holding a page still. Two rows of citations fit; more scroll. */}
-      {/* Padded clear of the bottom nav on a phone. The overlay covers it, but
-        * a tap that dismisses the overlay is finished by hitting whatever now
-        * sits at those coordinates — and 搜尋這 N 筆 sat exactly on 綱要, so
-        * picking a citation landed on the outline page. --nav-h already carries
-        * the safe-area inset. */}
-      <div className="flex shrink-0 flex-col bg-card px-4 pt-3 pb-[calc(var(--nav-h)+0.5rem)] md:pb-3">
-        <div className="h-24 overflow-y-auto">
+      <div
+        style={{ height: PANEL }}
+        className="absolute inset-x-0 bottom-0 flex flex-col bg-card/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-sm">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {progress.phase !== 'ready' ? (
             <div className="py-3 text-center">
               {progress.phase === 'downloading' && progress.total ? (
@@ -256,19 +279,20 @@ export function ScanCamera({ onPick, onClose }: { onPick: (q: string) => void; o
             </div>
           )}
         </div>
-        {/* Always here, so its arrival never shifts anything above it. */}
+        {/* Always here, so its arrival never shifts anything above it. With
+          * nothing read it is the way out instead of a dead grey button — the
+          * ✕ is up in a corner, and this is where a thumb already is. */}
         <button
           type="button"
-          disabled={found.length === 0}
-          onClick={() => onPick(all)}
+          onClick={found.length ? () => onPick(all) : onClose}
           className={cn(
-            'mt-3 shrink-0 rounded-lg py-2.5 text-sm font-medium transition-colors',
+            'mt-3 shrink-0 rounded-lg py-2.5 text-sm font-medium transition-colors active:scale-[0.99]',
             found.length
-              ? 'bg-primary text-primary-foreground active:scale-[0.99]'
-              : 'bg-secondary text-muted-foreground',
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-secondary text-secondary-foreground',
           )}
         >
-          {found.length ? `搜尋這 ${found.length} 筆` : '搜尋'}
+          {found.length ? `搜尋這 ${found.length} 筆` : '返回'}
         </button>
       </div>
     </div>,

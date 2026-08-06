@@ -1,13 +1,9 @@
-import { lazy, Suspense, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { ScanText } from 'lucide-react'
 import { citationsOnly, tidyScanned } from '@/lib/scannedText'
+import { useScanner } from '@/lib/scanner'
 import { cn } from '@/lib/utils'
 
-// The viewfinder pulls in the recogniser, so it loads on the first tap of 掃描
-// and never before.
-const ScanCamera = lazy(() =>
-  import('@/components/ScanCamera').then((m) => ({ default: m.ScanCamera })),
-)
 
 /** Floating 清除 / 貼上 pills for a textarea. `clear` only shows when there's
  * text; `貼上` only when the Clipboard read API exists. `className` overrides
@@ -37,7 +33,7 @@ export function InputActions({
     typeof navigator !== 'undefined' && typeof navigator.clipboard?.readText === 'function'
 
   const fileRef = useRef<HTMLInputElement>(null)
-  const [camera, setCamera] = useState(false)
+  const openScanner = useScanner()
   // 讀取中 while the model loads and runs — the first scan of a session fetches
   // about 6 MB, so this can be a few seconds with nothing else to show for it.
   const [reading, setReading] = useState(false)
@@ -117,8 +113,10 @@ export function InputActions({
             // what is left on a desktop, and what a refused permission falls
             // back to.
             onClick={() =>
-              typeof navigator.mediaDevices?.getUserMedia === 'function'
-                ? setCamera(true)
+              openScanner && typeof navigator.mediaDevices?.getUserMedia === 'function'
+                // No focus afterwards: the keyboard would come up over the
+                // results the scan just went and fetched.
+                ? openScanner(onChange)
                 : fileRef.current?.click()
             }
             // The icon square keeps the pill's height so the row doesn't step,
@@ -129,18 +127,6 @@ export function InputActions({
             <ScanText className="size-5" />
           </button>
         </>
-      )}
-      {camera && (
-        <Suspense fallback={null}>
-          <ScanCamera
-            onPick={(text) => {
-              setCamera(false)
-              onChange(text)
-              focusRef.current?.focus()
-            }}
-            onClose={() => setCamera(false)}
-          />
-        </Suspense>
       )}
     </div>
   )
