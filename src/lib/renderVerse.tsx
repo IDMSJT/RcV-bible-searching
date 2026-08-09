@@ -2,7 +2,7 @@ import { Fragment, useLayoutEffect, useRef, useState, type ReactNode } from 'rea
 import { Link } from '@tanstack/react-router'
 import { X } from 'lucide-react'
 import { parseRefs, type ParseOptions, type Segment, type VerseRef } from '@/lib/parseRefs'
-import { groupRefs, type RefGroup } from '@/lib/refGroups'
+import { groupRefs, runOf, type RefGroup } from '@/lib/refGroups'
 import { useBible, useAnnotations, eachVerseInRange, notesForVerse } from '@/data/loadBible'
 import { formatVerseRef } from '@/lib/cite'
 import { revealInScroll } from '@/lib/revealInScroll'
@@ -265,11 +265,21 @@ export type Open = number
 
 function VersePreview({
   refs,
+  primary,
+  focus,
   ctx,
   divideBelow,
   innerRef,
 }: {
   refs: VerseRef[]
+  /** The ones belonging to the citation actually tapped. The rest were written
+   * alongside it and open with it, and their labels say so by being ordinary
+   * text where these are the accent colour. Absent means all of them. */
+  primary?: ReadonlySet<VerseRef>
+  /** Changes when a different citation of the run is tapped. The list is
+   * capped and scrolls, so a long run can have the verses just asked for below
+   * its fold; this brings them to the top without moving the page. */
+  focus?: number
   /** chapter is null where the surrounding text has none of its own — every
    * label then carries its chapter, which is what a book introduction wants. */
   ctx: { book: number; chapter: number | null }
@@ -284,11 +294,36 @@ function VersePreview({
   // when one of these refs actually needs it.
   const wantsNotes = refs.some((r) => r.note != null || r.noteAll)
   const { data: annotations } = useAnnotations(wantsNotes)
+  const scroller = useRef<HTMLDivElement | null>(null)
+  const firstLit = useRef<HTMLElement | null>(null)
+  useLayoutEffect(() => {
+    const box = scroller.current
+    const row = firstLit.current
+    if (!box || !row || box.scrollHeight <= box.clientHeight) return
+    // The air above the first verse is the wrapper's, not this box's, so the
+    // top of this box is already where a first row sits. Read the inset anyway
+    // — it costs nothing and survives the padding moving back in here.
+    const inset = box.clientTop + (parseFloat(getComputedStyle(box).paddingTop) || 0)
+    const by = row.getBoundingClientRect().top - box.getBoundingClientRect().top - inset
+    if (Math.abs(by) < 1) return
+    // Smooth, because nothing else moved: the page is still, and a list that
+    // jumped would be the only thing that had. The tapped citation stays under
+    // the finger while its verses come up to meet it.
+    box.scrollTo({ top: box.scrollTop + by, behavior: 'smooth' })
+  }, [focus])
   if (!bible) return null
 
-  type Row = { bookNo: number; chapterNo: number; verse: number; note?: number; text: string }
+  type Row = {
+    bookNo: number
+    chapterNo: number
+    verse: number
+    note?: number
+    text: string
+    lit: boolean
+  }
   const rows: Row[] = []
   for (const ref of refs) {
+    const lit = !primary || primary.has(ref)
     const wantsNote = ref.note != null || ref.noteAll
     // 「二1註3」 targets the note alone; 「二1與註3」 wants the verse as well.
     const wantsVerse = !wantsNote || !ref.noteDirect
@@ -304,7 +339,7 @@ function VersePreview({
       ref.verseEnd,
     )) {
       if (wantsVerse) {
-        rows.push({ bookNo: ref.bookNo, chapterNo, verse: verse.verse, text: verse.text })
+        rows.push({ bookNo: ref.bookNo, chapterNo, verse: verse.verse, text: verse.text, lit })
       }
       if (wantsNote && annotations) {
         const all = notesForVerse(annotations, ref.bookNo, chapterNo, verse.verse)
@@ -315,6 +350,7 @@ function VersePreview({
             verse: verse.verse,
             note: n.n,
             text: n.text,
+            lit,
           })
         }
       }
@@ -329,29 +365,41 @@ function VersePreview({
     // whose labels line up, verse text flowing in the rest.
     <div
       ref={innerRef}
-      // A long span (「賽十四12～15與註」 pulls in four verses plus every note on
-      // them) scrolls in place rather than being cut short — the reader can
-      // still reach all of it without the card swallowing the page.
       // stopPropagation keeps a tap in here off the card's own select handler.
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
       className={cn(
-        // clear-both: the dismiss button floats inside the paragraph above, and a
-        // float doesn't grow its parent, so without this it can hang over the
+        // clear-both: the dismiss button floats inside the paragraph above, and
+        // a float doesn't grow its parent, so without this it can hang over the
         // preview whenever the break lands after only a line or two.
-        'mt-2 grid clear-both max-h-96 grid-cols-[auto_1fr] gap-x-2 gap-y-1 overflow-y-auto border-t border-border/60 pt-2 font-serif text-foreground',
+        'mt-2 clear-both border-t border-border/60 pt-2 font-serif text-foreground',
         divideBelow && 'mb-2 border-b pb-2',
       )}
     >
+      {/* The rules belong out there and the scrollbar in here. A long span
+        * (「賽十四12～15與註」 pulls in four verses plus every note on them) scrolls
+        * in place rather than being cut short, and the bar it scrolls with sits
+        * in the padding instead of over the words — the negative margin buys
+        * that width back from the card, so nothing else moves. Right only: the
+        * bar is on the right, and taking it from both would shift the column of
+        * labels off the text above it. */}
+      <div
+        ref={scroller}
+        className="-mr-2 grid max-h-96 grid-cols-[auto_1fr] gap-x-2 gap-y-1 overflow-y-auto pr-2"
+      >
       {rows.map((r, i) => (
         <Fragment key={i}>
           <Link
+            ref={r.lit && i === rows.findIndex((x) => x.lit) ? (el) => { firstLit.current = el } : undefined}
             to="/$bookNo/$chapterNo"
             params={{ bookNo: r.bookNo, chapterNo: r.chapterNo }}
             search={{ hl: r.note != null ? `${r.verse}:${r.note}` : String(r.verse) }}
             resetScroll={sameChapter ? false : undefined}
             onClick={(e) => e.stopPropagation()}
-            className="self-start whitespace-nowrap pt-[0.25em] text-left text-[0.8em] font-sans text-primary transition-colors hover:text-primary/80"
+            className={cn(
+              'self-start whitespace-nowrap pt-[0.25em] text-left text-[0.8em] font-sans transition-colors',
+              r.lit ? 'text-primary hover:text-primary/80' : 'text-foreground hover:text-foreground/70',
+            )}
           >
             {formatVerseRef(r.bookNo, r.chapterNo, r.verse, 'colon')}
             {r.note != null && `註${r.note}`}
@@ -376,6 +424,7 @@ function VersePreview({
           </div>
         </Fragment>
       ))}
+      </div>
     </div>
   )
 }
@@ -541,43 +590,71 @@ export function RefBody({
   // Measured per active ref. Keyed so that switching refs renders unsplit for a
   // layout pass first — measuring a paragraph that is already broken would read
   // back the wrong line.
-  const [split, setSplit] = useState<{ key: Open; at: number } | null>(null)
+  // Keyed by the run rather than by the citation tapped. Everything in a run
+  // opens the same verses, so moving between its citations changes nothing that
+  // is on screen — and re-measuring would tear the preview out for a frame to
+  // read the paragraph unsplit, which drops the page's height and takes the
+  // reader's place with it.
+  const [split, setSplit] = useState<{ key: string; at: number } | null>(null)
   const paraRef = useRef<HTMLParagraphElement | null>(null)
   const previewRef = useRef<HTMLElement | null>(null)
   // Which reference's verses have already been brought into view, so a
   // re-measure doesn't scroll a second time. Seeded with whatever was open at
   // mount: a citation restored from a previous visit was not tapped just now,
   // and scrolling to it would move a page the reader hasn't touched.
-  const revealed = useRef<Open | null>(open ?? null)
+  // Keyed by the citation, unlike the split beside it. Where the verses sit on
+  // the page is settled by the run, but which citation was tapped decides
+  // whether that place is still worth looking at — tapping one further down a
+  // wrapped paragraph can leave the list above the fold. revealInScroll does
+  // nothing when it is already in view, so the still page stays still.
+  const revealed = useRef<Open | null>(null)
+  // Whether the effect below has run at all. A citation that is already open
+  // when this mounts was restored, not tapped, and scrolling to it would move a
+  // page the reader hasn't touched.
+  const firstPass = useRef(true)
   const refElRef = useRef<HTMLElement | null>(null)
   // Which ref's break has already been checked against what actually rendered.
-  const checkedRef = useRef<Open | null>(null)
+  const checkedRef = useRef<string | null>(null)
   const ctx = { book: bookNo, chapter: chapterNo }
 
   const parsed = parseBody(paragraphs, ctx, kind)
+  // Which run is open, named so it survives moving between its citations.
+  const openRun = (() => {
+    if (active == null) return null
+    for (const { groups, base } of parsed) {
+      const g = groups[active - base]
+      if (g && active >= base && active < base + groups.length) return `${base}:${g.run}`
+    }
+    return null
+  })()
 
   // The verses open below the citation, which on a long paragraph can leave
   // them off the bottom of the screen — the reader taps and nothing appears to
   // happen. Waits for the break to settle, since that is what decides where
   // they land, and only once per reference opened.
   useLayoutEffect(() => {
-    if (active == null) {
+    if (active == null || openRun == null) {
       revealed.current = null
+      firstPass.current = false
       return
     }
-    if (split?.key !== active || revealed.current === active) return
+    if (split?.key !== openRun || revealed.current === active) return
     revealed.current = active
+    if (firstPass.current) {
+      firstPass.current = false
+      return
+    }
     if (previewRef.current) revealInScroll(previewRef.current)
-  }, [active, split])
+  }, [active, openRun, split])
 
   useLayoutEffect(() => {
-    if (active == null) return
-    if (split?.key === active) return
+    if (openRun == null) return
+    if (split?.key === openRun) return
     const p = paraRef.current
     const r = refElRef.current
     if (!p || !r) return
-    setSplit({ key: active, at: lineEndAfter(p, r) })
-  }, [active, split])
+    if (openRun) setSplit({ key: openRun, at: lineEndAfter(p, r) })
+  }, [openRun, split])
 
   // The head is a paragraph in its own right once the break lands, and the
   // browser wraps it a shade tighter than the same words were wrapped mid-flow —
@@ -586,9 +663,9 @@ export function RefBody({
   // and pull the break in front of the stranded characters. Runs once per ref;
   // the pulled-back break ends on a full line, so it settles immediately.
   useLayoutEffect(() => {
-    if (active == null || !split || split.key !== active) return
-    if (checkedRef.current === active) return
-    checkedRef.current = active
+    if (openRun == null || !split || split.key !== openRun) return
+    if (checkedRef.current === openRun) return
+    checkedRef.current = openRun
     const p = paraRef.current
     if (!p) return
     const nodes = textNodesOf(p)
@@ -602,10 +679,10 @@ export function RefBody({
       if (topOf(nodes, mid) >= lastTop - 1) hi = mid
       else lo = mid + 1
     }
-    if (lo > 0 && total - lo <= ORPHAN_MAX) setSplit({ key: active, at: lo })
-  }, [active, split])
+    if (lo > 0 && total - lo <= ORPHAN_MAX && openRun) setSplit({ key: openRun, at: lo })
+  }, [openRun, split])
 
-  const splitAt = active != null && split?.key === active ? split.at : null
+  const splitAt = openRun != null && split?.key === openRun ? split.at : null
 
   return (
     <>
@@ -746,7 +823,12 @@ export function RefBody({
               {head}
             </p>
             <VersePreview
-              refs={groups[active! - base].refs}
+              // The whole run, not just the group tapped. A reader who wrote
+              // 「撒上十六1，11～13，十七12」 wrote one thing; opening half of it
+              // would be answering a question nobody asked.
+              refs={runOf(groups, active! - base).refs}
+              primary={runOf(groups, active! - base).primary}
+              focus={active!}
               ctx={ctx}
               divideBelow={continuous || hasTail || pi < paragraphs.length - 1}
               innerRef={(el) => {

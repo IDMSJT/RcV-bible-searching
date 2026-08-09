@@ -13,6 +13,16 @@ export interface RefGroup {
   to: number
   /** Every verse the group names, in the order it names them. */
   refs: VerseRef[]
+  /**
+   * Which unbroken run of citations this belongs to.
+   *
+   * A group is a chapter; a run is everything the author wrote as one list.
+   * 「撒上十六1，11～13，十七12」 is two groups and one run — two places, named
+   * in one breath. Opening any of it opens all of it, because that is how it
+   * was written; the tint stays per group so the change of chapter is still
+   * visible, and the verse labels say which of them was asked for.
+   */
+  run: number
 }
 
 /** Whether a segment's citations all sit in one chapter of one book — a span
@@ -46,6 +56,15 @@ function chapterOf(seg: Segment): { bookNo: number; chapter: number } | null {
 export function groupRefs(segments: Segment[]): RefGroup[] {
   const groups: RefGroup[] = []
   let open: (RefGroup & { bookNo: number; chapter: number }) | null = null
+  // A run carries on while only punctuation separates one citation from the
+  // next. Anything else between them — a word, a bracket — is a new thought.
+  let run = -1
+  let lastEnd = -1
+  const startRun = (from: number) => {
+    const between = segments.slice(lastEnd + 1, from)
+    if (lastEnd < 0 || !between.every((x) => SEPARATOR.test(x.text))) run++
+    return run
+  }
 
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i]
@@ -54,7 +73,8 @@ export function groupRefs(segments: Segment[]): RefGroup[] {
       // A citation this can't group (a cross-chapter span) still ends the run.
       if (seg.refs?.length) {
         open = null
-        groups.push({ from: i, to: i, refs: seg.refs })
+        groups.push({ from: i, to: i, refs: seg.refs, run: startRun(i) })
+        lastEnd = i
       } else if (!SEPARATOR.test(seg.text)) {
         open = null
       }
@@ -64,9 +84,10 @@ export function groupRefs(segments: Segment[]): RefGroup[] {
       open.to = i
       open.refs.push(...seg.refs!)
     } else {
-      open = { from: i, to: i, refs: [...seg.refs!], ...here }
+      open = { from: i, to: i, refs: [...seg.refs!], run: startRun(i), ...here }
       groups.push(open)
     }
+    lastEnd = i
   }
   return groups
 }
@@ -74,4 +95,22 @@ export function groupRefs(segments: Segment[]): RefGroup[] {
 /** The group a segment belongs to, or -1. */
 export function groupAt(groups: RefGroup[], i: number): number {
   return groups.findIndex((g) => i >= g.from && i <= g.to)
+}
+
+/**
+ * Everything written alongside the group at `gi`, and which of it is that
+ * group's own.
+ *
+ * Tapping any citation of a run opens the run; the labels then distinguish what
+ * was asked for from what came with it. Computed rather than stored so the
+ * caller only holds an index — the one thing it already has.
+ */
+export function runOf(
+  groups: RefGroup[],
+  gi: number,
+): { refs: VerseRef[]; primary: ReadonlySet<VerseRef> } {
+  const here = groups[gi]
+  if (!here) return { refs: [], primary: new Set() }
+  const refs = groups.filter((g) => g.run === here.run).flatMap((g) => g.refs)
+  return { refs, primary: new Set(here.refs) }
 }

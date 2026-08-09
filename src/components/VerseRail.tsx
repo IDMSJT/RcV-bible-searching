@@ -59,7 +59,12 @@ export function VerseRail({
   return createPortal(
     <>
       {held != null && (
-        <div className="pointer-events-none fixed top-1/2 right-12 z-50 -translate-y-1/2 rounded-lg bg-foreground/85 px-3 py-1.5 font-sans text-lg font-medium text-background tabular-nums">
+        // The minimum has to clear two digits and their padding, or the bubble
+        // still grows by a hair between 9 and 10: at text-lg two tabular digits
+        // are about 22px and px-2 adds 16, so 2.5rem covers both and one digit
+        // is padded out to match. Three keeps growing, which is right — the
+        // psalms have verses past a hundred.
+        <div className="pointer-events-none fixed top-1/2 right-12 z-50 flex min-w-10 -translate-y-1/2 justify-center rounded-lg bg-foreground/85 px-2 py-1.5 font-sans text-lg font-medium text-background tabular-nums">
           {held}
         </div>
       )}
