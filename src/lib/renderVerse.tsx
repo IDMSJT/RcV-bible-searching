@@ -703,6 +703,14 @@ export function RefBody({
         // belongs to the group, so the tint runs unbroken across it. (Grouped
         // above, with the rest of the parse.)
         const activeHere = active != null && active >= base && active < base + groups.length
+        // The verses go after the whole run, not after the citation tapped.
+        // A run is one list — 「腓一25，二2，…，提後一4」 — and breaking inside it
+        // to make room puts the verses above the citations they came from, with
+        // the rest of the list stranded underneath. So the line measured is the
+        // one the run ends on, whichever of its citations was tapped.
+        const runEnd = activeHere
+          ? groups.reduce((last, g, i) => (g.run === groups[active! - base].run ? i : last), -1)
+          : -1
 
         // What the paragraph is built from: a group of citations, or a run of
         // plain text between two of them. This is the unit the break cuts, so a
@@ -752,13 +760,14 @@ export function RefBody({
           }
           const key = base + u.gi
           const on = active === key
+          // Measured from where the run's last citation starts, so only a
+          // leading piece is the anchor.
+          const anchors = u.gi === runEnd && half !== 'b'
           return (
             <span
               key={`${u.start}${half ?? ''}`}
-              // The break is measured from where the citation starts, so only a
-              // leading piece is the anchor.
               ref={
-                on && half !== 'b'
+                anchors
                   ? (el) => {
                       refElRef.current = el
                     }
@@ -803,12 +812,11 @@ export function RefBody({
         for (const u of units) {
           if (u.end <= splitAt) head.push(renderUnit(u))
           else if (u.start >= splitAt) tail.push(renderUnit(u))
-          else if (active === base + u.gi) {
-            // The citation being read stays whole: it is the element the break
-            // is measured from, and cutting it would move the anchor the next
-            // measurement reads. Everything else wraps like the prose around it,
-            // so the rule lands where the line really ended instead of being
-            // pushed past whatever happened to straddle it.
+          else if (u.gi === runEnd) {
+            // The citation the break is measured from stays whole: cutting it
+            // would move the anchor the next measurement reads. Everything else
+            // wraps like the prose around it, so the rule lands where the line
+            // really ended instead of being pushed past whatever straddled it.
             head.push(renderUnit(u))
           } else {
             head.push(renderUnit(u, u.text.slice(0, splitAt - u.start), 'a'))

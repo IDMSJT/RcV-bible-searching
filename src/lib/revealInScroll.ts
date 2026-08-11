@@ -1,6 +1,39 @@
 /** How much air to leave between the element and the edge it was brought past. */
 const GAP = 12
 
+/**
+ * How far down the reader really sees, for an element with nothing under it.
+ *
+ * A preview that ends a card ends where the card does — there is its padding
+ * and its edge below the last line, and stopping at the text leaves those cut
+ * off at the fold. So while an element is the last thing in its parent, the
+ * parent's bottom is its own. It climbs no further than the card itself: above
+ * that are the rows and the article, whose padding is the page's, not this
+ * card's.
+ *
+ * Absolutely positioned siblings don't count as following anything — the
+ * dismiss ✕ floats inside these cards and would otherwise stop the climb.
+ */
+function seenBottom(el: HTMLElement, stop: HTMLElement): number {
+  const isCard = (n: Element) => n.hasAttribute('data-note') || n.hasAttribute('data-crossref')
+  let node: HTMLElement = el
+  let bottom = el.getBoundingClientRect().bottom
+  while (!isCard(node) && node.parentElement && node.parentElement !== stop) {
+    const parent = node.parentElement
+    const others = [...parent.children].filter(
+      (c) => c !== node && !['absolute', 'fixed'].includes(getComputedStyle(c).position),
+    )
+    // DOCUMENT_POSITION_FOLLOWING: set when `node` comes after the last of
+    // them, which is what being last means. Anything below it and the climb
+    // stops — the parent's edge is not what the reader sees under this.
+    const last = others.length === 0 || !!(others[others.length - 1].compareDocumentPosition(node) & 4)
+    if (!last) break
+    bottom = Math.max(bottom, parent.getBoundingClientRect().bottom)
+    node = parent
+  }
+  return bottom
+}
+
 /** The nearest ancestor that actually scrolls, or null if nothing does. */
 function scrollParent(el: HTMLElement): HTMLElement | null {
   for (let p = el.parentElement; p; p = p.parentElement) {
@@ -52,7 +85,7 @@ export function revealInScroll(
     const rects = list.map((el) => el.getBoundingClientRect())
     return {
       top: Math.min(...rects.map((r) => r.top)),
-      bottom: Math.max(...rects.map((r) => r.bottom)),
+      bottom: Math.max(...list.map((el) => seenBottom(el, pane))),
     }
   }
   // Keeping the last: drop what leads it, one at a time, until the rest fits.
