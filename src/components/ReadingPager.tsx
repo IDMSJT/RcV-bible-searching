@@ -145,7 +145,7 @@ export function ReadingPager() {
   // the same ref the title uses — and flip to the chapter a swipe is heading
   // for before the finger lifts. Only the landed panel can actually scroll, so
   // it hands its jump function up.
-  const [scrub, setScrub] = useState<((verse: number) => void) | null>(null)
+  const [scrub, setScrub] = useState<((verse: number | null) => void) | null>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const { dx, animating, targetDir, trackProps } = useCarousel({
     containerRef: bodyRef,

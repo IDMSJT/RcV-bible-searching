@@ -236,7 +236,7 @@ export function ChapterView({
   /** Hands the pager a way to jump this panel to a verse — the rail lives up
    * there so it can flip to the next chapter mid-swipe, but only this panel
    * knows its own scroll container. */
-  onScrubApi?: (scrub: ((verse: number) => void) | null) => void
+  onScrubApi?: (scrub: ((verse: number | null) => void) | null) => void
 }) {
   const { data, error } = useBible()
   const { data: outline } = useOutline()
@@ -539,9 +539,19 @@ export function ChapterView({
     setCites(saved.cites)
   }, [bookNo, chapterNo, readOpen])
 
+  /** Which verse the 經節軌 is being held over, or null when it isn't. */
+  const [scrubbing, setScrubbing] = useState<number | null>(null)
+
   // Bring a verse to the top of the panel, matching the gap the ?hl / ?oh jumps
   // land with. Instant, because the rail is dragged and has to track the finger.
-  const scrubTo = useCallback((verse: number) => {
+  //
+  // Also tints the verse the 數字泡泡 is naming, so the bubble and the text agree
+  // about where the finger is: the top of the panel is a coarse answer on a
+  // chapter whose verses run long, and on the last screenful the scroll stops
+  // moving altogether while the bubble keeps counting. null is the lift.
+  const scrubTo = useCallback((verse: number | null) => {
+    setScrubbing(verse)
+    if (verse == null) return
     const panel = panelRef.current
     const el = panel?.querySelector<HTMLElement>(`[data-verse="${verse}"]`)
     if (!panel || !el) return
@@ -552,7 +562,12 @@ export function ChapterView({
   useEffect(() => {
     if (!active) return
     onScrubApi?.(scrubTo)
-    return () => onScrubApi?.(null)
+    // A panel that stops being the active one can't be told the finger lifted,
+    // so it clears its own tint on the way out.
+    return () => {
+      onScrubApi?.(null)
+      setScrubbing(null)
+    }
   }, [active, onScrubApi, scrubTo])
 
   // Let the pager pause the swipe while a verse selection OR a text selection is
@@ -1067,9 +1082,17 @@ export function ChapterView({
                     * the chip grows and the line doesn't. */}
                   <span
                     className={cn(
+                      'rounded-sm px-1 py-1 -mx-1',
                       r.hl &&
                         !selected.has(r.verse) &&
-                        'rounded-sm bg-highlight/25 px-1 py-1 -mx-1 font-semibold text-foreground',
+                        'bg-highlight/25 font-semibold text-foreground',
+                      // The rail's tint yields to both of the others: gold and
+                      // the selection each say something that outlasts the drag,
+                      // and this only says where the finger is.
+                      scrubbing === r.verse &&
+                        !r.hl &&
+                        !selected.has(r.verse) &&
+                        'bg-muted text-foreground',
                     )}
                   >
                     {r.num}

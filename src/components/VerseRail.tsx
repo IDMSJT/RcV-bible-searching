@@ -5,10 +5,14 @@ import { createPortal } from 'react-dom'
  * keep the drag from feeling twitchy. */
 const RAIL_SLOT = 20
 
-/** The verse rail down the right edge, in the manner of a phone contact list's
- * A–Z index: drag it to run through the chapter, release to land. Only the
- * labels are spaced out; the drag itself maps continuously over every verse, so
- * a chapter can be scrubbed as finely as it has verses.
+/**
+ * The verse rail down the right edge — 經節軌 — in the manner of a phone contact
+ * list's A–Z index: drag it to run through the chapter, release to land. Only
+ * the labels are spaced out; the drag itself maps continuously over every
+ * verse, so a chapter can be scrubbed as finely as it has verses.
+ *
+ * The number that follows a held finger is the 數字泡泡, below. Not a preview:
+ * that word is taken here by the list of verses a citation opens.
  *
  * Its height follows the chapter's length rather than the screen's — a short
  * chapter gets a short rail — with the label spacing widening as needed to keep
@@ -18,8 +22,10 @@ export function VerseRail({
   onScrub,
 }: {
   verses: number[]
-  /** Runs on press and on every move, so the page tracks the finger. */
-  onScrub: (verse: number) => void
+  /** Runs on press and on every move, so the page tracks the finger — then once
+   * with null when the finger lifts, which is the page's cue to drop whatever
+   * it was showing only for the duration of the drag. */
+  onScrub: (verse: number | null) => void
 }) {
   const railRef = useRef<HTMLDivElement | null>(null)
   const [held, setHeld] = useState<number | null>(null)
@@ -51,6 +57,11 @@ export function VerseRail({
     onScrub(verse)
   }
 
+  const release = () => {
+    setHeld(null)
+    onScrub(null)
+  }
+
   // Portalled to the body: on touch the reading surface sits inside the pager's
   // transformed carousel track, and a transform makes `fixed` resolve against
   // that ancestor instead of the viewport — the rail would land off-screen
@@ -58,6 +69,7 @@ export function VerseRail({
   // reason.
   return createPortal(
     <>
+      {/* 數字泡泡 — which verse the finger is on, while it is held. */}
       {held != null && (
         // The minimum has to clear two digits and their padding, or the bubble
         // still grows by a hair between 9 and 10: at text-lg two tabular digits
@@ -79,8 +91,8 @@ export function VerseRail({
         onPointerMove={(e) => {
           if (e.currentTarget.hasPointerCapture(e.pointerId)) pick(e.clientY)
         }}
-        onPointerUp={() => setHeld(null)}
-        onPointerCancel={() => setHeld(null)}
+        onPointerUp={release}
+        onPointerCancel={release}
         style={{ height: marks.length * RAIL_SLOT }}
         className="fixed top-1/2 right-0 z-30 flex -translate-y-1/2 touch-none flex-col items-end justify-between pr-1 pl-3 font-sans text-[0.6875rem] leading-none font-medium text-muted-foreground/70 tabular-nums select-none"
       >
