@@ -58,7 +58,7 @@ export function ReadingPanel({
   oh?: string
   oe?: string
   onSelectingChange?: (selecting: boolean) => void
-  onScrubApi?: (scrub: ((verse: number) => void) | null) => void
+  onScrubApi?: (scrub: ((verse: number | null) => void) | null) => void
 }) {
   if (refData.kind === 'chapter') {
     return (

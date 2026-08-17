@@ -5,6 +5,7 @@ import { useOutline } from '@/data/loadBible'
 import { OutlineLabel } from '@/components/OutlineLabel'
 import { RefBody, type Open } from '@/lib/renderVerse'
 import { ScrollBody } from '@/components/ScrollBody'
+import { revealInScroll } from '@/lib/revealInScroll'
 import { cn } from '@/lib/utils'
 import type { BookOutline } from '@/types/bible'
 
@@ -36,7 +37,9 @@ export function OutlineView({
   // left as it was. entries.length re-runs it once the data lands.
   useLayoutEffect(() => {
     if (!isJump) return
-    const raf = requestAnimationFrame(() => targetRef.current?.scrollIntoView({ block: 'start' }))
+    const raf = requestAnimationFrame(() => {
+      if (targetRef.current) revealInScroll(targetRef.current, { align: 'top', behavior: 'instant' })
+    })
     return () => cancelAnimationFrame(raf)
   }, [bookNo, entries.length, isJump])
 
@@ -44,7 +47,7 @@ export function OutlineView({
     <ScrollBody
       ref={panelRef}
       paused={!active || isJump}
-      className="h-full overscroll-y-contain scroll-pt-6 [overflow-anchor:none]"
+      className="h-full overscroll-y-contain [overflow-anchor:none]"
     >
       <article className="mx-auto max-w-3xl px-[2.8125rem] py-6 md:px-[3.8125rem] md:py-10">
         <BookIntro book={book} bookNo={bookNo} />

@@ -1,5 +1,13 @@
-/** How much air to leave between the element and the edge it was brought past. */
-const GAP = 12
+/**
+ * How much air to leave between the element and the edge it was brought past.
+ *
+ * One number for every way the app moves something into view. There used to be
+ * three — this one, a `scroll-pt-6` on each reading panel that the jumps landed
+ * against, and a −24 written into the rail's arithmetic — so the two that
+ * matched still had to be changed twice, and the reveals quietly disagreed with
+ * the jumps by half a line.
+ */
+export const REVEAL_GAP = 24
 
 /**
  * How far down the reader really sees, for an element with nothing under it.
@@ -58,9 +66,16 @@ function scrollParent(el: HTMLElement): HTMLElement | null {
  * suits arriving at a footnote: the note is what was asked for, and the verse
  * above it comes along only if there is room.
  *
- * Something that opened in plain sight must not make the page jump, so a block
- * already visible is left alone. One taller than the view is aligned to the top
- * rather than the bottom, since that is where reading it starts.
+ * `align` is the difference between something that opened where the reader was
+ * already looking and somewhere they asked to be taken. The default moves as
+ * little as it can and not at all if the block is already in view — a note that
+ * unfolds under the finger must not throw the page around. `top` puts the first
+ * element at the top regardless, which is what a named verse wants: the reader
+ * came here to read on from it, and leaving it wherever it happened to be
+ * visible leaves them hunting for it.
+ *
+ * A block taller than the view is aligned to the top rather than the bottom,
+ * since that is where reading it starts.
  *
  * The container is found by walking up rather than passed in: this is called
  * from a footnote in a chapter, a citation in a book introduction and a verse
@@ -72,13 +87,28 @@ function scrollParent(el: HTMLElement): HTMLElement | null {
  */
 export function revealInScroll(
   target: HTMLElement | HTMLElement[],
-  keep: 'first' | 'last' = 'first',
+  {
+    keep = 'first',
+    align = 'least',
+    behavior = 'smooth',
+  }: {
+    keep?: 'first' | 'last'
+    align?: 'least' | 'top'
+    behavior?: ScrollBehavior
+  } = {},
 ): void {
   let els = Array.isArray(target) ? target : [target]
   if (els.length === 0) return
   const pane = scrollParent(els[0])
   if (!pane) return
   const box = pane.getBoundingClientRect()
+  // Asked for, not merely opened: nothing below is being sought, so none of the
+  // fitting below applies and neither does the measuring it needs.
+  if (align === 'top') {
+    const by = els[0].getBoundingClientRect().top - box.top - REVEAL_GAP
+    pane.scrollTo({ top: pane.scrollTop + by, behavior })
+    return
+  }
   const covered = parseFloat(getComputedStyle(pane).paddingBottom) || 0
   const floor = box.bottom - covered
   const span = (list: HTMLElement[]) => {
@@ -92,7 +122,7 @@ export function revealInScroll(
   if (keep === 'last') {
     while (els.length > 1) {
       const { top: t, bottom: b } = span(els)
-      if (b - t <= floor - box.top - GAP * 2) break
+      if (b - t <= floor - box.top - REVEAL_GAP * 2) break
       els = els.slice(1)
     }
   }
@@ -101,7 +131,7 @@ export function revealInScroll(
   // Reaching the bottom, unless that would carry the top past the ceiling.
   const by =
     bottom > floor
-      ? Math.min(bottom - floor + GAP, top - box.top - GAP)
-      : top - box.top - GAP
-  pane.scrollTo({ top: pane.scrollTop + by, behavior: 'smooth' })
+      ? Math.min(bottom - floor + REVEAL_GAP, top - box.top - REVEAL_GAP)
+      : top - box.top - REVEAL_GAP
+  pane.scrollTo({ top: pane.scrollTop + by, behavior })
 }

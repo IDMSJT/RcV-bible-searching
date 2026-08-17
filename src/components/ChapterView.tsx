@@ -48,7 +48,7 @@ import { OutlineLabel } from '@/components/OutlineLabel'
 import { ScrollBody } from '@/components/ScrollBody'
 import { rememberScroll } from '@/lib/scrollMemory'
 import type { HlItem } from '@/lib/highlight'
-import { revealInScroll } from '@/lib/revealInScroll'
+import { REVEAL_GAP, revealInScroll } from '@/lib/revealInScroll'
 import { useIsTouch } from '@/lib/useIsTouch'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
@@ -556,7 +556,7 @@ export function ChapterView({
     const el = panel?.querySelector<HTMLElement>(`[data-verse="${verse}"]`)
     if (!panel || !el) return
     panel.scrollTop +=
-      el.getBoundingClientRect().top - panel.getBoundingClientRect().top - 24
+      el.getBoundingClientRect().top - panel.getBoundingClientRect().top - REVEAL_GAP
   }, [])
 
   useEffect(() => {
@@ -641,18 +641,32 @@ export function ChapterView({
       | undefined)?.verse ??
     null
 
-  const prevChapterKey = useRef('')
+  /** Where the last jump was aimed, so a re-run can tell a reader's move from
+   * the page catching up with itself. */
+  const lastJump = useRef('')
   useEffect(() => {
     if (!active || !data || (firstHlVerse == null && !ohKey)) return
-    // Did we land on a different chapter, or just change the hl within the
-    // same one? A chapter change reuses this component, so the scroll
-    // container can still hold the previous chapter's (possibly much larger)
-    // offset — smooth-scrolling from there shows a stretch of blank until the
-    // animation catches up. So jump INSTANTLY for chapter changes, and keep
-    // the smooth glide only for same-chapter hl moves (約1:14 → 約1:29).
-    const chapterKey = `${bookNo}/${chapterNo}`
-    const chapterChanged = prevChapterKey.current !== chapterKey
-    prevChapterKey.current = chapterKey
+    // Arriving at a chapter, the panel opens at the top, and gliding from there
+    // shows a stretch of blank until the animation catches up. So an arrival
+    // lands INSTANTLY, and the smooth glide is kept for the one case that earns
+    // it: the reader moving the hl inside the chapter they are already reading
+    // (約1:14 → 約1:29), watching the page travel between two verses they can
+    // both see. An outline jump (?oh=) is a navigation, never a glide.
+    //
+    // Keyed on the target and not on the chapter, because this effect runs
+    // again when the annotations land — same destination, second pass, since
+    // they arrive on their own clock after the chapter's own data. That pass is
+    // the page correcting itself now the note cards have taken their room, and
+    // it has to be instant too: keyed on the chapter, the first pass spent the
+    // signal and the correction inherited the glide, so arriving cross-chapter
+    // looked like a jump to the top followed by a long slide down.
+    const target = `${bookNo}/${chapterNo}/${firstHlVerse ?? ''}/${ohKey}`
+    const readerMoved =
+      lastJump.current !== '' &&
+      lastJump.current !== target &&
+      lastJump.current.startsWith(`${bookNo}/${chapterNo}/`)
+    lastJump.current = target
+    const behavior: ScrollBehavior = readerMoved && !ohKey ? 'smooth' : 'instant'
     // Defer one frame so this runs after the layout has settled.
     const id = requestAnimationFrame(() => {
       // A link that named a note is asking for the note, not the verse it hangs
@@ -664,16 +678,12 @@ export function ChapterView({
         : null
       if (noteEl) {
         const verseEl = scrollRef.current
-        revealInScroll(verseEl ? [verseEl, noteEl] : noteEl, 'last')
+        revealInScroll(verseEl ? [verseEl, noteEl] : noteEl, { keep: 'last', behavior })
         return
       }
-      scrollRef.current?.scrollIntoView({
-        block: 'start',
-        // An outline-heading jump (?oh=) lands instantly — it's a deliberate
-        // navigation, not a within-chapter verse glide. The smooth glide is kept
-        // only for same-chapter hl moves (約1:14 → 約1:29).
-        behavior: chapterChanged || ohKey ? 'auto' : 'smooth',
-      })
+      if (!scrollRef.current) return
+      // Named, so it goes to the top even if it was already on screen.
+      revealInScroll(scrollRef.current, { align: 'top', behavior })
     })
     return () => cancelAnimationFrame(id)
   }, [active, data, bookNo, chapterNo, firstHlVerse, ohKey, noteHighlights])
@@ -1028,7 +1038,7 @@ export function ChapterView({
         ref={panelRef}
         paused={!active || isJumpView}
         onCopy={handleCopy}
-        className="h-full overscroll-y-contain scroll-pt-6 [overflow-anchor:none]"
+        className="h-full overscroll-y-contain [overflow-anchor:none]"
       >
       <article
         className={cn(
