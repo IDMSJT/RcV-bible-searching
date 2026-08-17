@@ -1076,23 +1076,30 @@ export function ChapterView({
                     * open cards is tall — painting it drew a band the height of
                     * everything below.
                     *
-                    * px-1/-mx-1 gives the tint room without moving the digits
-                    * out of their column. py-1 needs no such pairing: vertical
-                    * padding on an inline box paints without taking space, so
-                    * the chip grows and the line doesn't. */}
+                    * The chip is drawn as a ring, not as padding. Padding needed
+                    * a matching -mx-1 to keep the digits from moving when the
+                    * tint appeared, and that pair — padding plus a negative
+                    * margin, on an inline box inside a right-aligned track — is
+                    * where the phone and the desktop stopped agreeing: measured
+                    * off a screenshot, the left 4px simply wasn't drawn, so the
+                    * digits sat off-centre in their own chip. A ring is painted
+                    * outward from the border box and joins no layout at all, so
+                    * there is nothing left to disagree about — and in Chrome it
+                    * covers the same pixels the padded one did. The ring's width
+                    * is added to the corner radius, hence the smaller one. */}
                   <span
                     className={cn(
-                      'rounded-sm px-1 py-1 -mx-1',
+                      'rounded-xs',
                       r.hl &&
                         !selected.has(r.verse) &&
-                        'bg-highlight/25 font-semibold text-foreground',
+                        'bg-highlight/25 font-semibold text-foreground ring-4 ring-highlight/25',
                       // The rail's tint yields to both of the others: gold and
                       // the selection each say something that outlasts the drag,
                       // and this only says where the finger is.
                       scrubbing === r.verse &&
                         !r.hl &&
                         !selected.has(r.verse) &&
-                        'bg-muted text-foreground',
+                        'bg-muted text-foreground ring-4 ring-muted',
                     )}
                   >
                     {r.num}
