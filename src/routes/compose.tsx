@@ -10,16 +10,15 @@ import { BOOK_ABBREV } from '@/data/abbrev'
 import { displayMarker } from '@/lib/chinese'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { parseStudyLines, type StudyLine, type StudySegment, type VerseRef } from '@/lib/studyParse'
-import { renderMarkedText, renderNoteText, NoteList } from '@/lib/renderVerse'
+import { renderMarkedText, renderNoteText } from '@/lib/renderVerse'
 import { ScrollBody } from '@/components/ScrollBody'
+import { ACTION_BAR_CLS } from '@/lib/chrome'
+import { cn } from '@/lib/utils'
 import type { Annotation, AnnotationData, Bible, Mark } from '@/types/bible'
 
 export const Route = createFileRoute('/compose')({
   component: ComposePage,
 })
-
-// Ranges longer than this collapse to a single clickable label row.
-const COLLAPSE_OVER = 12
 
 interface VerseRow {
   bookNo: number
@@ -38,7 +37,6 @@ interface VerseRow {
    * 「啟二一23註1」. The row then renders the note BODY as its main content
    * instead of the verse text, and the label gains a 註N suffix. */
   noteOnly?: boolean
-  range?: { endChapter: number; endVerse: number; count: number }
 }
 
 // A clause split can strand a quotation mark whose partner sits in the cut-off
@@ -178,19 +176,33 @@ function expandRef(bible: Bible, annotations: AnnotationData | null, r: VerseRef
       }
     }
   }
-  if (rows.length > COLLAPSE_OVER) {
-    return [
-      {
-        bookNo: r.bookNo,
-        chapter: r.chapter,
-        verse: r.verseStart,
-        seg: null,
-        text: '',
-        range: { endChapter: r.endChapter, endVerse: r.verseEnd, count: rows.length },
-      },
-    ]
-  }
   return rows
+}
+
+/**
+ * Consecutive verses read as one passage, so they are shown as one.
+ *
+ * A note breaks the run: it is a paragraph of commentary about the verse it
+ * follows, it can't be set inline, and it belongs beside that verse rather than
+ * after the whole block. Which means a range carrying a bare 註 falls back to a
+ * verse at a time on its own, with no case of its own to write.
+ *
+ * Grouping happens inside one reference, never across two: 「太五3，六1」 is two
+ * citations the reader wrote separately and they keep their own labels, even
+ * where the verses would have met.
+ *
+ * `merge` off puts every verse back on a line of its own, labelled. Which of
+ * the two a reader wants turns out to depend on what the outline is for — a
+ * passage to read through, or a list to check off — so it is theirs to say.
+ */
+function groupRows(rows: VerseRow[], merge: boolean): VerseRow[][] {
+  const out: VerseRow[][] = []
+  for (const row of rows) {
+    const last = out[out.length - 1]
+    if (merge && !row.noteOnly && last && !last[0].noteOnly) last.push(row)
+    else out.push([row])
+  }
+  return out
 }
 
 function verseLabel(row: VerseRow): string {
@@ -200,19 +212,28 @@ function verseLabel(row: VerseRow): string {
   return `${ab}${row.chapter}:${row.verse}${s}${noteSuffix}`
 }
 
-function rangeLabel(row: VerseRow): string {
-  const ab = BOOK_ABBREV[row.bookNo] ?? ''
-  const r = row.range!
-  const end =
-    r.endChapter === row.chapter ? `${r.endVerse}` : `${r.endChapter}:${r.endVerse}`
-  return `${ab}${row.chapter}:${row.verse}-${end}`
+/** A block's own reference: one verse keeps its label, several span from the
+ * first to the last. */
+function blockLabel(rows: VerseRow[]): string {
+  const first = rows[0]
+  if (rows.length === 1) return verseLabel(first)
+  const last = rows[rows.length - 1]
+  const ab = BOOK_ABBREV[first.bookNo] ?? ''
+  const end = last.chapter === first.chapter ? `${last.verse}` : `${last.chapter}:${last.verse}`
+  return `${ab}${first.chapter}:${first.verse}-${end}`
 }
 
-/** One expanded verse / note / range row as a plain-text line for copying. */
-function rowToText(row: VerseRow): string {
-  if (row.range) return `${rangeLabel(row)}（共 ${row.range.count} 節）`
-  const text = row.noteOnly && row.noteToShow ? row.noteToShow.text : row.text
-  return `${verseLabel(row)}　${text}`
+/** One block as a plain-text line for copying — the passage run together under
+ * its own reference. No verse numbers in here: the label already says which
+ * verses these are, and what gets pasted into a document should read as the
+ * prose it is. */
+function blockToText(rows: VerseRow[]): string {
+  const first = rows[0]
+  const text =
+    first.noteOnly && first.noteToShow
+      ? first.noteToShow.text
+      : rows.map((r) => r.text).join('')
+  return `${blockLabel(rows)}　${text}`
 }
 
 /** Serialise the rendered outline (titles, headings, points + their filled-in
@@ -222,6 +243,7 @@ function buildComposeText(
   lines: string[],
   bible: Bible | null,
   annotations: AnnotationData | null,
+  merge: boolean,
 ): string {
   const titleTexts = parsed.flatMap((p) => (p.kind === 'title' ? [p.text] : []))
   const firstTitleIdx = parsed.findIndex((p) => p.kind === 'title')
@@ -229,7 +251,8 @@ function buildComposeText(
   const pushVerses = (refs: VerseRef[]) => {
     if (!bible) return
     for (const r of refs)
-      for (const row of expandRef(bible, annotations, r)) out.push('　' + rowToText(row))
+      for (const rows of groupRows(expandRef(bible, annotations, r), merge))
+        out.push('　' + blockToText(rows))
   }
   parsed.forEach((p, i) => {
     if (p.kind === 'empty') return
@@ -259,13 +282,15 @@ function VerseList({
   refs,
   bible,
   annotations,
+  merge,
 }: {
   refs: VerseRef[]
   bible: Bible
   annotations: AnnotationData | null
+  merge: boolean
 }) {
-  const rows = refs.flatMap((r) => expandRef(bible, annotations, r))
-  if (rows.length === 0) return null
+  const blocks = refs.flatMap((r) => groupRows(expandRef(bible, annotations, r), merge))
+  if (blocks.length === 0) return null
   return (
     <div
       className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-[0.875em] leading-relaxed"
@@ -279,58 +304,71 @@ function VerseList({
         transformOrigin: 'left center',
       }}
     >
-      {rows.map((row, j) => (
-        <VerseRowItem key={j} row={row} />
+      {blocks.map((rows, j) => (
+        <BlockItem key={j} rows={rows} />
       ))}
     </div>
   )
 }
 
-function VerseRowItem({ row }: { row: VerseRow }) {
+function BlockItem({ rows }: { rows: VerseRow[] }) {
+  const first = rows[0]
+  const last = rows[rows.length - 1]
   // URL hl form mirrors the LookupPanel:
-  //   collapsed range → 「v-v」 (same chapter) or 「chA:vA-chB:vB」 (cross-chapter)
-  //   direct note     → 「verse:n」      (only the note tinted+expanded)
-  //   connected note  → 「verse,verse:n」 (verse and note both)
-  //   plain verse     → 「verse」
-  const hl = row.range
-    ? row.range.endChapter !== row.chapter
-      ? `${row.chapter}:${row.verse}-${row.range.endChapter}:${row.range.endVerse}`
-      : `${row.verse}-${row.range.endVerse}`
-    : row.noteOnly && row.noteToShow
-      ? `${row.verse}:${row.noteToShow.n}`
-      : row.noteToShow
-        ? `${row.verse},${row.verse}:${row.noteToShow.n}`
-        : String(row.verse)
+  //   range         → 「v-v」 (same chapter) or 「chA:vA-chB:vB」 (cross-chapter)
+  //   direct note   → 「verse:n」      (only the note tinted+expanded)
+  //   plain verse   → 「verse」
+  const hl =
+    rows.length > 1
+      ? last.chapter !== first.chapter
+        ? `${first.chapter}:${first.verse}-${last.chapter}:${last.verse}`
+        : `${first.verse}-${last.verse}`
+      : first.noteOnly && first.noteToShow
+        ? `${first.verse}:${first.noteToShow.n}`
+        : String(first.verse)
   return (
     <Fragment>
       <Link
         to="/$bookNo/$chapterNo"
-        params={{ bookNo: row.bookNo, chapterNo: row.chapter }}
+        params={{ bookNo: first.bookNo, chapterNo: first.chapter }}
         search={{ hl }}
         className="self-start whitespace-nowrap pt-0.5 text-left text-[0.75em] font-sans text-muted-foreground transition-colors hover:text-foreground"
       >
-        {row.range ? rangeLabel(row) : verseLabel(row)}
+        {blockLabel(rows)}
       </Link>
-      {row.range ? (
-        <p className="text-muted-foreground">（共 {row.range.count} 節，點擊閱讀）</p>
-      ) : row.noteOnly && row.noteToShow ? (
+      {first.noteOnly && first.noteToShow ? (
         // Direct 注N row — note body where verse text would go, paragraphs
         // following the EPUB's restored breaks. Same column treatment as a
         // verse so a note row lays out identically to a verse row.
         <div>
-          {row.noteToShow.text.split('\n').map((para, i) => (
+          {first.noteToShow.text.split('\n').map((para, i) => (
             <p key={i} className="text-foreground/90">
-              {renderNoteText(para, { book: row.bookNo, chapter: row.chapter })}
+              {renderNoteText(para, { book: first.bookNo, chapter: first.chapter })}
             </p>
           ))}
         </div>
       ) : (
-        <div>
-          <p className="text-foreground/90">{renderMarkedText(row.text, row.marks)}</p>
-          {row.noteToShow && (
-            <NoteList notes={[row.noteToShow]} bookNo={row.bookNo} chapterNo={row.chapter} />
-          )}
-        </div>
+        // One passage, one paragraph. The verse numbers ride along as
+        // superscripts, the way the reading page sets them — the only thing a
+        // verse of its own bought was knowing where each one starts, and this
+        // keeps that without spending a row on it. A number carries its chapter
+        // too where the run crosses into one, or 25:46 would be followed by a
+        // bare 1. The first is left bare: the label beside it already opens with
+        // the same number.
+        <p className="text-foreground/90">
+          {rows.map((row, i) => (
+            <Fragment key={i}>
+              {i > 0 && (
+                <sup className="mx-px font-sans text-[0.7em] text-muted-foreground">
+                  {row.chapter !== rows[i - 1].chapter
+                    ? `${row.chapter}:${row.verse}`
+                    : row.verse}
+                </sup>
+              )}
+              {renderMarkedText(row.text, row.marks)}
+            </Fragment>
+          ))}
+        </p>
       )}
     </Fragment>
   )
@@ -338,6 +376,10 @@ function VerseRowItem({ row }: { row: VerseRow }) {
 
 function ComposePage() {
   const [input] = useLocalStorage('rcv/compose-input', '')
+  // Whether a range reads as one passage or as a verse a line. Kept here rather
+  // than in 設定: it only ever changes this page, and a setting the reader can't
+  // see the effect of while they flip it is a setting they have to go and check.
+  const [merge, setMerge] = useLocalStorage('rcv/compose-merge', true)
   const { data: bible } = useBible()
   // Annotations are always loaded — they only get surfaced for refs that
   // explicitly request a note (太一21注3), so this isn't gated on 顯示註釋.
@@ -363,7 +405,7 @@ function ComposePage() {
   }
 
   const copyText = async () => {
-    const text = buildComposeText(parsed, lines, bible, annotations)
+    const text = buildComposeText(parsed, lines, bible, annotations, merge)
     if (!text) return
     try {
       await navigator.clipboard.writeText(text)
@@ -385,29 +427,7 @@ function ComposePage() {
 
   return (
     <ScrollBody className="min-h-0 flex-1 print:overflow-visible print:pb-0">
-    {/* pb-20 clears the floating 複製/列印 toolbar so the last outline line
-     * isn't covered when scrolled to the end (md:py-10 would otherwise reset
-     * the bottom, so it gets its own md:pb-20). */}
-    <article className="relative mx-auto max-w-3xl px-4 py-6 pb-20 md:px-8 md:py-10 md:pb-20">
-      {/* Floating 複製 + 列印 toolbar — pinned to the viewport bottom-right so
-       * it's always reachable while scrolling. On mobile it sits just above the
-       * bottom nav; desktop, where there's no bottom nav, drops to bottom-4. */}
-      <div className="fixed right-5 bottom-[calc(var(--nav-h)+1.25rem)] z-40 flex items-center gap-2 print:hidden md:right-4 md:bottom-4">
-        <button
-          type="button"
-          onClick={copyText}
-          className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground shadow-lg transition-all duration-150 hover:bg-secondary/80 active:scale-95"
-        >
-          複製
-        </button>
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg transition-all duration-150 hover:bg-primary/90 active:scale-95"
-        >
-          列印
-        </button>
-      </div>
+    <article className="relative mx-auto max-w-3xl px-4 py-6 md:px-8 md:py-10">
       <div className="flex flex-col font-serif leading-relaxed tracking-wide text-[length:var(--reading-fs,1rem)] print:text-base">
         {lines.map((line, i) => {
           const p = parsed[i]
@@ -430,7 +450,7 @@ function ComposePage() {
             return (
               <div key={i} className="pt-4 first:pt-0" style={{ paddingLeft: '2rem' }}>
                 <p>{p.text}</p>
-                {p.refs.length > 0 && bible && <VerseList refs={p.refs} bible={bible} annotations={annotations} />}
+                {p.refs.length > 0 && bible && <VerseList refs={p.refs} bible={bible} annotations={annotations} merge={merge} />}
               </div>
             )
           }
@@ -465,7 +485,7 @@ function ComposePage() {
               )}
               {p.refs.length > 0 && bible && (
                 <div style={{ paddingLeft: '2rem' }}>
-                  <VerseList refs={p.refs} bible={bible} annotations={annotations} />
+                  <VerseList refs={p.refs} bible={bible} annotations={annotations} merge={merge} />
                 </div>
               )}
             </div>
@@ -473,6 +493,53 @@ function ComposePage() {
         })}
       </div>
     </article>
+    {/* 複製 + 列印, framed and laid out the way the search panel lays out its
+     * own actions, so the two read as the same kind of furniture.
+     *
+     * Sticky inside the scroller rather than fixed to the viewport: on the wide
+     * layout a fixed bar spans the sidebar too, and this one is meant to belong
+     * to the document, so it takes the document's width. Being in flow, it also
+     * needs no padding reserved under the last line — at the foot of the scroll
+     * it is simply the last thing there. bottom-3 and nothing more: the scroll
+     * region already ends above the bottom nav, so adding its height again only
+     * strands the bar in the middle of the text.
+     *
+     * mx-3 is the inset the search panel's bar and the editor's both use. Not
+     * the article's px-4: the outline indents its own text a further 2rem, so
+     * there is no edge there to line up with anyway. */}
+    <div
+      className={cn(
+        'sticky bottom-3 z-40 mx-3 mb-3 flex h-14 max-w-3xl items-center gap-2 px-2.5 text-sm md:mx-auto print:hidden',
+        ACTION_BAR_CLS,
+      )}
+    >
+      {/* Labelled with what it will do rather than with what is on, so it can
+       * dress as the action it is and sit beside 複製 without a second visual
+       * vocabulary for the reader to learn. Which also means no aria-pressed:
+       * the label already changes, and a toggle that announces both its state
+       * and its opposite says one of them backwards. */}
+      <button
+        type="button"
+        onClick={() => setMerge(!merge)}
+        className="mr-auto rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95"
+      >
+        {merge ? '分離經節' : '合併經節'}
+      </button>
+      <button
+        type="button"
+        onClick={copyText}
+        className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95"
+      >
+        複製
+      </button>
+      <button
+        type="button"
+        onClick={() => window.print()}
+        className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-95"
+      >
+        列印
+      </button>
+    </div>
     </ScrollBody>
   )
 }
