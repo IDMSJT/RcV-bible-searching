@@ -171,6 +171,19 @@ function RootComponent() {
     // as an overlay on top of it instead of replacing the persisted mode.
     if (onCompose) setComposeOverlay(m === 'compose' ? null : m)
     if (onNav) onNav()
+    // Arriving at /compose is the exception: there the drawer is the editor and
+    // the page behind it is the outline itself, so it stays down. An outline is
+    // pasted once and read many times, so the visit that wants the editor is
+    // the rare one — tapping 綱要 again, now that we are here, is what opens it,
+    // which is what the empty state behind it already says to do.
+    //
+    // Closed, not merely left alone: the tap may have come from a chapter with
+    // the catalog drawer already up, and that one would otherwise stay open and
+    // just swap to the editor.
+    if (m === 'compose' && !onCompose) {
+      setDrawerOpen(false)
+      return
+    }
     // Below md the drawer is the visible part — flip it open. On desktop the
     // aside is permanently mounted, so we skip the state change: otherwise
     // vaul's overlay (which has no md:hidden) would dim the page and its body-
