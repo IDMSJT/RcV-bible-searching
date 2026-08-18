@@ -1,7 +1,9 @@
 import { useRef } from 'react'
 import { InputActions } from '@/components/InputActions'
+import { ACTION_BAR_CLS } from '@/lib/chrome'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { useLocalStorage } from '@/lib/useLocalStorage'
+import { cn } from '@/lib/utils'
 
 const HEADER_CLS =
   'sticky top-0 z-10 flex h-[var(--header-h)] shrink-0 items-center justify-center border-b border-border bg-muted/80 px-4 text-base font-medium backdrop-blur md:h-9 md:justify-between md:text-xs md:font-semibold'
@@ -32,30 +34,43 @@ export function ComposePanel({ onDone }: { onDone?: () => void } = {}) {
             ? '貼上綱要，下面會列出每個點的經文…'
             : '貼上綱要，右邊會列出每個點下面的經文…'
         }
-        // pb-20 leaves room below the last line so the floating 清除/貼上/完成
-        // buttons (pinned bottom-5) don't cover text when scrolled to the end.
-        className="flex-1 resize-none bg-transparent p-4 pb-20 font-serif text-base leading-relaxed outline-none placeholder:text-muted-foreground md:text-sm"
+        // pb-20 keeps the last line clear of the bar floating over it.
+        className="min-h-0 flex-1 resize-none bg-transparent p-4 pb-20 font-serif text-base leading-relaxed outline-none placeholder:text-muted-foreground md:text-sm"
+
       />
-      {/* Bottom-left so they clear the 完成 FAB pinned bottom-right. */}
-      <InputActions
-        value={input}
-        onChange={setInput}
-        focusRef={textareaRef}
-        className="bottom-5 left-5"
-        btnClassName="px-4 py-2 text-sm"
-      />
-      {/* Mobile-only floating dismiss button — the drawer overlays the rendered
-       * article, so once the user is done editing they need a one-tap way to
-       * collapse it. Hidden on desktop where the aside is permanent. */}
-      {onDone && (
-        <button
-          type="button"
-          onClick={onDone}
-          className="absolute right-5 bottom-5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg transition-all duration-150 hover:bg-primary/90 active:scale-95 md:hidden"
-        >
-          完成
-        </button>
-      )}
+      {/* One bar instead of two floating corners: 清除/貼上 at the near end, 完成
+       * at the far one, framed the way the search panel frames its own actions.
+       *
+       * Over the field, not below it. The panel is one textarea from top to
+       * bottom, and a bar taking height out of the flow reads as a second pane
+       * rather than as the field's own controls — which is what the frame's
+       * translucency is for: the words carry on behind it. */}
+      <div
+        className={cn(
+          'absolute inset-x-3 bottom-3 flex h-14 items-center gap-2 px-2.5 text-sm',
+          ACTION_BAR_CLS,
+        )}
+      >
+        <InputActions
+          value={input}
+          onChange={setInput}
+          focusRef={textareaRef}
+          className=""
+          btnClassName="px-4 py-2 text-sm"
+        />
+        {/* Mobile-only dismiss — the drawer overlays the rendered article, so
+         * once the user is done editing they need a one-tap way to collapse it.
+         * Hidden on desktop, where the aside is permanent. */}
+        {onDone && (
+          <button
+            type="button"
+            onClick={onDone}
+            className="ml-auto rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-95 md:hidden"
+          >
+            完成
+          </button>
+        )}
+      </div>
     </div>
   )
 }

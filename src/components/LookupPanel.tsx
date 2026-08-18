@@ -29,6 +29,7 @@ import { useCarousel } from '@/lib/useCarousel'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { renderMarkedText, renderNoteText } from '@/lib/renderVerse'
 import { InputActions } from '@/components/InputActions'
+import { ACTION_BAR_CLS } from '@/lib/chrome'
 import { cn } from '@/lib/utils'
 
 // Shared text/padding rules so the visible Textarea above the highlight-aware
@@ -871,7 +872,12 @@ function CopyAllBar({
   }
 
   return (
-    <div className="sticky bottom-3 z-10 mx-3 mt-2 mb-3 flex h-14 shrink-0 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur">
+    <div
+      className={cn(
+        'sticky bottom-3 z-10 mx-3 mt-2 mb-3 flex h-14 shrink-0 items-center gap-3 px-4 pr-2.5 text-sm',
+        ACTION_BAR_CLS,
+      )}
+    >
       <span className="whitespace-nowrap text-sm text-muted-foreground">
         {selecting
           ? `選取 ${selected.size} 節`

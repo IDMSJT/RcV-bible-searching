@@ -5,10 +5,12 @@ import { useScanner } from '@/lib/scanner'
 import { cn } from '@/lib/utils'
 
 
-/** Floating 清除 / 貼上 pills for a textarea. `clear` only shows when there's
- * text; `貼上` only when the Clipboard read API exists. `className` overrides
- * the container position so callers can dodge other floating buttons (e.g. the
- * compose panel's 完成 FAB sits bottom-right, so its actions live bottom-left). */
+/** 清除 / 貼上 pills for a textarea. `clear` only shows when there's text; `貼上`
+ * only when the Clipboard read API exists.
+ *
+ * They float over the corner of the field by default, which is what the search
+ * page wants. `className` replaces that positioning outright — the compose
+ * editor sits them in a bar of its own, in flow, beside its 完成. */
 export function InputActions({
   value,
   onChange,
@@ -82,7 +84,7 @@ export function InputActions({
   )
 
   return (
-    <div className={cn('absolute flex items-center gap-2', className ?? 'right-2 bottom-2')}>
+    <div className={cn('flex items-center gap-2', className ?? 'absolute right-2 bottom-2')}>
       {value && (
         <button type="button" onClick={clear} className={btn}>
           清除
@@ -119,12 +121,20 @@ export function InputActions({
                 ? openScanner(onChange)
                 : fileRef.current?.click()
             }
-            // The icon square keeps the pill's height so the row doesn't step,
-            // and `reading` only happens on the picker path, where there is a
-            // wait with nothing else to show for it.
-            className={cn(btn, 'px-2.5', reading && 'animate-pulse opacity-60')}
+            // Square, and the same 36px the text pills come to beside it
+            // (py-2 either side of a text-sm line box) — an icon in a pill
+            // shaped like a word reads as a word that failed to load. `reading`
+            // only happens on the picker path, where there is a wait with
+            // nothing else to show for it.
+            className={cn(
+              btn,
+              'inline-flex size-9 items-center justify-center p-0',
+              reading && 'animate-pulse opacity-60',
+            )}
           >
-            <ScanText className="size-5" />
+            {/* Lighter than lucide's default 2, matching the nav icons — at this
+              * size the heavier line reads as clumsy. */}
+            <ScanText className="size-5 [stroke-width:1.6]" />
           </button>
         </>
       )}
