@@ -24,35 +24,52 @@ const post = (m: Outgoing, transfer: Transferable[] = []) =>
 
 let ready: Promise<PaddleOcrService> | null = null
 
-/** Fetch the models here so their size can be reported, and so the library's
- * own request for them lands on a warm cache. Best-effort: if it fails the
- * library fetches as it always would, only without a number to show. */
-async function fetchModels(): Promise<void> {
-  const urls = Object.values(DEFAULT_MODEL as Record<string, string>).filter(
-    (u) => typeof u === 'string',
-  )
-  const responses = await Promise.all(urls.map((u) => fetch(u).catch(() => null)))
-  const total = responses.reduce((n, r) => n + Number(r?.headers.get('content-length') ?? 0), 0)
-  let done = 0
-  await Promise.all(
-    responses.map(async (r) => {
-      const body = r?.body
-      if (!body) return
-      const reader = body.getReader()
-      for (;;) {
-        const chunk = await reader.read()
-        if (chunk.done) break
-        done += chunk.value.byteLength
-        post({ type: 'progress', done, total })
-      }
-    }),
-  )
+// The model files live on githubusercontent, which serves them with a short
+// max-age — so the browser's HTTP cache lets go of them within minutes and the
+// next scan fetches all 6 MB again. A named Cache holds them for real: it
+// survives reloads and app launches, and (unlike the HTTP cache) isn't the
+// service worker's business, so it works in dev too. Bump the suffix to force a
+// re-fetch when the model version changes.
+const MODEL_CACHE = 'ocr-model-v6-tiny'
+
+type ModelBuffers = {
+  detection: ArrayBuffer
+  recognition: ArrayBuffer
+  charactersDictionary: ArrayBuffer
+}
+
+/**
+ * The three model files as buffers: read from the Cache if they're there, else
+ * fetched and stored for next time. Handing the buffers back means the library
+ * uses them as-is instead of fetching a second time of its own. Best-effort —
+ * any failure returns null and the library fetches the way it always would.
+ */
+async function fetchModels(): Promise<ModelBuffers | null> {
+  const model = DEFAULT_MODEL as Record<string, string>
+  const keys = ['detection', 'recognition', 'charactersDictionary'] as const
+  const cache = 'caches' in globalThis ? await caches.open(MODEL_CACHE).catch(() => null) : null
+  try {
+    const buffers = await Promise.all(
+      keys.map(async (k) => {
+        const url = model[k]
+        const hit = await cache?.match(url).catch(() => undefined)
+        if (hit) return hit.arrayBuffer()
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`${url}: ${res.status}`)
+        if (cache) await cache.put(url, res.clone()).catch(() => {})
+        return res.arrayBuffer()
+      }),
+    )
+    return { detection: buffers[0], recognition: buffers[1], charactersDictionary: buffers[2] }
+  } catch {
+    return null
+  }
 }
 
 function start(): Promise<PaddleOcrService> {
   ready ??= (async () => {
-    await fetchModels().catch(() => {})
-    const service = new PaddleOcrService()
+    const model = await fetchModels().catch(() => null)
+    const service = new PaddleOcrService(model ? { model } : undefined)
     await service.initialize()
     post({ type: 'ready' })
     return service

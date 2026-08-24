@@ -126,9 +126,11 @@ export default defineConfig(({ command }) => ({
         // JSONs are deliberately NOT precached — they're runtime-cached below.
         globPatterns: ['**/*.{js,css,html,svg,woff,woff2}'],
         // Nor is the text recogniser. It is only reached by tapping 掃描, and
-        // it arrives with a 25 MB runtime and 6 MB of model behind it — the
-        // reader who never scans should not carry any of that. Everything it
-        // needs is built into assets/ocr/ so one rule covers it.
+        // it arrives with a ~25 MB runtime (onnxruntime-web, from a CDN) and
+        // 6 MB of model (from githubusercontent) behind it — the reader who
+        // never scans should not carry any of that, so none of it is precached
+        // here. The worker keeps the model in a Cache of its own once fetched
+        // (see ocrWorker.ts); the runtime rides the browser's HTTP cache.
         globIgnores: ['**/ocr/**'],
         navigateFallbackDenylist: [/^\/[^/]+\.\w+$/],
         runtimeCaching: [
