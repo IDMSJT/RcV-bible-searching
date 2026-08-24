@@ -14,6 +14,7 @@ import { ChangelogDrawer } from '@/components/ChangelogDrawer'
 import { ScanProvider } from '@/components/ScanProvider'
 import { SwUpdate } from '@/components/SwUpdate'
 import { useLocalStorage } from '@/lib/useLocalStorage'
+import { useIsMobile } from '@/lib/useIsMobile'
 import { cn } from '@/lib/utils'
 
 export const Route = createRootRoute({
@@ -51,6 +52,11 @@ function RootComponent() {
   // other nav buttons therefore navigate the user off /compose first so the
   // requested mode can actually surface (see goToLastChapter usages below).
   const onCompose = pathname === '/compose'
+  // Search is a route only on the phone — a full page in <main>, so the system
+  // back gesture dismisses it and its scroll is remembered like any other page.
+  // On desktop it stays in the aside (see the redirect effect below).
+  const onSearch = pathname === '/search'
+  const isMobile = useIsMobile()
 
   const [mode, setMode] = useLocalStorage<SidebarMode>('rcv/sidebar-mode', 'catalog')
   // Lets a panel show over /compose without leaving it — settings, say, which
@@ -121,6 +127,21 @@ function RootComponent() {
     if (onCompose) setMode('compose')
     else if (mode === 'compose') setMode('catalog')
   }, [onCompose, mode, setMode])
+
+  // /search is a phone-only page. If a desktop lands on it — a shared link, or
+  // the viewport widening while it's open — bounce to the last chapter and open
+  // the aside in lookup mode, which is where search lives at that width.
+  useEffect(() => {
+    if (!onSearch || isMobile) return
+    setMode('lookup')
+    const m = lastChapter.match(/^\/(\d+)\/(\d+)/)
+    navigate({
+      to: '/$bookNo/$chapterNo',
+      params: { bookNo: Number(m?.[1] ?? 40), chapterNo: Number(m?.[2] ?? 1) },
+      search: {},
+      replace: true,
+    })
+  }, [onSearch, isMobile, lastChapter, navigate, setMode])
 
   // Drop ephemeral reading state on a hard refresh. sessionStorage normally
   // survives same-tab reload, but the user wants refresh to feel like a
@@ -224,13 +245,17 @@ function RootComponent() {
   //     drawer. The outline route behaves like a chapter route from the
   //     nav's perspective.
   const onCatalogClick = () => {
-    if (drawerOpen) {
+    // On /compose or the phone's /search page, the left button means "leave for
+    // something readable" — there's no catalog over a meta route. Do it even
+    // with a drawer up (settings can overlay /search): closing the drawer alone
+    // would just drop the reader back onto the meta route they asked to leave.
+    if (onCompose || onSearch) {
       setDrawerOpen(false)
-      if (onCompose) goToLastChapter()
+      goToLastChapter()
       return
     }
-    if (onCompose) {
-      goToLastChapter()
+    if (drawerOpen) {
+      setDrawerOpen(false)
       return
     }
     openMode('catalog')
@@ -251,11 +276,22 @@ function RootComponent() {
       <NavButton
         active={isActive('lookup')}
         label="搜尋"
-        // Tapping the lit lookup tab is a no-op (matches settings) — easy to
-        // hit by accident, and the drawer disappearing mid-search would feel
-        // like a glitch. On /compose the sidebar is forced to 'compose', so
-        // we navigate-away first to release the lock.
+        // Tapping the lit search button is a no-op (matches settings) — easy to
+        // hit by accident, and the panel disappearing mid-search would feel like
+        // a glitch. On the phone search is its own page, so we navigate to it
+        // (closing any catalog/settings drawer first); on desktop it's the
+        // aside, opened the same way the other panels are. On /compose the
+        // sidebar is forced to 'compose', so we navigate-away first.
         onClick={() => {
+          if (isMobile) {
+            // Close any overlay first (settings can sit over /search) — that
+            // alone reveals the search page when we're already on it. Otherwise
+            // go to it. So a tap here always lands on search, never a no-op that
+            // leaves a settings sheet stranded on top.
+            setDrawerOpen(false)
+            if (!onSearch) navigate({ to: '/search' })
+            return
+          }
           if (drawerOpen && effectiveMode === 'lookup') return
           openMode('lookup', onCompose ? goToLastChapter : undefined)
         }}
@@ -373,6 +409,7 @@ function RootComponent() {
           // is the surface, so the tab reflects route context, not the drawer).
           (m) => {
             if (drawerOpen) return effectiveMode === m
+            if (onSearch) return m === 'lookup'
             if (onCompose) return m === 'compose'
             if (/^\/\d+/.test(pathname)) return m === 'catalog'
             return false
