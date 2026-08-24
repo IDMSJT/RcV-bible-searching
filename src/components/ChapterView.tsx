@@ -1079,7 +1079,11 @@ export function ChapterView({
                 <span
                   ref={r.ref ? assignScroll : undefined}
                   {...versePress(r.verse)}
-                  className="pt-[0.25em] text-right text-[0.75em] font-sans tabular-nums text-muted-foreground select-none"
+                  // leading-[2.4]: at 0.75em the number needs a 2.4 line-height
+                  // to make a line box the same height as the verse text's first
+                  // line (1em × leading-[1.8]), so the digit sits centred against
+                  // it — no manual top nudge. Update if either value changes.
+                  className="text-right text-[0.75em] leading-[2.4] font-sans tabular-nums text-muted-foreground select-none"
                 >
                   {/* The tint goes on the digits, not on this cell: the cell is
                     * a grid item whose area is the whole row, and a row holding
@@ -1132,7 +1136,7 @@ export function ChapterView({
                       selected.has(r.verse) && 'bg-blue-500/20 dark:bg-blue-400/25',
                     )}
                   >
-                    <p className="px-1 -mx-1 font-medium leading-relaxed">
+                    <p className="px-1 -mx-1 font-medium leading-[1.8]">
                       {renderMarkedText(r.text, r.marks, r.notes, r.refs, (at) =>
                         toggleMarkers(r.verse, at),
                       )}
