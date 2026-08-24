@@ -1,6 +1,6 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useLocation } from '@tanstack/react-router'
-import { X } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import { parseRefs, type Segment, type VerseRef } from '@/lib/parseRefs'
 import {
   refsExist,
@@ -29,6 +29,7 @@ import { useCarousel } from '@/lib/useCarousel'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { renderMarkedText, renderNoteText } from '@/lib/renderVerse'
 import { InputActions } from '@/components/InputActions'
+import { ScrollBody } from '@/components/ScrollBody'
 import { ACTION_BAR_CLS } from '@/lib/chrome'
 import { cn } from '@/lib/utils'
 
@@ -38,8 +39,28 @@ import { cn } from '@/lib/utils'
 // to match the rest of the sidebar panels.
 const FIELD_CLS = 'p-4 font-serif text-base leading-relaxed md:text-sm'
 
+// The phone /search field, shared by both tabs so they read identically: one
+// magnifier-led, muted, single-line box. The chrome (border, fill, focus ring)
+// lives on the shell; the input inside is transparent so the 經節 tab can lay a
+// same-metrics highlight backdrop under the caret. nowrap + a hidden horizontal
+// scrollbar keep it to one line however long the text runs.
+const MOBILE_FIELD_SHELL =
+  'relative overflow-hidden rounded-xl border border-border bg-muted/40 transition-colors focus-within:border-ring'
+// h-12 + min-h-0 + field-sizing-fixed overrides the base Textarea's
+// field-sizing-content / min-h-16 that would otherwise grow it to multiple
+// lines; border-0 + bg-transparent drops its own chrome so only the shell's
+// shows. whitespace-nowrap keeps it one line, scrolling sideways instead.
+const MOBILE_FIELD_INPUT =
+  'block h-11 min-h-0 w-full resize-none overflow-x-auto border-0 bg-transparent py-2.5 pr-3 pl-11 font-serif text-base leading-6 whitespace-nowrap shadow-none outline-none field-sizing-fixed focus-visible:ring-0 dark:bg-transparent [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+const MobileFieldIcon = () => (
+  <Search className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-muted-foreground" />
+)
+
+// On the phone /search is a full page, so its tab bar wears the reading page's
+// header: a solid bg-background strip, not the translucent drawer-title look.
+// Desktop keeps the muted, blurred header the other sidebar panels share.
 const HEADER_CLS =
-  'sticky top-0 z-10 flex h-[var(--header-h)] shrink-0 items-center justify-center border-b border-border bg-muted/80 px-4 text-base font-medium backdrop-blur md:h-9 md:justify-start md:text-xs md:font-semibold'
+  'sticky top-0 z-10 flex h-[var(--header-h)] shrink-0 items-center justify-center border-b border-border bg-background px-4 text-base font-medium md:h-9 md:justify-start md:bg-muted/80 md:text-xs md:font-semibold md:backdrop-blur'
 
 const PLACEHOLDER =
   '輸入經文出處，例如：\n約翰福音一章一節，三章十六節，十四章六節'
@@ -520,9 +541,13 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     [kw],
   )
 
-  const refInput = (
-    <div className="relative">
-      {/* Backdrop: same text, failed tokens in red */}
+  // The backdrop + transparent textarea pair, glyph-for-glyph aligned (both
+  // FIELD_CLS). On the phone they sit inside a bordered, muted field with the
+  // actions in a coloured row below; on desktop they keep the flush, borderless
+  // look with the actions floating over the corner. No leading icon on either —
+  // it would shift the textarea's padding out of step with the backdrop.
+  const refField = (
+    <>
       <div
         ref={backdropRef}
         aria-hidden
@@ -548,11 +573,67 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
           'relative block h-[120px] w-full resize-none break-words border-0 bg-transparent text-transparent caret-foreground shadow-none focus-visible:ring-0 [field-sizing:fixed]',
         )}
       />
+    </>
+  )
+  const refInput = isMobile ? (
+    // Same shell as the keyword field, with the highlight backdrop laid under a
+    // transparent textarea. Both share MOBILE_FIELD_INPUT so the coloured refs
+    // sit exactly under the caret.
+    <div className="flex flex-col gap-3">
+      <div className={MOBILE_FIELD_SHELL}>
+        <MobileFieldIcon />
+        <div
+          ref={backdropRef}
+          aria-hidden
+          className={cn(
+            MOBILE_FIELD_INPUT,
+            'pointer-events-none absolute inset-0 text-foreground',
+          )}
+        >
+          {renderBackdrop(segments, refFound, activeKey, hoveredVerse, hoveredGroup)}
+        </div>
+        <Textarea
+          ref={textareaRef}
+          value={q}
+          onMouseMove={onBackdropHover}
+          onMouseLeave={() => setHoveredGroup(null)}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="輸入想查詢的經節"
+          rows={1}
+          spellCheck={false}
+          data-vaul-no-drag
+          className={cn(MOBILE_FIELD_INPUT, 'relative text-transparent caret-foreground')}
+        />
+      </div>
+      <InputActions value={q} onChange={setQ} focusRef={textareaRef} scan variant="bar" />
+    </div>
+  ) : (
+    <div className="relative">
+      {refField}
       <InputActions value={q} onChange={setQ} focusRef={textareaRef} scan />
     </div>
   )
 
-  const kwInput = (
+  const kwInput = isMobile ? (
+    // Phone: the shared search field (magnifier + single line), actions in a
+    // coloured row beneath. The card that frames them lives in SearchTabPanel.
+    <div className="flex flex-col gap-3">
+      <div className={MOBILE_FIELD_SHELL}>
+        <MobileFieldIcon />
+        <Textarea
+          ref={kwTextareaRef}
+          value={kw}
+          onChange={(e) => setKw(e.target.value)}
+          placeholder="輸入想查詢的關鍵字"
+          rows={1}
+          spellCheck={false}
+          data-vaul-no-drag
+          className={MOBILE_FIELD_INPUT}
+        />
+      </div>
+      <InputActions value={kw} onChange={setKw} focusRef={kwTextareaRef} variant="bar" />
+    </div>
+  ) : (
     <div className="relative">
       <Textarea
         ref={kwTextareaRef}
@@ -577,6 +658,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
       total={resolvedKw.total}
       selected={tab === 'kw' ? selected : EMPTY_SELECTION}
       onClear={clearSel}
+      scrollKey={`lookup:kw:${kw}`}
     >
       <ResultList
         rows={resolvedKw.rows}
@@ -604,6 +686,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
       total={resolvedRefs.length}
       selected={tab === 'ref' ? selected : EMPTY_SELECTION}
       onClear={clearSel}
+      scrollKey={`lookup:ref:${q}`}
     >
       <ResultList
         rows={resolvedRefs}
@@ -628,14 +711,21 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Tabs stretch full header height (items-stretch) and have no outer
-       * padding so the hover/active bg fills cleanly to the edges — mirrors
-       * the 綱目 link style on the chapter header. visualTab tracks the swipe so
-       * the highlight flips the moment a drag passes the threshold. */}
-      <h2 className={cn(HEADER_CLS, 'items-stretch px-0 md:px-1.5')}>
-        <TabBtn active={visualTab === 'kw'} onClick={() => setTab('kw')}>關鍵字</TabBtn>
-        <TabBtn active={visualTab === 'ref'} onClick={() => setTab('ref')}>經節</TabBtn>
-      </h2>
+      {/* Phone: a segmented pill floating at the top of the page. Desktop: the
+       * flat full-height tabs that fit the aside's thin header strip. visualTab
+       * tracks the swipe so the active tab flips the moment a drag crosses the
+       * threshold. */}
+      {isMobile ? (
+        <div className="mx-4 mt-3 mb-3 flex overflow-hidden rounded-xl border border-border bg-muted">
+          <SegTab active={visualTab === 'kw'} onClick={() => setTab('kw')}>關鍵字</SegTab>
+          <SegTab active={visualTab === 'ref'} onClick={() => setTab('ref')}>經節</SegTab>
+        </div>
+      ) : (
+        <h2 className={cn(HEADER_CLS, 'items-stretch px-0 md:px-1.5')}>
+          <TabBtn active={visualTab === 'kw'} onClick={() => setTab('kw')}>關鍵字</TabBtn>
+          <TabBtn active={visualTab === 'ref'} onClick={() => setTab('ref')}>經節</TabBtn>
+        </h2>
+      )}
 
       {isMobile ? (
         // Mobile: both tabs ride a 200%-wide track; the gesture hook slides dx
@@ -675,6 +765,7 @@ function SearchTabPanel({
   total,
   selected,
   onClear,
+  scrollKey,
 }: {
   input: ReactNode
   children: ReactNode
@@ -682,18 +773,35 @@ function SearchTabPanel({
   total: number
   selected: ReadonlySet<number>
   onClear: () => void
+  /** Remembers this tab's scroll under this key, so leaving the phone's /search
+   * page into a verse and coming back lands where the reader left the list.
+   * Carries the query so a new search starts at the top, not at the old offset;
+   * the two tabs pass different keys so both survive being mounted at once. */
+  scrollKey: string
 }) {
+  const isMobile = useIsMobile()
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-border bg-background">{input}</div>
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {isMobile ? (
+        // No framing card — the field carries its own border and the actions
+        // sit under it as a plain row, an even 12px between each. A bottom rule
+        // separates the whole input area from the results below.
+        <div className="border-b border-border px-4 pb-3">{input}</div>
+      ) : (
+        <div className="border-b border-border bg-background">{input}</div>
+      )}
+      {/* pb-0 drops ScrollBody's own nav-height padding: the /search wrapper
+       * already holds the whole panel above the bottom nav, so the copy bar's
+       * sticky bottom stays measured from the visible edge as it was in the
+       * drawer. */}
+      <ScrollBody restoreKey={scrollKey} className="min-h-0 flex-1 pb-0">
         {/* min-h-full + a flex-1 content row pushes the sticky copy bar to the
          * bottom even when the results don't fill the pane. */}
         <div className="flex min-h-full flex-col">
           <div className="flex-1 p-4">{children}</div>
           <CopyAllBar resolved={resolved} total={total} selected={selected} onClear={onClear} />
         </div>
-      </div>
+      </ScrollBody>
     </div>
   )
 }
@@ -915,6 +1023,32 @@ function CopyAllBar({
   )
 }
 
+/** One segment of the phone's tab control: the active half fills with the page
+ * background (clipped to the container's rounded corners), the inactive half
+ * stays on the muted track. */
+function SegTab({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex-1 py-2 text-center text-sm transition-colors',
+        active ? 'bg-background font-semibold text-primary' : 'font-medium text-muted-foreground',
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
 function TabBtn({
   active,
   onClick,
@@ -936,7 +1070,11 @@ function TabBtn({
         // mobile-spaced 1rem-each-side that reads as a wide gap on md+.
         'inline-flex items-center px-4 transition-colors md:px-2.5',
         active
-          ? 'bg-secondary text-secondary-foreground'
+          // On the phone the header is a solid bg-background strip, so a lighter
+          // bg-muted pill is enough to read as active without sitting heavy on
+          // it. Desktop's header is itself muted, so the active tab still needs
+          // the deeper bg-secondary to separate.
+          ? 'bg-muted text-foreground md:bg-secondary md:text-secondary-foreground'
           : 'text-muted-foreground hover:bg-muted hover:text-foreground',
       )}
     >
