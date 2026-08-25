@@ -3,6 +3,7 @@ import { Outlet, createRootRoute, useLocation, useNavigate } from '@tanstack/rea
 // import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 import { BookOpen, ClipboardList, Search, Settings } from 'lucide-react'
 import { BOOK_BY_NO } from '@/data/canon'
+import { BOOK_ABBREV } from '@/data/abbrev'
 import { LookupPanel } from '@/components/LookupPanel'
 import { CatalogPanel } from '@/components/CatalogPanel'
 import { ComposePanel } from '@/components/ComposePanel'
@@ -73,11 +74,19 @@ function RootComponent() {
   // route (e.g. /compose) so clicking it always lands back in a verse view
   // rather than just opening the catalog over nothing. Default to 太1:1.
   const [lastChapter, setLastChapter] = useLocalStorage('rcv/last-chapter', '/40/1')
+  // Off the reading surface, the left nav button jumps back to that chapter — so
+  // name it by book + chapter (e.g. 詩46) instead of a generic 「閱讀」, which
+  // says what tapping it returns you to.
+  const lastCh = lastChapter.match(/^\/(\d+)\/(\d+)/)
+  const readingLabel = lastCh ? `${BOOK_ABBREV[Number(lastCh[1])] ?? ''}${Number(lastCh[2])}` : '閱讀'
   // Mobile-only: the sidebar content lives inside a Drawer below md. On desktop
   // the aside is permanently visible and this flag is ignored.
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerSnap, setDrawerSnap] = useState<number | string | null>(1)
   const [changelogOpen, setChangelogOpen] = useState(false)
+  // Which catalog pane the mobile drawer shows (0 = books, 1 = chapters). Lifted
+  // here so the bottom-nav button can cycle reading → chapters → books → reading.
+  const [catalogPane, setCatalogPane] = useState<0 | 1>(1)
   // Whether settings is the surface on mobile. The desktop aside is always
   // there, so `effectiveMode` alone answers it; on mobile the drawer has to be
   // open too, since the mode outlives a dismiss.
@@ -254,12 +263,39 @@ function RootComponent() {
       goToLastChapter()
       return
     }
+    // The phone reading surface cycles this one button through three stops:
+    // reading → catalog's chapter pane → its book pane → back to reading.
+    if (isMobile && /^\/\d+/.test(pathname)) {
+      if (drawerOpen && effectiveMode === 'catalog') {
+        if (catalogPane === 1) setCatalogPane(0) // chapters → books
+        else setDrawerOpen(false) // books → back to reading
+      } else if (drawerOpen) {
+        setDrawerOpen(false) // some other panel (settings) over reading → close it
+      } else {
+        setCatalogPane(1) // reading → open onto the chapter pane
+        openMode('catalog')
+      }
+      return
+    }
     if (drawerOpen) {
       setDrawerOpen(false)
       return
     }
     openMode('catalog')
   }
+
+  // The left button's label names its next stop in the reading cycle: from
+  // reading it opens the chapter pane (選章); on the chapter pane it moves to
+  // books (選書); on the book pane it returns to the chapter (詩46). Off the
+  // reading surface it just says the chapter it returns to.
+  const catalogNavLabel =
+    drawerOpen && effectiveMode === 'catalog'
+      ? catalogPane === 1
+        ? '選書'
+        : readingLabel
+      : /^\/\d+/.test(pathname) && !drawerOpen
+        ? '選章'
+        : readingLabel
 
   const sharedNavButtons = (
     isActive: (m: SidebarMode) => boolean,
@@ -301,7 +337,10 @@ function RootComponent() {
       <NavButton
         active={isActive('compose')}
         label="綱要"
-        onClick={() => openMode('compose', () => navigate({ to: '/compose' }))}
+        // Only navigate when we're not already on /compose — re-navigating to the
+        // same route just fires a redundant view-transition flash on top of the
+        // drawer opening (the "two jumps"). On /compose this only opens the editor.
+        onClick={() => openMode('compose', onCompose ? undefined : () => navigate({ to: '/compose' }))}
       >
         <NavIcon icon={ClipboardList} active={isActive('compose')} className={navIcon} />
       </NavButton>
@@ -328,6 +367,8 @@ function RootComponent() {
         activeChapterNo={activeChapterNo}
         activeBook={activeBook}
         onPick={closeDrawer}
+        pane={catalogPane}
+        onPaneChange={setCatalogPane}
       />
     )
 
@@ -414,11 +455,7 @@ function RootComponent() {
             if (/^\/\d+/.test(pathname)) return m === 'catalog'
             return false
           },
-          // 「目錄」 when on a book route (outline or chapter) with the drawer
-          // dismissed — tapping there opens the catalog. Everywhere else
-          // (/compose, root) tapping navigates to a chapter, so 「閱讀」
-          // describes the result more accurately.
-          /^\/\d+/.test(pathname) && !drawerOpen ? '目錄' : '閱讀',
+          catalogNavLabel,
         )}
         <NavButton
           // The drawer is what makes settings the surface: `effectiveMode`

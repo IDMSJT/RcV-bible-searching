@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ChevronLeft } from 'lucide-react'
 import { CANON, type CanonBook } from '@/data/canon'
@@ -29,6 +29,10 @@ interface SharedProps {
   /** Fires when the user taps a chapter link or the 綱目 link — lets the
    * mobile drawer close itself snappily. */
   onPick?: () => void
+  /** Mobile only: which pane is showing (0 = books, 1 = chapters). Controlled
+   * from __root so the bottom-nav button can cycle it. Desktop shows both. */
+  pane?: 0 | 1
+  onPaneChange?: (pane: 0 | 1) => void
 }
 
 // Two-pane catalog: books on the left, chapters on the right. Mobile uses a
@@ -68,17 +72,27 @@ function DesktopCatalog({ activeBookNo, activeChapterNo, activeBook, onPick }: S
 // contents on close, so component state wouldn't survive between openings.
 const paneScroll = { books: 0, chapters: 0 }
 
-function MobileCatalog({ activeBookNo, activeChapterNo, activeBook, onPick }: SharedProps) {
+function MobileCatalog({
+  activeBookNo,
+  activeChapterNo,
+  activeBook,
+  onPick,
+  pane,
+  onPaneChange,
+}: SharedProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const innerRef = useRef<HTMLDivElement>(null)
   const bookPaneRef = useRef<HTMLDivElement>(null)
   const chapterPaneRef = useRef<HTMLDivElement>(null)
-  const [paneIdx, setPaneIdx] = useState<0 | 1>(activeBook ? 1 : 0)
+  // Controlled by __root (falls back to a sensible default if used standalone),
+  // so the bottom-nav button and the swipe drive the same pane.
+  const paneIdx: 0 | 1 = pane ?? (activeBook ? 1 : 0)
+  const setPaneIdx = useCallback((p: 0 | 1) => onPaneChange?.(p), [onPaneChange])
   const isFirstRender = useRef(true)
-  // Stable so the memoized BookPicker doesn't re-render every time we
-  // commit a new paneIdx (which would force its 66 Tooltips to rebuild).
-  const handlePickBook = useCallback(() => setPaneIdx(1), [])
-  const handleBackToBooks = useCallback(() => setPaneIdx(0), [])
+  // Stable so the memoized BookPicker doesn't re-render every time the pane
+  // commits (which would force its 66 Tooltips to rebuild).
+  const handlePickBook = useCallback(() => setPaneIdx(1), [setPaneIdx])
+  const handleBackToBooks = useCallback(() => setPaneIdx(0), [setPaneIdx])
 
   // Apply the committed transform whenever the active pane changes. First
   // render is instant (drawer opens already on the right pane when a book is
@@ -126,7 +140,7 @@ function MobileCatalog({ activeBookNo, activeChapterNo, activeBook, onPick }: Sh
   useLayoutEffect(() => {
     if (!activeBookNo) return
     setPaneIdx(1)
-  }, [activeBookNo, activeChapterNo])
+  }, [activeBookNo, activeChapterNo, setPaneIdx])
 
   // Custom touch swipe — gives us a free hand to allow vertical pane scroll
   // even while the horizontal commit animation is still running. Native
@@ -213,7 +227,7 @@ function MobileCatalog({ activeBookNo, activeChapterNo, activeBook, onPick }: Sh
       el.removeEventListener('touchend', onEnd)
       el.removeEventListener('touchcancel', onEnd)
     }
-  }, [paneIdx])
+  }, [paneIdx, setPaneIdx])
 
   return (
     <div ref={containerRef} className="h-full overflow-hidden">
