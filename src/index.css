@@ -209,3 +209,20 @@ body {
   h1, h2 { break-after: avoid; }
   .print-keep-together { break-inside: avoid; }
 }
+
+/* Route cross-fade (View Transitions API, enabled in main.tsx). The default
+ * animation already fades old out and new in together; this only sets the pace.
+ * The persistent chrome (nav, sidebar) is identical across the two snapshots,
+ * so it dissolves into itself and reads as unchanged — only the routed content
+ * visibly fades. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 200ms;
+  animation-timing-function: ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}

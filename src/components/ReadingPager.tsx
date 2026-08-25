@@ -129,13 +129,22 @@ export function ReadingPager() {
   const next = nextRef(current)
 
   const goTo = (ref: ReadingRef) => {
+    // replace, not push: a swipe between chapters shouldn't stack a history
+    // entry per chapter. It also sidesteps iOS Safari's interactive back-swipe,
+    // whose page snapshot for an SPA history entry captures the *next* chapter
+    // (the DOM has already swapped), so swiping back flashed 46 before 45. With
+    // no per-chapter history there's no such gesture — the carousel is how you
+    // go back a chapter. No view transition either: the track already animates
+    // this move.
     if (ref.kind === 'outline') {
-      navigate({ to: '/$bookNo', params: { bookNo: ref.bookNo } })
+      navigate({ to: '/$bookNo', params: { bookNo: ref.bookNo }, replace: true, viewTransition: false })
     } else {
       navigate({
         to: '/$bookNo/$chapterNo',
         params: { bookNo: ref.bookNo, chapterNo: ref.chapterNo },
         search: {},
+        replace: true,
+        viewTransition: false,
       })
     }
   }
