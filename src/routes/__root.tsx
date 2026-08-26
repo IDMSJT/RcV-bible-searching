@@ -1,7 +1,7 @@
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
 import { Outlet, createRootRoute, useLocation, useNavigate } from '@tanstack/react-router'
 // import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
-import { BookOpen, ClipboardList, Search, Settings } from 'lucide-react'
+import { BookOpen, FileText, Menu, Search, Settings } from 'lucide-react'
 import { BOOK_BY_NO } from '@/data/canon'
 import { BOOK_ABBREV } from '@/data/abbrev'
 import { LookupPanel } from '@/components/LookupPanel'
@@ -335,21 +335,26 @@ function RootComponent() {
         label={catalogLabel}
         onClick={() => onNavTap('catalog')}
       >
-        <NavIcon icon={BookOpen} active={isActive('catalog')} className={navIcon} />
+        {/* A menu icon while the button is a step into the catalog (選章/選書);
+          * the book once it points back to reading. */}
+        <NavIcon
+          icon={catalogLabel === '選章' || catalogLabel === '選書' ? Menu : BookOpen}
+          className={navIcon}
+        />
       </NavButton>
       <NavButton
         active={isActive('lookup')}
         label="搜尋"
         onClick={() => onNavTap('lookup')}
       >
-        <NavIcon icon={Search} active={isActive('lookup')} className={navIcon} />
+        <NavIcon icon={Search} className={navIcon} />
       </NavButton>
       <NavButton
         active={isActive('compose')}
         label="綱要"
         onClick={() => onNavTap('compose')}
       >
-        <NavIcon icon={ClipboardList} active={isActive('compose')} className={navIcon} />
+        <NavIcon icon={FileText} className={navIcon} />
       </NavButton>
     </>
   )
@@ -403,7 +408,7 @@ function RootComponent() {
           className="mt-auto"
           onClick={() => onNavTap('settings')}
         >
-          <NavIcon icon={Settings} active={effectiveMode === 'settings'} className={navIcon} />
+          <NavIcon icon={Settings} className={navIcon} />
         </NavButton>
       </nav>
 
@@ -476,7 +481,7 @@ function RootComponent() {
           label="設定"
           onClick={() => onNavTap('settings')}
         >
-          <NavIcon icon={Settings} active={settingsOpen} className={navIcon} />
+          <NavIcon icon={Settings} className={navIcon} />
         </NavButton>
       </nav>
 
@@ -574,12 +579,10 @@ function NavButton({
       onClick={onClick}
       {...rest}
       className={cn(
-        // Mobile: active is a colour change only (no full-button bg) — a bg
-        // would stop at the buttons and leave the safe-area strip below them
-        // an odd mismatched colour. Desktop keeps the Slack-style icon chip
-        // (the inner span carries the highlight, see below).
+        // Active is a colour change only — the icon + label go gold
+        // (text-primary), no filled chip. currentColor carries it to the SVG.
         'group inline-flex flex-col items-center justify-center gap-1.5 rounded-md transition-colors md:p-2',
-        active ? 'text-secondary-foreground' : 'text-muted-foreground hover:text-foreground',
+        active ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
         className,
       )}
     >
@@ -591,11 +594,11 @@ function NavButton({
           // transition of its own; it inherits the button's animated colour
           // (currentColor), so icon + label change colour in lock-step.
           'md:size-9 md:rounded-md md:transition-colors',
-          active
-            ? 'md:bg-secondary md:text-secondary-foreground'
-            : 'md:group-hover:bg-muted md:group-hover:text-foreground',
-          // The open tab's outline thickens a step on either viewport, on top
-          // of the gold it is filled with.
+          // No fill on the active chip — the gold text does the work. Inactive
+          // still gets a hover chip on desktop.
+          !active && 'md:group-hover:bg-muted md:group-hover:text-foreground',
+          // The open tab's icon outline thickens a step on either viewport, on
+          // top of the gold.
           active && '[&_svg]:[stroke-width:1.6] md:[&_svg]:[stroke-width:1.8]',
         )}
       >
