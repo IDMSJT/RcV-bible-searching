@@ -680,8 +680,12 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
           >
             <div className="h-full w-full shrink-0">{kwPanel}</div>
             {/* A rule between the two panels, shown as you swipe across — like
-              * the book/chapter divider in the catalog. */}
-            <div className="h-full w-full shrink-0 border-l border-border">{refPanel}</div>
+              * the book/chapter divider in the catalog. A left box-shadow, not a
+              * border: a border's box takes a pixel off the content and shifts
+              * this panel's field out of line with the other tab's. */}
+            <div className="h-full w-full shrink-0 shadow-[-1px_0_0_var(--color-border)]">
+              {refPanel}
+            </div>
           </div>
         </div>
       ) : (
