@@ -7,7 +7,7 @@
  * matched still had to be changed twice, and the reveals quietly disagreed with
  * the jumps by half a line.
  */
-export const REVEAL_GAP = 24
+export const REVEAL_GAP = 16
 
 /**
  * How far down the reader really sees, for an element with nothing under it.
