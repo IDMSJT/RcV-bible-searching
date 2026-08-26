@@ -117,9 +117,12 @@ function RootComponent() {
   // had to be in the deps, which caused a second tap on the catalog nav
   // from lookup to silently close the drawer back down. Leave drawer state
   // alone here; explicit callbacks own it.
+  // Store the full href (with ?hl / ?oh / ?oe), not just the path, so returning
+  // to the last chapter lands back on the verse / note / outline heading that
+  // was open — 詩46 read back to where you were looking.
   useEffect(() => {
-    if (/^\/\d+\/\d+/.test(pathname)) setLastChapter(pathname)
-  }, [pathname, setLastChapter])
+    if (/^\/\d+\/\d+/.test(pathname)) setLastChapter(location.href)
+  }, [location.href, pathname, setLastChapter])
 
   // Reset the drawer snap whenever the displayed panel changes — settings
   // opens at half, everything else at full. Vaul animates between snaps.
@@ -236,12 +239,16 @@ function RootComponent() {
     // /compose are meta routes, so 閱讀 should still navigate the user into an
     // actual chapter from there.
     if (/^\/\d+\/\d+/.test(pathname)) return
-    const m = lastChapter.match(/^\/(\d+)\/(\d+)/)
+    const [path, queryStr] = lastChapter.split('?')
+    const m = path.match(/^\/(\d+)\/(\d+)/)
     if (!m) return
+    // Carry back the highlight / open-note / open-heading it was left on.
+    const search: Record<string, string> = {}
+    if (queryStr) new URLSearchParams(queryStr).forEach((v, k) => (search[k] = v))
     navigate({
       to: '/$bookNo/$chapterNo',
       params: { bookNo: Number(m[1]), chapterNo: Number(m[2]) },
-      search: {},
+      search,
     })
   }
 
