@@ -8,7 +8,7 @@ import {
   useState,
   type RefObject,
 } from 'react'
-import { createPortal } from 'react-dom'
+import { createPortal, flushSync } from 'react-dom'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { X } from 'lucide-react'
 import {
@@ -550,7 +550,12 @@ export function ChapterView({
   // chapter whose verses run long, and on the last screenful the scroll stops
   // moving altogether while the bubble keeps counting. null is the lift.
   const scrubTo = useCallback((verse: number | null) => {
-    setScrubbing(verse)
+    // flushSync so the grey tint is committed to the DOM before we scroll:
+    // otherwise the scroll (synchronous) lands this frame and the tint (a React
+    // re-render) only the next, so the verse arrives a frame before its colour
+    // — a visible flash as you drag. Committing both before the browser paints
+    // shows them together.
+    flushSync(() => setScrubbing(verse))
     if (verse == null) return
     const panel = panelRef.current
     const el = panel?.querySelector<HTMLElement>(`[data-verse="${verse}"]`)
