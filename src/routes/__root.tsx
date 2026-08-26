@@ -245,26 +245,56 @@ function RootComponent() {
     })
   }
 
-  // Catalog / 閱讀 tap semantics:
-  //   - Drawer up: dismiss it. From /compose specifically, also navigate to
-  //     last chapter so the user lands on something readable.
-  //   - Drawer down on /compose: navigate to last chapter (no drawer to open
-  //     — pressing 閱讀 here is essentially "leave compose").
-  //   - Drawer down on a book route (outline or chapter): open the catalog
-  //     drawer. The outline route behaves like a chapter route from the
-  //     nav's perspective.
-  const onCatalogClick = () => {
-    // On /compose or the phone's /search page, the left button means "leave for
-    // something readable" — there's no catalog over a meta route. Do it even
-    // with a drawer up (settings can overlay /search): closing the drawer alone
-    // would just drop the reader back onto the meta route they asked to leave.
+  // Every nav button taps through here. The four targets are genuinely
+  // different — search and compose are routes, the catalog is a drawer that
+  // cycles panes, settings is a plain drawer — so this is a switch rather than a
+  // one-liner; the point is that all the nav behaviour lives in one place.
+  const onNavTap = (target: SidebarMode) => {
+    if (target === 'lookup') {
+      // Phone: search is its own page. Dismiss any overlay (settings can sit
+      // over it), then go unless we're already there. Desktop: the aside, opened
+      // like the rest; tapping the open one is a no-op.
+      if (isMobile) {
+        setDrawerOpen(false)
+        if (!onSearch) navigate({ to: '/search' })
+      } else if (!(drawerOpen && effectiveMode === 'lookup')) {
+        openMode('lookup', onCompose ? goToLastChapter : undefined)
+      }
+      return
+    }
+
+    if (target === 'compose') {
+      // On /compose the outline is the surface, so this toggles the editor
+      // drawer (closing also dismisses a settings overlay). From elsewhere,
+      // navigate to /compose — arriving keeps the editor down (see openMode).
+      if (!onCompose) openMode('compose', () => navigate({ to: '/compose' }))
+      else if (drawerOpen) setDrawerOpen(false)
+      else {
+        setComposeOverlay(null)
+        setMode('compose')
+        setDrawerOpen(true)
+      }
+      return
+    }
+
+    if (target === 'settings') {
+      // No toggle-close: tapping the open settings pane is a no-op (easy to hit
+      // while fiddling with sliders). On desktop settingsOpen is never true, so
+      // this is just openMode there.
+      if (!settingsOpen) openMode('settings')
+      return
+    }
+
+    // target === 'catalog' — the left button.
+    // On a meta route (/compose, /search) it means "leave for something
+    // readable" — even with a drawer up (settings can overlay /search), close it
+    // and go.
     if (onCompose || onSearch) {
       setDrawerOpen(false)
       goToLastChapter()
       return
     }
-    // The phone reading surface cycles this one button through three stops:
-    // reading → catalog's chapter pane → its book pane → back to reading.
+    // Reading, on the phone: cycle reading → chapter pane → book pane → reading.
     if (isMobile && /^\/\d+/.test(pathname)) {
       if (drawerOpen && effectiveMode === 'catalog') {
         if (catalogPane === 1) setCatalogPane(0) // chapters → books
@@ -277,11 +307,9 @@ function RootComponent() {
       }
       return
     }
-    if (drawerOpen) {
-      setDrawerOpen(false)
-      return
-    }
-    openMode('catalog')
+    // Desktop reading (no pane cycle): toggle the catalog.
+    if (drawerOpen) setDrawerOpen(false)
+    else openMode('catalog')
   }
 
   // The left button's label names its next stop in the reading cycle: from
@@ -305,42 +333,21 @@ function RootComponent() {
       <NavButton
         active={isActive('catalog')}
         label={catalogLabel}
-        onClick={onCatalogClick}
+        onClick={() => onNavTap('catalog')}
       >
         <NavIcon icon={BookOpen} active={isActive('catalog')} className={navIcon} />
       </NavButton>
       <NavButton
         active={isActive('lookup')}
         label="搜尋"
-        // Tapping the lit search button is a no-op (matches settings) — easy to
-        // hit by accident, and the panel disappearing mid-search would feel like
-        // a glitch. On the phone search is its own page, so we navigate to it
-        // (closing any catalog/settings drawer first); on desktop it's the
-        // aside, opened the same way the other panels are. On /compose the
-        // sidebar is forced to 'compose', so we navigate-away first.
-        onClick={() => {
-          if (isMobile) {
-            // Close any overlay first (settings can sit over /search) — that
-            // alone reveals the search page when we're already on it. Otherwise
-            // go to it. So a tap here always lands on search, never a no-op that
-            // leaves a settings sheet stranded on top.
-            setDrawerOpen(false)
-            if (!onSearch) navigate({ to: '/search' })
-            return
-          }
-          if (drawerOpen && effectiveMode === 'lookup') return
-          openMode('lookup', onCompose ? goToLastChapter : undefined)
-        }}
+        onClick={() => onNavTap('lookup')}
       >
         <NavIcon icon={Search} active={isActive('lookup')} className={navIcon} />
       </NavButton>
       <NavButton
         active={isActive('compose')}
         label="綱要"
-        // Only navigate when we're not already on /compose — re-navigating to the
-        // same route just fires a redundant view-transition flash on top of the
-        // drawer opening (the "two jumps"). On /compose this only opens the editor.
-        onClick={() => openMode('compose', onCompose ? undefined : () => navigate({ to: '/compose' }))}
+        onClick={() => onNavTap('compose')}
       >
         <NavIcon icon={ClipboardList} active={isActive('compose')} className={navIcon} />
       </NavButton>
@@ -387,12 +394,14 @@ function RootComponent() {
 
       {/* Desktop: left vertical rail */}
       <nav className="hidden w-16 shrink-0 flex-col items-center border-r border-border bg-background p-2 md:flex print:hidden">
-        {sharedNavButtons((m) => effectiveMode === m, '閱讀')}
+        {/* Desktop always names the chapter (詩46) — reading, it's where you are;
+          * off a book route, it's what the button returns you to. */}
+        {sharedNavButtons((m) => effectiveMode === m, readingLabel)}
         <NavButton
           active={effectiveMode === 'settings'}
           label="設定"
           className="mt-auto"
-          onClick={() => openMode('settings')}
+          onClick={() => onNavTap('settings')}
         >
           <NavIcon icon={Settings} active={effectiveMode === 'settings'} className={navIcon} />
         </NavButton>
@@ -465,14 +474,7 @@ function RootComponent() {
           // left the gear filled beside a lit 目錄.
           active={settingsOpen}
           label="設定"
-          // Tapping 設定 while it's already the open pane is a no-op (not a
-          // toggle-close like the other buttons) — easy to hit accidentally
-          // when fiddling with sliders / switches and the drawer disappearing
-          // would feel like a glitch.
-          onClick={() => {
-            if (settingsOpen) return
-            openMode('settings')
-          }}
+          onClick={() => onNavTap('settings')}
         >
           <NavIcon icon={Settings} active={settingsOpen} className={navIcon} />
         </NavButton>
