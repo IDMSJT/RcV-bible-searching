@@ -714,12 +714,28 @@ export function ChapterView({
     ? chapterOutlineByAnchor(outline, bookNo, chapterNo)
     : new Map<string, { entry: OutlineEntry; idx: number }[]>()
 
-  // A tap just toggles the verse — the page stays put. The floating bar adds
-  // bottom padding on the same render, so nothing it covers is unreachable;
-  // scrolling the tapped verse to the middle moved the text out from under the
-  // reader's finger, which is worse than the bar being close to it.
+  // A tap toggles the verse. The page normally stays put — moving the tapped
+  // verse out from under the finger is worse than the bar sitting near it — but
+  // a verse clipped by the top edge, or hidden under the selection bar that
+  // appears at the bottom, is the very thing you just selected. So, once the bar
+  // has rendered, bring the added verse fully between the top edge and the bar
+  // if it isn't; a verse already in view doesn't move. A verse taller than that
+  // gap shows its start.
   const selectVerse = (verse: number) => {
+    const adding = !selected.has(verse)
     toggleSelect(verse)
+    if (!adding) return
+    requestAnimationFrame(() => {
+      const panel = panelRef.current
+      const el = panel?.querySelector<HTMLElement>(`[data-verse="${verse}"]`)
+      if (!panel || !el) return
+      const bar = document.querySelector<HTMLElement>('[data-action-bar]')
+      const r = el.getBoundingClientRect()
+      const top = panel.getBoundingClientRect().top + REVEAL_GAP
+      const bottom = (bar?.getBoundingClientRect().top ?? panel.getBoundingClientRect().bottom) - REVEAL_GAP
+      const delta = r.top < top ? r.top - top : r.bottom > bottom ? r.bottom - bottom : 0
+      if (delta !== 0) panel.scrollTo({ top: panel.scrollTop + delta, behavior: 'smooth' })
+    })
   }
 
   // A quick tap selects the whole verse. A native text selection (drag on
@@ -1242,7 +1258,10 @@ export function ChapterView({
       {active &&
         hasSelection &&
         createPortal(
-          <div className="fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-40 flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur md:inset-x-auto md:right-3 md:bottom-3 md:min-w-[384px]">
+          <div
+            data-action-bar
+            className="fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-40 flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur md:inset-x-auto md:right-3 md:bottom-3 md:min-w-[384px]"
+          >
           <span className="flex min-w-0 flex-1 items-center gap-2 text-sm text-muted-foreground">
             <span
               aria-hidden
@@ -1287,7 +1306,10 @@ export function ChapterView({
        * selection. */}
       {hlActive &&
         createPortal(
-          <div className="fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-40 flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur md:inset-x-auto md:right-3 md:bottom-3 md:min-w-[384px]">
+          <div
+            data-action-bar
+            className="fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-40 flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur md:inset-x-auto md:right-3 md:bottom-3 md:min-w-[384px]"
+          >
           <span className="flex min-w-0 flex-1 items-center gap-2 text-sm text-muted-foreground">
             {/* The gold swatch signals it's the highlight, not a selection —
               * the same shape the selection bar uses, in its own colour. */}

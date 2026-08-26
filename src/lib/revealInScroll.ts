@@ -81,9 +81,10 @@ function scrollParent(el: HTMLElement): HTMLElement | null {
  * from a footnote in a chapter, a citation in a book introduction and a verse
  * preview inside either, and each sits in a different one.
  *
- * A phone's bottom bar covers the foot of that container, and the padding the
- * container already reserves for it is exactly how much — zero where there is
- * no bar, so no breakpoint of its own to keep in step.
+ * A phone's bottom bar covers the foot of that container by the padding it
+ * reserves for it. The selection bar is different — it floats over the reading
+ * panel rather than being reserved by its padding — so where one is up, its top
+ * edge is the real floor.
  */
 export function revealInScroll(
   target: HTMLElement | HTMLElement[],
@@ -110,7 +111,10 @@ export function revealInScroll(
     return
   }
   const covered = parseFloat(getComputedStyle(pane).paddingBottom) || 0
-  const floor = box.bottom - covered
+  // The floating action bar (selection / highlight copy) isn't reserved by
+  // padding, so pull the floor up to its top edge when one is up.
+  const bar = document.querySelector<HTMLElement>('[data-action-bar]')
+  const floor = Math.min(box.bottom - covered, bar?.getBoundingClientRect().top ?? Infinity)
   const span = (list: HTMLElement[]) => {
     const rects = list.map((el) => el.getBoundingClientRect())
     return {
