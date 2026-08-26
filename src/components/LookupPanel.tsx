@@ -242,7 +242,7 @@ function highlightTokens(text: string, tokens: string[]): ReactNode {
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) out.push(text.slice(last, m.index))
     out.push(
-      <mark key={`k${key++}`} className="rounded-sm bg-highlight/30 text-inherit">
+      <mark key={`k${key++}`} className="rounded-sm bg-highlight/30 text-primary">
         {m[0]}
       </mark>,
     )
@@ -658,6 +658,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
        * a drag crosses the threshold (mobile only; desktop has no swipe). */}
       <div className="mx-4 mt-3 mb-3 flex overflow-hidden rounded-xl border border-border bg-muted">
         <SegTab active={visualTab === 'kw'} onClick={() => setTab('kw')}>關鍵字</SegTab>
+        <span aria-hidden className="w-px self-stretch bg-border" />
         <SegTab active={visualTab === 'ref'} onClick={() => setTab('ref')}>經節</SegTab>
       </div>
 
@@ -678,7 +679,9 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
             }}
           >
             <div className="h-full w-full shrink-0">{kwPanel}</div>
-            <div className="h-full w-full shrink-0">{refPanel}</div>
+            {/* A rule between the two panels, shown as you swipe across — like
+              * the book/chapter divider in the catalog. */}
+            <div className="h-full w-full shrink-0 border-l border-border">{refPanel}</div>
           </div>
         </div>
       ) : (
