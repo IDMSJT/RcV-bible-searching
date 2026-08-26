@@ -307,7 +307,7 @@ const ResultList = memo(function ResultList({
       // a grid gap) so there's no dead strip between rows — hover always tracks
       // the row under the cursor without flicker.
       onMouseLeave={() => onHover(-1, false)}
-      className="grid grid-cols-[auto_1fr] gap-x-2 font-serif text-[length:var(--reading-fs,1rem)] leading-normal md:text-[length:calc(var(--reading-fs,1rem)*0.9375)]"
+      className="grid grid-cols-[auto_1fr] gap-x-2 font-serif text-[length:var(--reading-fs,1rem)] leading-relaxed md:text-[length:calc(var(--reading-fs,1rem)*0.9375)]"
     >
       {rows.map((r, i) => {
         const active =
