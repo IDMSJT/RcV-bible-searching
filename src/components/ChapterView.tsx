@@ -695,8 +695,9 @@ export function ChapterView({
 
   // A verse/heading-focused view (?hl / ?oh) is transient: ScrollBody neither
   // restores into it nor records it, so the jump lands on the verse and the
-  // plain reading position underneath is left alone. So are the two carousel
-  // panels either side of the one being read.
+  // plain reading position underneath is left alone. (Only ever true for the
+  // active panel — the neighbours get no hl/oh; they restore-only instead, so a
+  // swipe back reveals them already at the reader's last position.)
   const isJumpView = ohIndex != null || firstHlVerse != null
 
 
@@ -1057,7 +1058,12 @@ export function ChapterView({
        * swipe live in the pager above; this is just the chapter body. */}
       <ScrollBody
         ref={panelRef}
-        paused={!active || isJumpView}
+        // Its own chapter, not the URL's — the two carousel neighbours are
+        // mounted under the middle panel's pathname, so each must name its own
+        // key or they'd all read/write the same slot.
+        restoreKey={`/${bookNo}/${chapterNo}`}
+        paused={isJumpView}
+        restoreOnly={!active}
         onCopy={handleCopy}
         className="h-full overscroll-y-contain [overflow-anchor:none]"
       >

@@ -19,10 +19,11 @@ import { cn } from '@/lib/utils'
  * scroll — and the copies had drifted apart. Here it is once, so a new page
  * gets it by existing rather than by remembering to ask for it.
  *
- * The position is filed under the pathname, which is enough because only one of
- * these is ever live: the reading carousel mounts three at a time, but the two
- * it isn't showing are paused, and the one it is showing is the one the URL
- * names. `restoreKey` is there for a page that ever breaks that.
+ * The position is filed under the pathname by default. The reading carousel
+ * mounts three panels at once and the URL only names the middle one, so its
+ * neighbours pass an explicit `restoreKey` (their own chapter) and `restoreOnly`
+ * — they restore, so a swipe reveals them already in the right place, but they
+ * don't record, since they aren't the page being read.
  *
  * The search string is deliberately not part of the key. A verse-focused view
  * (`?hl=29`) is a visit to the same page, not a different page; it pauses
@@ -33,14 +34,18 @@ export function ScrollBody({
   children,
   className,
   paused,
+  restoreOnly,
   restoreKey,
   ref,
   ...rest
 }: ComponentPropsWithoutRef<'div'> & {
   /** Skip both halves — don't restore, don't record. For a view that exists to
-   * put the reader somewhere specific (`?hl=`, `?oh=`, `?oe=`), and for the
-   * carousel panels either side of the one being read. */
+   * put the reader somewhere specific (`?hl=`, `?oh=`, `?oe=`). */
   paused?: boolean
+  /** Restore into it but never record from it — a carousel neighbour, so a swipe
+   * reveals it already scrolled to where the reader left it, without its own
+   * offset overwriting the page the URL currently names. */
+  restoreOnly?: boolean
   /** Overrides the pathname, for a page with more than one live region. */
   restoreKey?: string
   ref?: RefObject<HTMLDivElement | null>
@@ -67,6 +72,9 @@ export function ScrollBody({
     const frames = [requestAnimationFrame(apply)]
     frames.push(requestAnimationFrame(() => frames.push(requestAnimationFrame(apply))))
 
+    // A neighbour restores but never records — it isn't the page being read.
+    if (restoreOnly) return () => frames.forEach(cancelAnimationFrame)
+
     let raf = 0
     const onScroll = () => {
       cancelAnimationFrame(raf)
@@ -78,7 +86,7 @@ export function ScrollBody({
       cancelAnimationFrame(raf)
       node.removeEventListener('scroll', onScroll)
     }
-  }, [el, id, paused])
+  }, [el, id, paused, restoreOnly])
 
   return (
     <div

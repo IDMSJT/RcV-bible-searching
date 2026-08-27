@@ -46,7 +46,11 @@ export function OutlineView({
   return (
     <ScrollBody
       ref={panelRef}
-      paused={!active || isJump}
+      // Its own book, not the URL's — a carousel neighbour is mounted under the
+      // middle panel's pathname, so it names its own key.
+      restoreKey={`/${bookNo}`}
+      paused={isJump}
+      restoreOnly={!active}
       className="h-full overscroll-y-contain [overflow-anchor:none]"
     >
       <article className="mx-auto max-w-3xl px-[2.8125rem] py-6 md:px-[3.8125rem] md:py-10">
