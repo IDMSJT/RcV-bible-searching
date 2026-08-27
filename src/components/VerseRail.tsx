@@ -76,7 +76,7 @@ export function VerseRail({
         // are about 22px and px-2 adds 16, so 2.5rem covers both and one digit
         // is padded out to match. Three keeps growing, which is right — the
         // psalms have verses past a hundred.
-        <div className="pointer-events-none fixed top-1/2 right-12 z-50 flex min-w-10 -translate-y-1/2 justify-center rounded-lg bg-foreground/85 px-2 py-1.5 font-sans text-lg font-medium text-background tabular-nums">
+        <div className="pointer-events-none fixed top-1/2 left-1/2 z-50 flex min-w-10 -translate-x-1/2 -translate-y-1/2 justify-center rounded-lg bg-foreground px-2 py-1.5 font-sans text-lg font-medium text-background shadow-lg tabular-nums">
           {held}
         </div>
       )}
@@ -94,7 +94,7 @@ export function VerseRail({
         onPointerUp={release}
         onPointerCancel={release}
         style={{ height: marks.length * RAIL_SLOT }}
-        className="fixed top-1/2 right-0 z-30 flex -translate-y-1/2 touch-none flex-col items-end justify-between pr-1 pl-3 font-sans text-[0.6875rem] leading-none font-medium text-muted-foreground/70 tabular-nums select-none"
+        className="fixed top-1/2 right-0 z-30 flex w-8 -translate-y-1/2 touch-none flex-col items-end justify-between pr-1 font-sans text-[0.6875rem] leading-none font-medium text-muted-foreground/70 tabular-nums select-none"
       >
         {marks.map((v) => (
           <span key={v}>{v}</span>
