@@ -1,8 +1,10 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ChevronLeft } from 'lucide-react'
-import { CANON, type CanonBook } from '@/data/canon'
+import { ChevronLeft, X } from 'lucide-react'
+import { CANON, BOOK_BY_NO, type CanonBook } from '@/data/canon'
 import { BOOK_ABBREV } from '@/data/abbrev'
+import { chapterUnit } from '@/lib/chinese'
+import type { Visit } from '@/lib/readingHistory'
 import {
   Tooltip,
   TooltipContent,
@@ -33,6 +35,10 @@ interface SharedProps {
    * from __root so the bottom-nav button can cycle it. Desktop shows both. */
   pane?: 0 | 1
   onPaneChange?: (pane: 0 | 1) => void
+  /** Chapters the reader has opened, newest first — shown by the 歷史 button in
+   * the book pane's header. Swiped-past chapters aren't in it. */
+  history?: Visit[]
+  onRemoveHistory?: (visit: Visit) => void
 }
 
 // Two-pane catalog: books on the left, chapters on the right. Mobile uses a
@@ -45,11 +51,23 @@ export function CatalogPanel(props: SharedProps) {
   return <DesktopCatalog {...props} />
 }
 
-function DesktopCatalog({ activeBookNo, activeChapterNo, activeBook, onPick }: SharedProps) {
+function DesktopCatalog({
+  activeBookNo,
+  activeChapterNo,
+  activeBook,
+  onPick,
+  history = [],
+  onRemoveHistory,
+}: SharedProps) {
   return (
     <div className="relative flex h-full">
       <div className="w-1/2 overflow-y-auto">
-        <BookPicker activeBookNo={activeBookNo} />
+        <BookPicker
+          activeBookNo={activeBookNo}
+          history={history}
+          onPickHistory={onPick}
+          onRemoveHistory={onRemoveHistory}
+        />
       </div>
       <div className="w-1/2 overflow-y-auto">
         {activeBook && (
@@ -79,6 +97,8 @@ function MobileCatalog({
   onPick,
   pane,
   onPaneChange,
+  history = [],
+  onRemoveHistory,
 }: SharedProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const innerRef = useRef<HTMLDivElement>(null)
@@ -240,6 +260,9 @@ function MobileCatalog({
           <BookPicker
             activeBookNo={activeBookNo}
             onPickBook={handlePickBook}
+            history={history}
+            onPickHistory={onPick}
+            onRemoveHistory={onRemoveHistory}
           />
         </div>
         <div ref={chapterPaneRef} className="w-1/2 shrink-0 overflow-y-auto">
@@ -264,28 +287,112 @@ function MobileCatalog({
 const BookPicker = memo(function BookPicker({
   activeBookNo,
   onPickBook,
+  history = [],
+  onPickHistory,
+  onRemoveHistory,
 }: {
   activeBookNo: number | null
   onPickBook?: () => void
+  history?: Visit[]
+  onPickHistory?: () => void
+  onRemoveHistory?: (visit: Visit) => void
 }) {
+  // Each header stacks at the top once its section has scrolled above the
+  // viewport and at the bottom while it is still below, so all of them stay in
+  // reach — which means every header's insets depend on how many sit either
+  // side of it. With 歷史紀錄 present that's three deep; without it, two.
+  const hasHistory = history.length > 0
   return (
     <>
       <AccordionHeader
         label="舊約"
-        stickyCls="sticky top-0 bottom-[var(--header-h)] md:bottom-9"
+        stickyCls={cn(
+          'sticky top-0',
+          hasHistory
+            ? 'bottom-[calc(var(--header-h)*2-1px)] md:bottom-[calc(4.5rem-1px)]'
+            : 'bottom-[var(--header-h)] md:bottom-9',
+        )}
         anchorCls="scroll-mt-0"
       />
       <BookSection books={OT_BOOKS} activeBookNo={activeBookNo} onPickBook={onPickBook} />
       <AccordionHeader
         label="新約"
         topBorder
-        stickyCls="sticky top-[calc(var(--header-h)-1px)] md:top-[calc(2.25rem-1px)] bottom-0"
+        stickyCls={cn(
+          'sticky top-[calc(var(--header-h)-1px)] md:top-[calc(2.25rem-1px)]',
+          hasHistory ? 'bottom-[calc(var(--header-h)-1px)] md:bottom-[calc(2.25rem-1px)]' : 'bottom-0',
+        )}
         anchorCls="scroll-mt-[calc(var(--header-h)-1px)] md:scroll-mt-[calc(2.25rem-1px)]"
       />
       <BookSection books={NT_BOOKS} activeBookNo={activeBookNo} onPickBook={onPickBook} />
+      {hasHistory && (
+        <>
+          <AccordionHeader
+            label="歷史紀錄"
+            topBorder
+            stickyCls="sticky top-[calc(var(--header-h)*2-2px)] md:top-[calc(4.5rem-2px)] bottom-0"
+            anchorCls="scroll-mt-[calc(var(--header-h)*2-2px)] md:scroll-mt-[calc(4.5rem-2px)]"
+          />
+          <HistoryList history={history} onPick={onPickHistory} onRemove={onRemoveHistory} />
+        </>
+      )}
     </>
   )
 })
+
+/**
+ * 歷史紀錄 — the chapters the reader opened, newest first.
+ *
+ * The third section of the book pane, under 新約, rather than a view of its
+ * own: it answers the same question the books above it do — which chapter am I
+ * going to — just from where you have been instead of from the canon.
+ */
+function HistoryList({
+  history,
+  onPick,
+  onRemove,
+}: {
+  history: Visit[]
+  onPick?: () => void
+  onRemove?: (visit: Visit) => void
+}) {
+  return (
+    <>
+      {history.map((v) => (
+        // The row is a link with its own remove button beside it, not one inside
+        // the other — an entry is a place to go, and dropping it is a separate
+        // action on the same row.
+        <div
+          key={`${v.bookNo}-${v.chapterNo}`}
+          className="flex items-stretch border-b border-border last:border-b-0"
+        >
+          <Link
+            to="/$bookNo/$chapterNo"
+            params={{ bookNo: v.bookNo, chapterNo: v.chapterNo }}
+            search={{}}
+            onClick={onPick}
+            className="flex flex-1 items-baseline gap-2 px-4 py-4 text-base transition-colors hover:bg-muted md:py-2.5 md:text-sm"
+          >
+            <span className="font-medium">{BOOK_BY_NO.get(v.bookNo)?.name ?? ''}</span>
+            <span className="text-muted-foreground">
+              第 {v.chapterNo} {chapterUnit(v.bookNo)}
+            </span>
+          </Link>
+          {onRemove && (
+            <button
+              type="button"
+              onClick={() => onRemove(v)}
+              aria-label="移除這筆紀錄"
+              className="inline-flex shrink-0 items-center px-3 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <X className="size-4" />
+            </button>
+          )}
+        </div>
+      ))}
+    </>
+  )
+}
 
 const ChapterPicker = memo(function ChapterPicker({
   book,

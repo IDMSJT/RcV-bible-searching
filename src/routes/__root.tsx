@@ -14,6 +14,7 @@ import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer'
 import { ChangelogDrawer } from '@/components/ChangelogDrawer'
 import { ScanProvider } from '@/components/ScanProvider'
 import { SwUpdate } from '@/components/SwUpdate'
+import { HISTORY_KEY, recordVisit, removeVisit, type Visit } from '@/lib/readingHistory'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { cn } from '@/lib/utils'
@@ -129,6 +130,24 @@ function RootComponent() {
   useEffect(() => {
     if (/^\/\d+\/\d+/.test(pathname)) setLastChapter(location.href)
   }, [location.href, pathname, setLastChapter])
+
+  // The chapters the reader has opened, for the catalog's 歷史 list. Recorded
+  // here rather than at each link because every way in — the catalog, a search
+  // result, a citation, the desktop arrows, the back button — passes through a
+  // pathname change. The one route that doesn't count is the carousel swipe,
+  // which raises a flag pushVisit consumes (see readingHistory.ts).
+  const [history, setHistory] = useLocalStorage<Visit[]>(HISTORY_KEY, [])
+  useEffect(() => {
+    if (activeBookNo == null || activeChapterNo == null) return
+    const next = recordVisit(activeBookNo, activeChapterNo, Date.now())
+    if (next) setHistory(next)
+  }, [activeBookNo, activeChapterNo, setHistory])
+  // Stable, so the memoized book grid (and its 66 tooltips) doesn't rebuild
+  // every render — the list it sits beside now lives in the same pane.
+  const removeHistoryEntry = useCallback(
+    (v: Visit) => setHistory(removeVisit(v.bookNo, v.chapterNo)),
+    [setHistory],
+  )
 
   // Reset the drawer snap whenever the displayed panel changes — settings
   // opens at half, everything else at full. Vaul animates between snaps.
@@ -402,6 +421,8 @@ function RootComponent() {
         onPick={closeDrawer}
         pane={catalogPane}
         onPaneChange={setCatalogPane}
+        history={history}
+        onRemoveHistory={removeHistoryEntry}
       />
     )
 

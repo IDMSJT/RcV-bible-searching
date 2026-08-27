@@ -13,6 +13,7 @@ import { useBible, findChapter } from '@/data/loadBible'
 import { chapterUnit } from '@/lib/chinese'
 import { parseHighlight } from '@/lib/highlight'
 import { prevRef, nextRef, refKey, type ReadingRef } from '@/lib/readingRef'
+import { skipNextVisit } from '@/lib/readingHistory'
 import { useCarousel } from '@/lib/useCarousel'
 import { useIsTouch } from '@/lib/useIsTouch'
 import { ChapterView } from '@/components/ChapterView'
@@ -128,7 +129,10 @@ export function ReadingPager() {
   const prev = prevRef(current)
   const next = nextRef(current)
 
+  // Only the carousel calls this — the desktop prev/next arrows are Links — so
+  // it is exactly the set of moves the reading history ignores.
   const goTo = (ref: ReadingRef) => {
+    skipNextVisit()
     // replace, not push: a swipe between chapters shouldn't stack a history
     // entry per chapter. It also sidesteps iOS Safari's interactive back-swipe,
     // whose page snapshot for an SPA history entry captures the *next* chapter
