@@ -213,7 +213,16 @@ function renderBackdrop(
 }
 
 type LookupTab = 'ref' | 'kw'
+// Keyword matches shown at once. A broad word (神, 愛) hits thousands of verses;
+// past a few hundred the unvirtualised list starts to drag on a phone, and the
+// `total` count still tells the honest number. Copy-all is gated separately.
 const KW_RESULT_CAP = 500
+
+// Past this many results, "copy / share all" (what the buttons do when nothing
+// is picked) stops being a real action — a broad keyword can return thousands.
+// So above it, with no manual selection, the buttons give way to a nudge to
+// select; picking any verses brings them back, acting on the selection.
+const COPY_ALL_MAX = 200
 // Stable empty-tokens reference so the 經節 panel's memoized ResultList isn't
 // invalidated by a fresh [] on every parent re-render (e.g. each swipe frame).
 const NO_TOKENS: string[] = []
@@ -977,24 +986,32 @@ function CopyAllBar({
             ? `共 ${total} 節（顯示前 ${resolved.length}）`
             : `共 ${total} 節`}
       </span>
-      <div className="ml-auto flex items-center gap-2">
-        <button type="button" onClick={share} className={barBtn}>
-          分享
-        </button>
-        <button type="button" onClick={copy} className={barBtn}>
-          複製
-        </button>
-        {selecting && (
-          <button
-            type="button"
-            onClick={onClear}
-            aria-label="取消選取"
-            className="rounded-md px-1.5 py-1 text-muted-foreground transition-all duration-150 hover:text-foreground active:scale-95"
-          >
-            <X className="size-4" />
+      {!selecting && resolved.length > COPY_ALL_MAX ? (
+        // Too many to copy in one go — nudge toward selecting instead of
+        // offering a copy-all that would choke the clipboard / share sheet.
+        <span className="ml-auto whitespace-nowrap text-sm text-muted-foreground">
+          選取經節以複製
+        </span>
+      ) : (
+        <div className="ml-auto flex items-center gap-2">
+          <button type="button" onClick={share} className={barBtn}>
+            分享
           </button>
-        )}
-      </div>
+          <button type="button" onClick={copy} className={barBtn}>
+            複製
+          </button>
+          {selecting && (
+            <button
+              type="button"
+              onClick={onClear}
+              aria-label="取消選取"
+              className="rounded-md px-1.5 py-1 text-muted-foreground transition-all duration-150 hover:text-foreground active:scale-95"
+            >
+              <X className="size-4" />
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
