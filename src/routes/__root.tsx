@@ -320,21 +320,32 @@ function RootComponent() {
   }
 
   // The left button's label names its next stop in the reading cycle: from
-  // reading it opens the chapter pane (選章); on the chapter pane it moves to
-  // books (選書); on the book pane it returns to the chapter (詩46). Off the
-  // reading surface it just says the chapter it returns to.
+  // reading it opens the chapter pane (選章 — or 綱目 on an outline page, which
+  // has no chapter to pick into); on the chapter pane it moves to books (選書);
+  // on the book pane it returns to the chapter (詩46). Off the reading surface it
+  // just says the chapter it returns to.
   const catalogNavLabel =
     drawerOpen && effectiveMode === 'catalog'
       ? catalogPane === 1
         ? '選書'
         : readingLabel
       : /^\/\d+/.test(pathname) && !drawerOpen
-        ? '選章'
+        ? activeChapterNo != null
+          ? '選章'
+          : '綱目'
         : readingLabel
+  // The button steps *into* the catalog (menu icon) when reading with the drawer
+  // shut, or on the chapter pane heading for books; otherwise it points back to
+  // reading (book icon). Derived here rather than by matching the label, so the
+  // outline page's 綱目 counts as a step in without being a third string to list.
+  const catalogIsMenuStep =
+    (/^\/\d+/.test(pathname) && !drawerOpen) ||
+    (drawerOpen && effectiveMode === 'catalog' && catalogPane === 1)
 
   const sharedNavButtons = (
     isActive: (m: SidebarMode) => boolean,
     catalogLabel: string,
+    catalogIsMenu = false,
   ) => (
     <>
       <NavButton
@@ -342,12 +353,9 @@ function RootComponent() {
         label={catalogLabel}
         onClick={() => onNavTap('catalog')}
       >
-        {/* A menu icon while the button is a step into the catalog (選章/選書);
-          * the book once it points back to reading. */}
-        <NavIcon
-          icon={catalogLabel === '選章' || catalogLabel === '選書' ? Menu : BookOpen}
-          className={navIcon}
-        />
+        {/* A menu icon while the button is a step into the catalog; the book
+          * once it points back to reading. */}
+        <NavIcon icon={catalogIsMenu ? Menu : BookOpen} className={navIcon} />
       </NavButton>
       <NavButton
         active={isActive('lookup')}
@@ -477,6 +485,7 @@ function RootComponent() {
             return false
           },
           catalogNavLabel,
+          catalogIsMenuStep,
         )}
         <NavButton
           // The drawer is what makes settings the surface: `effectiveMode`
