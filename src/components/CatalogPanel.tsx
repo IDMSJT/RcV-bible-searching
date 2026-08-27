@@ -487,7 +487,7 @@ function AccordionHeader({
    * viewport and at the bottom when it's below — both ends always visible. */
   stickyCls?: string
   /** scroll-margin-top utilities for the anchor div that mirror the sticky
-   * top inset. scrollIntoView is called on this anchor (NOT the sticky button)
+   * top inset. The scroll is measured from this anchor (NOT the sticky button)
    * because the browser reads sticky elements' currently-stuck box position
    * as "where they are" — so clicking a bottom-stuck or top-stuck button gives
    * the wrong delta. The anchor sits at the natural flow position with no
@@ -495,12 +495,35 @@ function AccordionHeader({
   anchorCls?: string
 }) {
   const anchorRef = useRef<HTMLDivElement>(null)
+
+  // Scroll the pane itself rather than calling scrollIntoView on the anchor:
+  // that walks every scrollable ancestor, so it also dragged the drawer (and
+  // the page behind it) up, taking the whole panel off screen. Writing scrollTop
+  // touches only this pane, and clamping to its range means a short last section
+  // simply lands at the bottom instead of trying to reach a top it can't.
+  const scrollToSection = () => {
+    const anchor = anchorRef.current
+    if (!anchor) return
+    let pane = anchor.parentElement
+    while (pane) {
+      const oy = getComputedStyle(pane).overflowY
+      if ((oy === 'auto' || oy === 'scroll') && pane.scrollHeight > pane.clientHeight) break
+      pane = pane.parentElement
+    }
+    if (!pane) return
+    // The sticky inset this header comes to rest at, as set by anchorCls.
+    const inset = parseFloat(getComputedStyle(anchor).scrollMarginTop) || 0
+    const delta = anchor.getBoundingClientRect().top - pane.getBoundingClientRect().top - inset
+    const max = pane.scrollHeight - pane.clientHeight
+    pane.scrollTo({ top: Math.max(0, Math.min(pane.scrollTop + delta, max)), behavior: 'smooth' })
+  }
+
   return (
     <>
       <div ref={anchorRef} aria-hidden className={cn('h-0', anchorCls)} />
       <button
         type="button"
-        onClick={() => anchorRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' })}
+        onClick={scrollToSection}
         className={cn(
           stickyCls,
           'z-10 flex h-[var(--header-h)] w-full items-center justify-between border-b border-border bg-muted/80 px-4 text-base font-medium backdrop-blur transition-colors hover:bg-muted md:h-9 md:text-xs md:font-semibold',
