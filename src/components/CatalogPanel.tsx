@@ -384,7 +384,10 @@ function HistoryList({
               type="button"
               onClick={() => onRemove(v)}
               aria-label="移除這筆紀錄"
-              className="inline-flex shrink-0 items-center px-3 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              // More room on the outside than the in: pr-4 sets the X the same
+              // distance off the right edge as the entry's text sits from the
+              // left, so the row is inset evenly.
+              className="inline-flex shrink-0 items-center pl-3 pr-4 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <X className="size-4" />
             </button>
