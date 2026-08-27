@@ -330,9 +330,9 @@ function RootComponent() {
     if (isMobile && /^\/\d+/.test(pathname)) {
       if (drawerOpen && effectiveMode === 'catalog') {
         if (catalogPane === 1) setCatalogPane(0) // chapters → books
-        else setDrawerOpen(false) // books → back to reading
+        else closeDrawer() // books → back to reading, chapter pane ready again
       } else if (drawerOpen) {
-        setDrawerOpen(false) // some other panel (settings) over reading → close it
+        closeDrawer() // some other panel (settings) over reading → close it
       } else {
         setCatalogPane(1) // reading → open onto the chapter pane
         openMode('catalog')
@@ -402,7 +402,12 @@ function RootComponent() {
   // Stable callback so CatalogPanel's memoized BookPicker / ChapterPicker
   // children don't re-render on every root render — without this every prev/
   // next chapter URL change cascades through the 66 Tooltip wrappers.
-  const closeDrawer = useCallback(() => setDrawerOpen(false), [])
+  // A dismissed drawer forgets it was left on the book pane: the catalog is for
+  // picking a chapter, so that's the pane waiting the next time it opens.
+  const closeDrawer = useCallback(() => {
+    setDrawerOpen(false)
+    setCatalogPane(1)
+  }, [])
 
   // Sidebar body, shared between desktop aside and mobile drawer. Its outer
   // width is set by the wrapper (aside on desktop, drawer on mobile).
@@ -535,6 +540,7 @@ function RootComponent() {
           // A bottom-nav tap drives its own open/close through onNavTap; ignore
           // vaul's close for it so a pane-swap tap doesn't also shut the drawer.
           if (!o && lastPointerInNavRef.current) return
+          if (!o) setCatalogPane(1)
           setDrawerOpen(o)
         }}
         snapPoints={snapsFor(effectiveMode)}
