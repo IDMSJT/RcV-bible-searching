@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { InputActions } from '@/components/InputActions'
-import { ACTION_BAR_CLS } from '@/lib/chrome'
+import { ACTION_BAR_CLS, ACTION_BAR_BTN_PRIMARY } from '@/lib/chrome'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
@@ -34,30 +34,14 @@ export function ComposePanel({ onDone }: { onDone?: () => void } = {}) {
             ? '貼上綱要，下面會列出每個點的經文…'
             : '貼上綱要，右邊會列出每個點下面的經文…'
         }
-        // pb-20 keeps the last line clear of the bar floating over it.
-        className="min-h-0 flex-1 resize-none bg-transparent p-4 pb-20 font-serif text-base leading-relaxed outline-none placeholder:text-muted-foreground md:text-sm"
+        className="min-h-0 flex-1 resize-none bg-transparent p-4 font-serif text-base leading-relaxed outline-none placeholder:text-muted-foreground md:text-sm"
 
       />
-      {/* One bar instead of two floating corners: 清除/貼上 at the near end, 完成
-       * at the far one, framed the way the search panel frames its own actions.
-       *
-       * Over the field, not below it. The panel is one textarea from top to
-       * bottom, and a bar taking height out of the flow reads as a second pane
-       * rather than as the field's own controls — which is what the frame's
-       * translucency is for: the words carry on behind it. */}
-      <div
-        className={cn(
-          'absolute inset-x-3 bottom-3 flex h-14 items-center gap-2 px-2.5 text-sm',
-          ACTION_BAR_CLS,
-        )}
-      >
-        <InputActions
-          value={input}
-          onChange={setInput}
-          focusRef={textareaRef}
-          className=""
-          btnClassName="px-4 py-2 text-sm"
-        />
+      {/* 清除/貼上 at the near end, 完成 at the far one, on the docked action row
+       * the rest of the app uses — a solid strip below the field rather than a
+       * pill floating over it. */}
+      <div className={cn('gap-2', ACTION_BAR_CLS)}>
+        <InputActions value={input} onChange={setInput} focusRef={textareaRef} variant="bar" />
         {/* Mobile-only dismiss — the drawer overlays the rendered article, so
          * once the user is done editing they need a one-tap way to collapse it.
          * Hidden on desktop, where the aside is permanent. */}
@@ -65,7 +49,7 @@ export function ComposePanel({ onDone }: { onDone?: () => void } = {}) {
           <button
             type="button"
             onClick={onDone}
-            className="ml-auto rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-95 md:hidden"
+            className={cn('ml-auto md:hidden', ACTION_BAR_BTN_PRIMARY)}
           >
             完成
           </button>

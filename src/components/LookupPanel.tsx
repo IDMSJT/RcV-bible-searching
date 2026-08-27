@@ -31,6 +31,7 @@ import { renderMarkedText, renderNoteText } from '@/lib/renderVerse'
 import { InputActions } from '@/components/InputActions'
 import { BookRail, type RailBook } from '@/components/BookRail'
 import { ScrollBody } from '@/components/ScrollBody'
+import { ACTION_BAR_CLS, ACTION_BAR_BTN, ACTION_BAR_BTN_GHOST } from '@/lib/chrome'
 import { cn } from '@/lib/utils'
 
 // The /search field, shared by both tabs (and both viewports) so they read
@@ -971,14 +972,12 @@ function CopyAllBar({
     }
   }
 
-  // A bar docked across the foot of the results, not a floating pill — it fills
-  // the width, so its own solid background is all the separation from the
-  // scrolling results it needs (no frame, no margin). Buttons match the small
-  // grey pills under the search field.
-  const barBtn =
-    'rounded-md bg-secondary px-2.5 py-1.5 text-xs font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95'
+  // The docked action row shared with the rest of the app (see chrome.ts): fills
+  // the width, its own top rule and solid background all the separation from the
+  // scrolling results it needs. sticky so it floats over the results and sinks
+  // to the foot when they're short.
   return (
-    <div className="sticky bottom-0 z-10 flex h-13 shrink-0 items-center gap-2 border-t border-border bg-card px-4 text-sm">
+    <div className={cn('sticky bottom-0 z-10 shrink-0 gap-2', ACTION_BAR_CLS)}>
       <span className="whitespace-nowrap text-sm text-muted-foreground">
         {selecting
           ? `選取 ${selected.size} 節`
@@ -994,10 +993,10 @@ function CopyAllBar({
         </span>
       ) : (
         <div className="ml-auto flex items-center gap-2">
-          <button type="button" onClick={share} className={barBtn}>
+          <button type="button" onClick={share} className={ACTION_BAR_BTN}>
             分享
           </button>
-          <button type="button" onClick={copy} className={barBtn}>
+          <button type="button" onClick={copy} className={ACTION_BAR_BTN}>
             複製
           </button>
           {selecting && (
@@ -1005,7 +1004,7 @@ function CopyAllBar({
               type="button"
               onClick={onClear}
               aria-label="取消選取"
-              className="rounded-md px-1.5 py-1 text-muted-foreground transition-all duration-150 hover:text-foreground active:scale-95"
+              className={ACTION_BAR_BTN_GHOST}
             >
               <X className="size-4" />
             </button>

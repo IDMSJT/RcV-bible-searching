@@ -12,7 +12,7 @@ import { useLocalStorage } from '@/lib/useLocalStorage'
 import { parseStudyLines, type StudyLine, type StudySegment, type VerseRef } from '@/lib/studyParse'
 import { renderMarkedText, renderNoteText } from '@/lib/renderVerse'
 import { ScrollBody } from '@/components/ScrollBody'
-import { ACTION_BAR_CLS } from '@/lib/chrome'
+import { ACTION_BAR_CLS, ACTION_BAR_BTN, ACTION_BAR_BTN_PRIMARY } from '@/lib/chrome'
 import { cn } from '@/lib/utils'
 import type { Annotation, AnnotationData, Bible, Mark } from '@/types/bible'
 
@@ -427,7 +427,10 @@ function ComposePage() {
 
   return (
     <ScrollBody className="min-h-0 flex-1 print:overflow-visible print:pb-0">
-    <article className="relative mx-auto max-w-3xl px-4 py-6 md:px-8 md:py-10">
+    {/* min-h-full + a flex-1 article pushes the docked bar to the foot even when
+      * the outline is short, the same way the search results seat their bar. */}
+    <div className="flex min-h-full flex-col">
+    <article className="relative mx-auto w-full max-w-3xl flex-1 px-4 py-6 md:px-8 md:py-10">
       <div className="flex flex-col font-serif leading-relaxed tracking-wide text-[length:var(--reading-fs,1rem)] print:text-base">
         {lines.map((line, i) => {
           const p = parsed[i]
@@ -493,26 +496,11 @@ function ComposePage() {
         })}
       </div>
     </article>
-    {/* 複製 + 列印, framed and laid out the way the search panel lays out its
-     * own actions, so the two read as the same kind of furniture.
-     *
-     * Sticky inside the scroller rather than fixed to the viewport: on the wide
-     * layout a fixed bar spans the sidebar too, and this one is meant to belong
-     * to the document, so it takes the document's width. Being in flow, it also
-     * needs no padding reserved under the last line — at the foot of the scroll
-     * it is simply the last thing there. bottom-3 and nothing more: the scroll
-     * region already ends above the bottom nav, so adding its height again only
-     * strands the bar in the middle of the text.
-     *
-     * mx-3 is the inset the search panel's bar and the editor's both use. Not
-     * the article's px-4: the outline indents its own text a further 2rem, so
-     * there is no edge there to line up with anyway. */}
-    <div
-      className={cn(
-        'sticky bottom-3 z-40 mx-3 mb-3 flex h-14 max-w-3xl items-center gap-2 px-2.5 text-sm md:mx-auto print:hidden',
-        ACTION_BAR_CLS,
-      )}
-    >
+    {/* 複製 + 列印 on the same docked row the search results use. Sticky inside
+     * the scroller, not fixed to the viewport: on the wide layout a fixed bar
+     * would span the sidebar too. At the foot of the scroll it's simply the last
+     * thing there, so it reserves no padding under the last line. */}
+    <div className={cn('sticky bottom-0 z-40 gap-2 print:hidden', ACTION_BAR_CLS)}>
       {/* Labelled with what it will do rather than with what is on, so it can
        * dress as the action it is and sit beside 複製 without a second visual
        * vocabulary for the reader to learn. Which also means no aria-pressed:
@@ -521,24 +509,17 @@ function ComposePage() {
       <button
         type="button"
         onClick={() => setMerge(!merge)}
-        className="mr-auto rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95"
+        className={cn('mr-auto', ACTION_BAR_BTN)}
       >
         {merge ? '分離經節' : '合併經節'}
       </button>
-      <button
-        type="button"
-        onClick={copyText}
-        className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95"
-      >
+      <button type="button" onClick={copyText} className={ACTION_BAR_BTN}>
         複製
       </button>
-      <button
-        type="button"
-        onClick={() => window.print()}
-        className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-95"
-      >
+      <button type="button" onClick={() => window.print()} className={ACTION_BAR_BTN_PRIMARY}>
         列印
       </button>
+    </div>
     </div>
     </ScrollBody>
   )

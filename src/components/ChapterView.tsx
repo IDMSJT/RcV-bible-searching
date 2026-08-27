@@ -47,6 +47,12 @@ import type { Open } from '@/lib/renderVerse'
 import { OutlineLabel } from '@/components/OutlineLabel'
 import { ScrollBody } from '@/components/ScrollBody'
 import { rememberScroll } from '@/lib/scrollMemory'
+import {
+  FLOATING_ACTION_BAR_CLS,
+  ACTION_BAR_BTN,
+  ACTION_BAR_BTN_PRIMARY,
+  ACTION_BAR_BTN_GHOST,
+} from '@/lib/chrome'
 import type { HlItem } from '@/lib/highlight'
 import { REVEAL_GAP, revealInScroll } from '@/lib/revealInScroll'
 import { useIsTouch } from '@/lib/useIsTouch'
@@ -1267,7 +1273,7 @@ export function ChapterView({
         createPortal(
           <div
             data-action-bar
-            className="fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-40 flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur md:inset-x-auto md:right-3 md:bottom-3 md:min-w-[384px]"
+            className={FLOATING_ACTION_BAR_CLS}
           >
           <span className="flex min-w-0 flex-1 items-center gap-2 text-sm text-muted-foreground">
             <span
@@ -1283,14 +1289,14 @@ export function ChapterView({
             <button
               type="button"
               onClick={shareSelected}
-              className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95"
+              className={ACTION_BAR_BTN}
             >
               分享
             </button>
             <button
               type="button"
               onClick={copySelected}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-95"
+              className={ACTION_BAR_BTN_PRIMARY}
             >
               複製
             </button>
@@ -1298,9 +1304,9 @@ export function ChapterView({
               type="button"
               onClick={exitSelection}
               aria-label="取消"
-              className="rounded-lg px-2 py-2 text-muted-foreground transition-all duration-150 hover:text-foreground active:scale-95"
+              className={ACTION_BAR_BTN_GHOST}
             >
-              <X className="size-4.5" />
+              <X className="size-4" />
             </button>
           </div>
         </div>,
@@ -1315,7 +1321,7 @@ export function ChapterView({
         createPortal(
           <div
             data-action-bar
-            className="fixed inset-x-3 bottom-[calc(var(--nav-h)+0.75rem)] z-40 flex h-14 items-center gap-3 rounded-xl border border-border bg-popover/95 px-4 pr-2.5 text-sm shadow-lg backdrop-blur md:inset-x-auto md:right-3 md:bottom-3 md:min-w-[384px]"
+            className={FLOATING_ACTION_BAR_CLS}
           >
           <span className="flex min-w-0 flex-1 items-center gap-2 text-sm text-muted-foreground">
             {/* The gold swatch signals it's the highlight, not a selection —
@@ -1330,14 +1336,14 @@ export function ChapterView({
             <button
               type="button"
               onClick={shareHl}
-              className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95"
+              className={ACTION_BAR_BTN}
             >
               分享
             </button>
             <button
               type="button"
               onClick={copyHl}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-95"
+              className={ACTION_BAR_BTN_PRIMARY}
             >
               複製
             </button>
@@ -1345,9 +1351,9 @@ export function ChapterView({
               type="button"
               onClick={clearHl}
               aria-label="移除標示"
-              className="rounded-lg px-2 py-2 text-muted-foreground transition-all duration-150 hover:text-foreground active:scale-95"
+              className={ACTION_BAR_BTN_GHOST}
             >
-              <X className="size-4.5" />
+              <X className="size-4" />
             </button>
           </div>
         </div>,
