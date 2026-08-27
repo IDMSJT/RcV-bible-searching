@@ -53,7 +53,14 @@ export function OutlineView({
       restoreOnly={!active}
       className="h-full overscroll-y-contain [overflow-anchor:none]"
     >
-      <article className="mx-auto max-w-3xl px-[2.8125rem] py-6 md:px-[3.8125rem] md:py-10">
+      {/* The entries line up with the same headings shown inside a chapter,
+        * where they sit in the reading grid's second column — so the padding is
+        * that column's offset spelled out: the article's own px, the verse
+        * number column (1.3125em of the reading size) and the grid's gap-x-2.
+        * Written as the formula rather than the 2.8125rem it comes to at the
+        * default size, since the middle term scales with --reading-fs and a
+        * constant would drift out of line the moment the reader changed it. */}
+      <article className="mx-auto max-w-3xl px-[calc(1rem+1.3125*var(--reading-fs,1rem)+0.5rem)] py-6 md:px-[calc(2rem+1.3125*var(--reading-fs,1rem)+0.5rem)] md:py-10">
         <BookIntro book={book} bookNo={bookNo} />
         <div className="flex flex-col gap-y-2.5 font-sans text-[length:calc(var(--reading-fs,1rem)*0.875)]">
           {entries.map((e, i) => (
