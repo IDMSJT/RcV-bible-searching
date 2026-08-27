@@ -371,6 +371,7 @@ function HistoryList({
             params={{ bookNo: v.bookNo, chapterNo: v.chapterNo }}
             search={{}}
             onClick={onPick}
+            viewTransition={false}
             className="flex flex-1 items-baseline gap-2 px-4 py-4 text-base transition-colors hover:bg-muted md:py-2.5 md:text-sm"
           >
             <span className="font-medium">{BOOK_BY_NO.get(v.bookNo)?.name ?? ''}</span>
@@ -463,6 +464,7 @@ function ChapterHeader({
           to="/$bookNo"
           params={{ bookNo: book.bookNo }}
           onClick={onPick}
+          viewTransition={false}
           className="inline-flex items-center px-4 font-medium text-primary transition-colors hover:bg-muted"
         >
           綱目
@@ -616,25 +618,44 @@ function ChapterRow({
 }) {
   return (
     <div className="grid grid-cols-5">
-      {rowChapters.map((ch, col) => (
-        <Link
-          key={ch}
-          to="/$bookNo/$chapterNo"
-          params={{ bookNo: book.bookNo, chapterNo: ch }}
-          search={{}}
-          onClick={onPick}
-          data-active={activeChapterNo === ch || undefined}
-          className={cn(
+      {rowChapters.map((ch, col) => {
+        const active = activeChapterNo === ch
+        // data-active marks the cell the pane centres on when it opens.
+        const cellProps = {
+          'data-active': active || undefined,
+          className: cn(
             '@container flex aspect-square items-center justify-center border-b border-border transition-colors',
             col !== COLS - 1 && 'border-r',
-            activeChapterNo === ch
+            active
               ? 'bg-secondary text-secondary-foreground font-medium'
               : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-          )}
-        >
-          <span className="text-[clamp(0.75rem,35cqw,1.25rem)]">{ch}</span>
-        </Link>
-      ))}
+          ),
+        }
+        const label = <span className="text-[clamp(0.75rem,35cqw,1.25rem)]">{ch}</span>
+        // The chapter you're already on is nowhere to go: routing to the page
+        // you're on still re-commits and repaints the reading surface under the
+        // closing drawer, which read as a flicker. Just put the drawer away.
+        return active ? (
+          <button key={ch} type="button" onClick={onPick} {...cellProps}>
+            {label}
+          </button>
+        ) : (
+          <Link
+            key={ch}
+            to="/$bookNo/$chapterNo"
+            params={{ bookNo: book.bookNo, chapterNo: ch }}
+            search={{}}
+            onClick={onPick}
+            // The drawer sliding away is the transition. A cross-fade on top of
+            // it captures the whole page — drawer included — so the old
+            // snapshot's still-open drawer ghosts over the one actually closing.
+            viewTransition={false}
+            {...cellProps}
+          >
+            {label}
+          </Link>
+        )
+      })}
     </div>
   )
 }
