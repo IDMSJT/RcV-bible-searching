@@ -5,6 +5,10 @@ import { createPortal } from 'react-dom'
  * keep the drag from feeling twitchy. */
 const RAIL_SLOT = 20
 
+/** Grab-only padding above the first mark and below the last, so the ends are
+ * easy to reach — a drag there clamps to the first / last verse. */
+const PAD = 12
+
 /**
  * The verse rail down the right edge — 經節軌 — in the manner of a phone contact
  * list's A–Z index: drag it to run through the chapter, release to land. Only
@@ -28,6 +32,7 @@ export function VerseRail({
   onScrub: (verse: number | null) => void
 }) {
   const railRef = useRef<HTMLDivElement | null>(null)
+  const marksRef = useRef<HTMLDivElement | null>(null)
   const [held, setHeld] = useState<number | null>(null)
   const [budget, setBudget] = useState(() => window.innerHeight * 0.62)
 
@@ -47,7 +52,9 @@ export function VerseRail({
   }, [verses, budget])
 
   const pick = (clientY: number) => {
-    const el = railRef.current
+    // Measure against the marks, not the padded hit area, so a drag in the pad
+    // above / below clamps to the first / last verse.
+    const el = marksRef.current
     if (!el) return
     const { top, height } = el.getBoundingClientRect()
     const frac = Math.min(1, Math.max(0, (clientY - top) / height))
@@ -93,12 +100,20 @@ export function VerseRail({
         }}
         onPointerUp={release}
         onPointerCancel={release}
-        style={{ height: marks.length * RAIL_SLOT }}
-        className="fixed top-1/2 right-0 z-30 flex w-8 -translate-y-1/2 touch-none flex-col items-end justify-between pr-1 font-sans text-[0.6875rem] leading-none font-medium text-muted-foreground/70 tabular-nums select-none"
+        style={{ height: marks.length * RAIL_SLOT + PAD * 2 }}
+        className="fixed top-1/2 right-0 z-30 flex w-8 -translate-y-1/2 touch-none items-center justify-end select-none"
       >
-        {marks.map((v) => (
-          <span key={v}>{v}</span>
-        ))}
+        {/* The numbers sit in a centred column so PAD of grab-only space is above
+          * and below; the look is unchanged. */}
+        <div
+          ref={marksRef}
+          style={{ height: marks.length * RAIL_SLOT }}
+          className="flex flex-col items-end justify-between pr-1 font-sans text-[0.6875rem] leading-none font-medium text-muted-foreground/70 tabular-nums"
+        >
+          {marks.map((v) => (
+            <span key={v}>{v}</span>
+          ))}
+        </div>
       </div>
     </>,
     document.body,

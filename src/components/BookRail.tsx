@@ -3,6 +3,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 /** Vertical room each slot (a dot, or the testament divider) gets on the rail. */
 const RAIL_SLOT = 10
 
+/** Grab-only padding above the first dot and below the last, so the ends are
+ * easy to reach — a drag there clamps to the first / last book. */
+const PAD = 12
+
 /** Where a book's first row lands below the top of the results — the rail's own
  * gap, smaller than the reading REVEAL_GAP, since a jumped-to list wants less
  * air above it than a jumped-to verse. */
@@ -38,6 +42,7 @@ export function BookRail({
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const railRef = useRef<HTMLDivElement | null>(null)
+  const dotsRef = useRef<HTMLDivElement | null>(null)
   const [held, setHeld] = useState<RailBook | null>(null)
   const [heldY, setHeldY] = useState(0)
   const [budget, setBudget] = useState(() => window.innerHeight * 0.62)
@@ -64,10 +69,12 @@ export function BookRail({
   const topOf = (slot: number) => (slots > 1 ? (slot / (slots - 1)) * railHeight : 0)
 
   const pick = (clientY: number) => {
-    const rail = railRef.current
+    const dots = dotsRef.current
     const scroller = scrollRef.current
-    if (!rail || !scroller) return
-    const { top, height } = rail.getBoundingClientRect()
+    if (!dots || !scroller) return
+    // Measure against the dot span, not the padded hit area: a drag in the pad
+    // above / below clamps to the first / last book.
+    const { top, height } = dots.getBoundingClientRect()
     const frac = Math.min(1, Math.max(0, (clientY - top) / height))
     const slot = Math.round(frac * (slots - 1))
     // Map the slot back to a book, stepping over the divider's slot.
@@ -76,9 +83,9 @@ export function BookRail({
     const book = books[idx]
     if (!book) return
     setHeld(book)
-    // Bubble sits at the centre of the rail's space, not with the finger.
-    const railTop = top - (wrapRef.current?.getBoundingClientRect().top ?? 0)
-    setHeldY(railTop + height / 2)
+    // Bubble sits at the centre of the dot span, not with the finger.
+    const dotsTop = top - (wrapRef.current?.getBoundingClientRect().top ?? 0)
+    setHeldY(dotsTop + height / 2)
     // First row of that book — results are in canonical order, so it's the start
     // of the book's run.
     const row = scroller.querySelector<HTMLElement>(`[data-book="${book.no}"]`)
@@ -123,13 +130,17 @@ export function BookRail({
         }}
         onPointerUp={release}
         onPointerCancel={release}
-        style={{ height: railHeight }}
+        style={{ height: railHeight + PAD * 2 }}
         className="pointer-events-auto relative w-8 touch-none select-none"
       >
-        {/* The dots + divider live in a narrow strip pinned to the right — the
-          * look is unchanged; the wider hit area is the transparent space to its
-          * left, so the thin column is easy to grab. */}
-        <div className="absolute inset-y-0 right-0 w-4">
+        {/* The dots + divider live in a narrow strip pinned to the right, centred
+          * so PAD of grab-only space sits above and below. The wider hit area is
+          * the transparent space to its left. */}
+        <div
+          ref={dotsRef}
+          className="absolute top-1/2 right-0 w-4 -translate-y-1/2"
+          style={{ height: railHeight }}
+        >
           {books.map((b, i) => (
             <span
               key={b.no}
