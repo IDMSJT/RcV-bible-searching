@@ -978,7 +978,7 @@ function CopyAllBar({
   const barBtn =
     'rounded-md bg-secondary px-2.5 py-1.5 text-xs font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95'
   return (
-    <div className="sticky bottom-0 z-10 flex shrink-0 items-center gap-2 border-t border-border bg-card px-4 py-2.5 text-sm">
+    <div className="sticky bottom-0 z-10 flex h-13 shrink-0 items-center gap-2 border-t border-border bg-card px-4 text-sm">
       <span className="whitespace-nowrap text-sm text-muted-foreground">
         {selecting
           ? `選取 ${selected.size} 節`
