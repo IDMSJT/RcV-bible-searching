@@ -378,6 +378,20 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     hasNext: activeIndex < 1,
     onPrev: () => setTab('kw'),
     onNext: () => setTab('ref'),
+    // Hand the keyboard over while the finger is still down — the only window
+    // iOS lets us open (or dismiss) the soft keyboard in. If the incoming field
+    // is empty, focus it (which also pulls focus off the outgoing one); if it
+    // already has text, just blur so the keyboard drops rather than hovering
+    // over the outgoing field it left behind. Empty-only focus matches the
+    // autofocus effect below; preventScroll so focusing the off-screen panel
+    // doesn't fight the slide.
+    onCommit: (dir) => {
+      if (!isMobile) return
+      const incoming = dir === 'prev' ? kwTextareaRef.current : textareaRef.current
+      const empty = dir === 'prev' ? kw === '' : q === ''
+      if (empty) incoming?.focus({ preventScroll: true })
+      else (document.activeElement as HTMLElement | null)?.blur()
+    },
     resetKey: tab,
     enabled: isMobile,
   })

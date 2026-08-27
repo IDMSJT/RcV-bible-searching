@@ -21,6 +21,7 @@ export function useCarousel({
   hasNext,
   onPrev,
   onNext,
+  onCommit,
   resetKey,
   enabled = true,
 }: {
@@ -29,6 +30,12 @@ export function useCarousel({
   hasNext: boolean
   onPrev: () => void
   onNext: () => void
+  /** Fires synchronously the moment a release commits — still inside the
+   * pointerup handler, unlike onPrev/onNext which run after the slide. iOS only
+   * opens the soft keyboard from a focus() made during the user gesture, so a
+   * caller that wants to focus the incoming panel must do it here, not in
+   * onPrev/onNext. */
+  onCommit?: (dir: 'prev' | 'next') => void
   /** The current ref's identity — changes when a page lands. */
   resetKey: unknown
   /** Off while selecting verses, so a swipe doesn't page away. */
@@ -144,6 +151,7 @@ export function useCarousel({
       committing.current = true
       setTargetDir(dir)
       set(dir === 'prev' ? w : -w)
+      onCommit?.(dir) // synchronous — inside the gesture, so focus() can open the keyboard
       window.setTimeout(dir === 'prev' ? onPrev : onNext, 260)
     } else {
       setTargetDir(null)
