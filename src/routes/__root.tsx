@@ -94,17 +94,23 @@ function RootComponent() {
   const navigate = useNavigate()
 
   // Vaul's `onOpenChange` is just `(open: boolean) => void` — it doesn't tell
-  // us which event caused the close. Instead of guessing with a timeout, we
-  // mirror the most recent pointerdown target from a document-level capture
-  // listener and consult it synchronously in the close handler: if the last
-  // pointerdown landed inside the bottom nav, the close request came from a
-  // mode-swap tap and we ignore it. Vaul still closes normally from swipe-
-  // down, escape, etc., because those events update `lastPointerTargetRef` (or
-  // leave it as some unrelated element).
-  const lastPointerTargetRef = useRef<EventTarget | null>(null)
+  // us which event caused the close. Instead of guessing with a timeout, we note
+  // from a document-level capture listener whether the most recent pointerdown
+  // landed inside the bottom nav and consult that in the close handler: if it
+  // did, the close came from a mode-swap tap that onNavTap already handles, so
+  // we ignore it. Vaul still closes normally from a swipe-down / press elsewhere
+  // (those update the flag to false) — escape leaves it, but the drawer is
+  // mobile-only, where escape isn't a factor.
+  //
+  // A boolean settled at pointerdown, not the target element consulted later:
+  // a nav tap swaps the button's icon, so the tapped <svg> is gone from the DOM
+  // by the time vaul's close fires, and `.closest()` on a detached node returns
+  // null — which used to let the close through and shut the drawer mid-cycle.
+  const lastPointerInNavRef = useRef(false)
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
-      lastPointerTargetRef.current = e.target
+      const t = e.target
+      lastPointerInNavRef.current = t instanceof Element && !!t.closest('[data-bottom-nav]')
     }
     document.addEventListener('pointerdown', onDown, { capture: true })
     return () => document.removeEventListener('pointerdown', onDown, { capture: true })
@@ -505,10 +511,9 @@ function RootComponent() {
       <Drawer
         open={drawerOpen}
         onOpenChange={(o) => {
-          if (!o) {
-            const t = lastPointerTargetRef.current
-            if (t instanceof Element && t.closest('[data-bottom-nav]')) return
-          }
+          // A bottom-nav tap drives its own open/close through onNavTap; ignore
+          // vaul's close for it so a pane-swap tap doesn't also shut the drawer.
+          if (!o && lastPointerInNavRef.current) return
           setDrawerOpen(o)
         }}
         snapPoints={snapsFor(effectiveMode)}
