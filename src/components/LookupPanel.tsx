@@ -29,8 +29,8 @@ import { useCarousel } from '@/lib/useCarousel'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { renderMarkedText, renderNoteText } from '@/lib/renderVerse'
 import { InputActions } from '@/components/InputActions'
+import { BookRail, type RailBook } from '@/components/BookRail'
 import { ScrollBody } from '@/components/ScrollBody'
-import { ACTION_BAR_CLS } from '@/lib/chrome'
 import { cn } from '@/lib/utils'
 
 // The /search field, shared by both tabs (and both viewports) so they read
@@ -601,6 +601,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
       selected={tab === 'kw' ? selected : EMPTY_SELECTION}
       onClear={clearSel}
       scrollKey={`lookup:kw:${kw}`}
+      active={tab === 'kw'}
     >
       <ResultList
         rows={resolvedKw.rows}
@@ -629,6 +630,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
       selected={tab === 'ref' ? selected : EMPTY_SELECTION}
       onClear={clearSel}
       scrollKey={`lookup:ref:${q}`}
+      active={tab === 'ref'}
     >
       <ResultList
         rows={resolvedRefs}
@@ -707,6 +709,7 @@ function SearchTabPanel({
   selected,
   onClear,
   scrollKey,
+  active,
 }: {
   input: ReactNode
   children: ReactNode
@@ -719,25 +722,52 @@ function SearchTabPanel({
    * Carries the query so a new search starts at the top, not at the old offset;
    * the two tabs pass different keys so both survive being mounted at once. */
   scrollKey: string
+  /** True when this is the visible tab — only then is the book rail mounted, so
+   * the two tabs (both mounted on mobile) don't stack two rails. */
+  active: boolean
 }) {
+  const isMobile = useIsMobile()
+  const scrollRef = useRef<HTMLDivElement>(null)
+  // The books that turned up results, in the order they appear (canonical); the
+  // rail indexes these, the drag runs over all of them, the dots thin to fit.
+  const books = useMemo<RailBook[]>(() => {
+    const seen = new Set<number>()
+    const out: RailBook[] = []
+    for (const r of resolved) {
+      if (seen.has(r.bookNo)) continue
+      seen.add(r.bookNo)
+      out.push({ no: r.bookNo, label: BOOK_ABBREV[r.bookNo] ?? '' })
+    }
+    return out
+  }, [resolved])
   return (
     <div className="flex h-full flex-col">
       {/* The field carries its own border and the actions sit under it as a
        * plain row, an even 12px between each. A bottom rule separates the whole
        * input area from the results below. */}
       <div className="border-b border-border px-4 pb-3">{input}</div>
-      {/* pb-0 drops ScrollBody's own nav-height padding: the /search wrapper
-       * already holds the whole panel above the bottom nav, so the copy bar's
-       * sticky bottom stays measured from the visible edge as it was in the
-       * drawer. */}
-      <ScrollBody restoreKey={scrollKey} className="min-h-0 flex-1 pb-0">
-        {/* min-h-full + a flex-1 content row pushes the sticky copy bar to the
-         * bottom even when the results don't fill the pane. */}
-        <div className="flex min-h-full flex-col">
-          <div className="flex-1 p-4">{children}</div>
-          <CopyAllBar resolved={resolved} total={total} selected={selected} onClear={onClear} />
-        </div>
-      </ScrollBody>
+      {/* The results box is the rail's frame of reference — relative so the rail
+       * centres in the results, not the whole panel (which includes the field);
+       * the ScrollBody fills it and scrolls within. pb-0 drops ScrollBody's own
+       * nav-height padding: the /search wrapper already holds the panel above
+       * the bottom nav. */}
+      <div className="relative min-h-0 flex-1">
+        <ScrollBody
+          ref={scrollRef}
+          restoreKey={scrollKey}
+          className="absolute inset-0 pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {/* min-h-full + a flex-1 content row pushes the sticky copy bar to the
+           * bottom even when the results don't fill the pane. */}
+          <div className="flex min-h-full flex-col">
+            <div className="flex-1 p-4">{children}</div>
+            <CopyAllBar resolved={resolved} total={total} selected={selected} onClear={onClear} />
+          </div>
+        </ScrollBody>
+        {active && isMobile && books.length > 0 && (
+          <BookRail books={books} scrollRef={scrollRef} />
+        )}
+      </div>
     </div>
   )
 }
@@ -820,6 +850,9 @@ function ResultRow({
   return (
     <div
       {...handlers}
+      // The book rail scrolls to a book by its first data-book row (results are
+      // in canonical order).
+      data-book={bookNo}
       // `select-none` suppresses the native blue text-selection that appears
       // under a long press; `[-webkit-touch-callout:none]` kills iOS Safari's
       // grey selection callout the same gesture triggers.
@@ -887,7 +920,7 @@ function CopyAllBar({
   const [pos] = useLocalStorage<CitePosition>('rcv/cite-position', DEFAULT_CITE_POSITION)
   const [copyLang] = useLocalStorage<CopyLang>('rcv/copy-lang', DEFAULT_COPY_LANG)
   const [showEnglish] = useLocalStorage('rcv/show-english', false)
-  // Nothing to copy → don't float an empty pill over the (also empty) results.
+  // Nothing to copy → no bar over the (also empty) results.
   if (resolved.length === 0) return null
 
   // en / both only make sense with English loaded; otherwise force 中文.
@@ -915,13 +948,14 @@ function CopyAllBar({
     }
   }
 
+  // A bar docked across the foot of the results, not a floating pill — it fills
+  // the width, so its own solid background is all the separation from the
+  // scrolling results it needs (no frame, no margin). Buttons match the small
+  // grey pills under the search field.
+  const barBtn =
+    'rounded-md bg-secondary px-2.5 py-1.5 text-xs font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95'
   return (
-    <div
-      className={cn(
-        'sticky bottom-3 z-10 mx-3 mt-2 mb-3 flex h-14 shrink-0 items-center gap-3 px-4 pr-2.5 text-sm',
-        ACTION_BAR_CLS,
-      )}
-    >
+    <div className="sticky bottom-0 z-10 flex shrink-0 items-center gap-2 border-t border-border bg-card px-4 py-2.5 text-sm">
       <span className="whitespace-nowrap text-sm text-muted-foreground">
         {selecting
           ? `選取 ${selected.size} 節`
@@ -930,18 +964,10 @@ function CopyAllBar({
             : `共 ${total} 節`}
       </span>
       <div className="ml-auto flex items-center gap-2">
-        <button
-          type="button"
-          onClick={share}
-          className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95"
-        >
+        <button type="button" onClick={share} className={barBtn}>
           分享
         </button>
-        <button
-          type="button"
-          onClick={copy}
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-95"
-        >
+        <button type="button" onClick={copy} className={barBtn}>
           複製
         </button>
         {selecting && (
@@ -949,9 +975,9 @@ function CopyAllBar({
             type="button"
             onClick={onClear}
             aria-label="取消選取"
-            className="rounded-lg px-2 py-2 text-muted-foreground transition-all duration-150 hover:text-foreground active:scale-95"
+            className="rounded-md px-1.5 py-1 text-muted-foreground transition-all duration-150 hover:text-foreground active:scale-95"
           >
-            <X className="size-4.5" />
+            <X className="size-4" />
           </button>
         )}
       </div>
