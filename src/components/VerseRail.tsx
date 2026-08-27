@@ -83,7 +83,7 @@ export function VerseRail({
         // are about 22px and px-2 adds 16, so 2.5rem covers both and one digit
         // is padded out to match. Three keeps growing, which is right — the
         // psalms have verses past a hundred.
-        <div className="pointer-events-none fixed top-1/2 left-1/2 z-50 flex min-w-10 -translate-x-1/2 -translate-y-1/2 justify-center rounded-lg bg-foreground px-2 py-1.5 font-sans text-lg font-medium text-background shadow-lg tabular-nums">
+        <div className="pointer-events-none fixed top-1/2 left-1/2 z-50 flex min-w-10 -translate-x-1/2 -translate-y-1/2 justify-center rounded-lg bg-foreground px-2 py-1.5 font-sans text-lg font-normal text-background shadow-lg tabular-nums">
           {held}
         </div>
       )}

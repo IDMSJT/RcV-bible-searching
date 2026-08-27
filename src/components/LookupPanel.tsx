@@ -883,7 +883,7 @@ function ResultRow({
     >
       <span
         className={cn(
-          'self-start whitespace-nowrap pt-1 text-left text-xs font-sans transition-colors',
+          'self-start whitespace-nowrap pt-1 text-left text-[0.75em] font-sans transition-colors',
           active && 'font-medium',
           lit ? 'text-foreground' : 'text-muted-foreground',
         )}

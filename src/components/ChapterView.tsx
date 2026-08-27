@@ -1164,7 +1164,7 @@ export function ChapterView({
                       selected.has(r.verse) && 'bg-blue-500/20 dark:bg-blue-400/25',
                     )}
                   >
-                    <p className="px-1 -mx-1 font-medium leading-relaxed">
+                    <p className="px-1 -mx-1 font-normal leading-relaxed">
                       {renderMarkedText(r.text, r.marks, r.notes, r.refs, (at) =>
                         toggleMarkers(r.verse, at),
                       )}

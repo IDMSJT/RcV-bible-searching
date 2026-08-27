@@ -106,7 +106,7 @@ export function BookRail({
        * the whole results width. */}
       {held && (
         <div
-          className="pointer-events-none absolute left-1/2 z-20 flex min-w-10 -translate-x-1/2 -translate-y-1/2 justify-center rounded-lg bg-foreground px-2 py-1.5 font-sans text-lg font-medium whitespace-nowrap text-background shadow-lg"
+          className="pointer-events-none absolute left-1/2 z-20 flex min-w-10 -translate-x-1/2 -translate-y-1/2 justify-center rounded-lg bg-foreground px-2 py-1.5 font-sans text-lg font-normal whitespace-nowrap text-background shadow-lg"
           style={{ top: heldY }}
         >
           {held.label}
