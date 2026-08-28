@@ -564,7 +564,15 @@ function RootComponent() {
               '--initial-transform': 'calc(100dvh - var(--nav-h))',
             } as CSSProperties
           }
-          className="h-[100dvh] pb-[calc(var(--nav-h)-1px)] md:hidden"
+          className={cn(
+            'h-[100dvh] pb-[calc(var(--nav-h)-1px)] transition-[border-radius] duration-200 md:hidden',
+            // Square off the top once the sheet stands at full height: a rounded
+            // corner there sits against the screen edge, where it reads as a gap
+            // rather than as the lip of a sheet. Written in the same
+            // data-direction variant the radius comes from, or the base rule
+            // outranks it.
+            drawerSnap === 1 && 'data-[vaul-drawer-direction=bottom]:rounded-t-none',
+          )}
           // The scanner is opened from in here but rendered on the body, so to
           // a modal drawer every tap in it reads as a tap outside — which
           // dismissed the drawer the reader is meant to come back to with their
