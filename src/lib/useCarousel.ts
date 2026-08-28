@@ -82,9 +82,27 @@ export function useCarousel({
     return () => el.removeEventListener('touchmove', onTouchMove)
   }, [containerRef])
 
+  /**
+   * Is there a live text selection inside the track?
+   *
+   * Read from the DOM at gesture time rather than trusted to `enabled`, which
+   * arrives too late twice over: a long-press fires pointerdown BEFORE it
+   * produces a selection (so the drag is already armed by the time the caller
+   * knows), and the caller's answer has to travel back through React state
+   * anyway. A finger moving over a live selection is dragging its handles, not
+   * paging.
+   */
+  const selectionInTrack = () => {
+    const el = containerRef.current
+    const sel = document.getSelection()
+    if (!el || !sel || sel.isCollapsed || sel.toString().trim().length === 0) return false
+    return sel.anchorNode != null && el.contains(sel.anchorNode)
+  }
+
   const EDGE = 24
   const onPointerDown = (e: React.PointerEvent) => {
     if (!enabled || e.pointerType === 'mouse' || committing.current) return
+    if (selectionInTrack()) return
     if (e.clientX < EDGE || e.clientX > window.innerWidth - EDGE) return
     drag.current = {
       x: e.clientX,
@@ -102,6 +120,18 @@ export function useCarousel({
   const onPointerMove = (e: React.PointerEvent) => {
     const d = drag.current
     if (!d) return
+    // The long-press case: the finger was already down (and the drag armed)
+    // when the selection appeared under it. Hand the gesture back the moment
+    // that happens, springing the track home if it had begun to move.
+    if (selectionInTrack()) {
+      drag.current = null
+      if (dxRef.current !== 0) {
+        setAnimating(true)
+        setTargetDir(null)
+        set(0)
+      }
+      return
+    }
     const ddx = e.clientX - d.x
     const ddy = e.clientY - d.y
     if (d.axis === 'none') {
