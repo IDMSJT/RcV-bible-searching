@@ -364,7 +364,7 @@ function HistoryList({
         // action on the same row.
         <div
           key={`${v.bookNo}-${v.chapterNo}`}
-          className="flex items-stretch border-b border-border last:border-b-0"
+          className="relative flex items-stretch border-b border-border last:border-b-0"
         >
           <Link
             to="/$bookNo/$chapterNo"
@@ -372,7 +372,9 @@ function HistoryList({
             search={{}}
             onClick={onPick}
             viewTransition={false}
-            className="flex flex-1 items-baseline gap-2 px-4 py-4 text-base transition-colors hover:bg-muted md:py-2.5 md:text-sm"
+            // pr leaves the remove button its corner; the link still runs the
+            // full width beneath it, so the row reads (and highlights) as one.
+            className="flex flex-1 items-baseline gap-2 py-4 pl-4 pr-12 text-base transition-colors hover:bg-muted md:py-2.5 md:text-sm"
           >
             <span className="font-medium">{BOOK_BY_NO.get(v.bookNo)?.name ?? ''}</span>
             <span className="text-muted-foreground">
@@ -380,14 +382,18 @@ function HistoryList({
             </span>
           </Link>
           {onRemove && (
+            // Laid over the link rather than inside it — an <a> can't hold a
+            // <button> — so the whole row stays one link while a press on the
+            // corner square is the button's alone, never the link's.
             <button
               type="button"
               onClick={() => onRemove(v)}
               aria-label="移除這筆紀錄"
-              // More room on the outside than the in: pr-4 sets the X the same
-              // distance off the right edge as the entry's text sits from the
-              // left, so the row is inset evenly.
-              className="inline-flex shrink-0 items-center pl-3 pr-4 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              // The ::after is hit area only — it reaches 8px past the square so
+              // a thumb has something to land on, without the square itself
+              // growing. Collapsed on md, where a cursor doesn't need the slack
+              // and the extra reach would only steal presses from the link.
+              className="absolute top-1/2 right-3 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors after:absolute after:-inset-2 after:content-[''] hover:bg-muted hover:text-foreground md:after:inset-0"
             >
               <X className="size-4" />
             </button>
