@@ -310,10 +310,11 @@ function RootComponent() {
     }
 
     if (target === 'settings') {
-      // No toggle-close: tapping the open settings pane is a no-op (easy to hit
-      // while fiddling with sliders). On desktop settingsOpen is never true, so
-      // this is just openMode there.
-      if (!settingsOpen) openMode('settings')
+      // The button toggles: tapping it with settings already up puts the drawer
+      // away. On desktop settingsOpen is never true, so this is just openMode
+      // there.
+      if (settingsOpen) closeDrawer()
+      else openMode('settings')
       return
     }
 
