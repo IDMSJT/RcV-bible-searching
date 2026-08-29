@@ -13,15 +13,16 @@ import { cn } from '@/lib/utils'
 export const ACTION_BAR_CLS = 'flex h-13 items-center border-t border-border bg-card px-4 text-sm'
 
 /**
- * The reading surface's bars are portalled to <body> and float over the text,
- * so on the phone they dock flush above the bottom nav. On desktop a
- * body-portalled full-width bar would span the left rail and the sidebar too,
- * so it keeps the corner box it always was.
+ * The reading surface's bars, which are portalled to <body> so they escape the
+ * carousel's transform. That also means they can't inherit the reading column's
+ * box, and a bar spanning the window would run under the nav rail and the
+ * sidebar — so the caller measures the column and sets `left` / `width`; only
+ * the vertical placement is here. Above the bottom nav on the phone, at the
+ * foot of the column on desktop, where there is no nav.
  */
 export const FLOATING_ACTION_BAR_CLS = cn(
   ACTION_BAR_CLS,
-  'fixed inset-x-0 bottom-[var(--nav-h)] z-40 gap-3',
-  'md:inset-x-auto md:right-3 md:bottom-3 md:h-14 md:min-w-[384px] md:rounded-xl md:border md:bg-popover/95 md:shadow-lg md:backdrop-blur',
+  'fixed bottom-[var(--nav-h)] z-40 gap-3 md:bottom-0',
 )
 
 /** A small grey pill — the default action on a bar (分享, 清除, 合併…). */

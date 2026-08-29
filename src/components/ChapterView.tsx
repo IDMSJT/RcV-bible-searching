@@ -613,6 +613,34 @@ export function ChapterView({
   const book = BOOK_BY_NO.get(bookNo)
   const panelRef = useRef<HTMLDivElement | null>(null)
 
+  // Lay the action bar across the reading column. It is portalled to <body>, so
+  // it has no box to inherit — left to itself it would span the window, running
+  // under the desktop nav rail and sidebar. Measured onto the element rather
+  // than held in state: the position is a consequence of layout, not something
+  // the render needs to know, and writing it directly keeps a resize from
+  // costing a render. Only one bar (selection or highlight) is ever up, so they
+  // share the ref.
+  const barRef = useRef<HTMLDivElement | null>(null)
+  useLayoutEffect(() => {
+    const panel = panelRef.current
+    if (!panel) return
+    const sync = () => {
+      const bar = barRef.current
+      if (!bar) return
+      const { left, width } = panel.getBoundingClientRect()
+      bar.style.left = `${left}px`
+      bar.style.width = `${width}px`
+    }
+    sync()
+    const ro = new ResizeObserver(sync)
+    ro.observe(panel)
+    window.addEventListener('resize', sync)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', sync)
+    }
+  })
+
   // A card opens below its verse, so tapping a superscript near the fold leaves
   // it off the bottom of the screen — the reader taps and nothing appears to
   // happen. Both kinds behave alike, so both go through this.
@@ -1075,19 +1103,21 @@ export function ChapterView({
       >
       <article
         className={cn(
-          // Extra bottom room while selecting so the last verses can scroll
-          // above the floating selection card, keeping the same breathing room
-          // they normally have: original py (1.5rem) + card height (h-14 =
-          // 3.5rem) + the card's 0.75rem inset above the nav = 92px. The
-          // transition stays defined and only the duration toggles: instant
-          // (duration-0) when it appears so the scroll-to-centre has room right
-          // away, but eased (duration-300) when it collapses so the margin
-          // shrinks smoothly on exit.
+          // Extra bottom room while a bar is up, so the last verses can still
+          // scroll clear of it: the bar's own height (h-13 = 3.25rem) on top of
+          // the breathing room the page already has. Spelled out at both sizes
+          // because the base py differs (py-6 / md:py-10) — and because an
+          // unprefixed pb would lose to md:py-10, media queries coming later in
+          // the sheet, which left the desktop bar sitting on the last verses.
+          // The transition stays defined and only the duration toggles:
+          // instant (duration-0) when it appears so the scroll-to-centre has
+          // room right away, but eased (duration-300) when it collapses so the
+          // margin shrinks smoothly on exit.
           'mx-auto max-w-3xl px-4 py-6 transition-[padding-bottom] md:px-8 md:py-10',
           // Clear of the verse rail, which floats over this edge on touch.
           isTouch && 'pr-6',
           hasSelection || hlActive
-            ? 'pb-[calc(1.5rem+3.5rem+0.75rem)] duration-0'
+            ? 'pb-[calc(1.5rem+3.25rem)] duration-0 md:pb-[calc(2.5rem+3.25rem)]'
             : 'duration-300',
         )}
       >
@@ -1272,6 +1302,7 @@ export function ChapterView({
         hasSelection &&
         createPortal(
           <div
+            ref={barRef}
             data-action-bar
             className={FLOATING_ACTION_BAR_CLS}
           >
@@ -1320,6 +1351,7 @@ export function ChapterView({
       {hlActive &&
         createPortal(
           <div
+            ref={barRef}
             data-action-bar
             className={FLOATING_ACTION_BAR_CLS}
           >
