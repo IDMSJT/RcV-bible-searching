@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   Link,
   useCanGoBack,
@@ -11,7 +11,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
 import { BOOK_BY_NO } from '@/data/canon'
 import { useBible, findChapter } from '@/data/loadBible'
 import { chapterUnit } from '@/lib/chinese'
-import { parseHighlight } from '@/lib/highlight'
+import { parseHighlight, type HlItem } from '@/lib/highlight'
 import { prevRef, nextRef, refKey, type ReadingRef } from '@/lib/readingRef'
 import { skipNextVisit } from '@/lib/readingHistory'
 import { useCarousel } from '@/lib/useCarousel'
@@ -20,6 +20,10 @@ import { ChapterView } from '@/components/ChapterView'
 import { VerseRail } from '@/components/VerseRail'
 import { OutlineView } from '@/components/OutlineView'
 import { cn } from '@/lib/utils'
+
+/** Stable empty list for an inactive panel, so its ChapterView sees one
+ * unchanging value rather than a new array on every render. */
+const EMPTY_HIGHLIGHTS: HlItem[] = []
 
 // ?oh= is the outline entry's index in the book outline.
 function parseOhIndex(oh: string | undefined): number | undefined {
@@ -61,13 +65,19 @@ export function ReadingPanel({
   onSelectingChange?: (selecting: boolean) => void
   onScrubApi?: (scrub: ((verse: number | null) => void) | null) => void
 }) {
+  // Parsed once per ?hl, not once per render. The panel re-renders whenever the
+  // pager does — starting a selection is enough, since that pauses the swipe —
+  // and a fresh array each time reached the effect that scrolls to the
+  // highlight, which took every re-render for a new instruction and yanked the
+  // page back off whatever the reader had just picked.
+  const highlights = useMemo(() => (active ? parseHighlight(hl) : EMPTY_HIGHLIGHTS), [active, hl])
   if (refData.kind === 'chapter') {
     return (
       <ChapterView
         bookNo={refData.bookNo}
         chapterNo={refData.chapterNo}
         active={active}
-        highlights={active ? parseHighlight(hl) : []}
+        highlights={highlights}
         ohIndex={active ? parseOhIndex(oh) : undefined}
         onSelectingChange={active ? onSelectingChange : undefined}
         onScrubApi={active ? onScrubApi : undefined}
