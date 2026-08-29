@@ -1,5 +1,6 @@
 import { Check } from 'lucide-react'
 import { Slider as SliderPrimitive } from '@base-ui/react/slider'
+import { useBibleEn } from '@/data/loadBible'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
 import {
@@ -36,6 +37,12 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
   // effective language (中文); the stored copyLang is kept for when English comes
   // back on.
   const effCopyLang: CopyLang = showEnglish ? copyLang : 'zh'
+  // The English text is a separate file fetched on demand, so switching this on
+  // for the first time leaves the reading view Chinese-only for a moment. Say so
+  // on the row that asked for it. Subscribing here doesn't refetch — the loader
+  // is module-level and shares its promise (and its cache) with the readers.
+  const { data: bibleEn, error: enError } = useBibleEn(showEnglish)
+  const enLoading = showEnglish && !bibleEn && !enError
 
   return (
     <>
@@ -44,7 +51,15 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
         <SettingRow label="顯示綱目" onClick={() => setShowOutline(!showOutline)}>
           <Switch on={showOutline} />
         </SettingRow>
-        <SettingRow label="顯示英文" onClick={() => setShowEnglish(!showEnglish)}>
+        <SettingRow
+          label={
+            <>
+              顯示英文
+              {enLoading && <span className="ml-2 text-muted-foreground">載入中</span>}
+            </>
+          }
+          onClick={() => setShowEnglish(!showEnglish)}
+        >
           <Switch on={showEnglish} />
         </SettingRow>
         <SettingRow label="顯示註釋" onClick={() => setShowNotes(!showNotes)}>
@@ -169,7 +184,9 @@ function SettingRow({
   onClick,
   disabled,
 }: {
-  label: string
+  /** A node, not a string, so a row can hang a status on its label — 顯示英文
+   * says 載入中… beside itself while the English text is on its way. */
+  label: React.ReactNode
   children: React.ReactNode
   /** Stack label above children (for wider controls like the theme picker). */
   stack?: boolean
