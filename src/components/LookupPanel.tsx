@@ -25,6 +25,7 @@ import {
 } from '@/lib/cite'
 import { Textarea } from '@/components/ui/textarea'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { useIsTouch } from '@/lib/useIsTouch'
 import { useCarousel } from '@/lib/useCarousel'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { renderMarkedText, renderNoteText } from '@/lib/renderVerse'
@@ -750,7 +751,10 @@ function SearchTabPanel({
    * the two tabs (both mounted on mobile) don't stack two rails. */
   active: boolean
 }) {
-  const isMobile = useIsMobile()
+  // Touch, not width: the rail is a drag, so a tablet wants it even at the
+  // desktop layout where the panel sits in the sidebar — the same test the
+  // reading view's verse rail uses.
+  const isTouch = useIsTouch()
   const scrollRef = useRef<HTMLDivElement>(null)
   // The books that turned up results, in the order they appear (canonical); the
   // rail indexes these, the drag runs over all of them, the dots thin to fit.
@@ -788,7 +792,7 @@ function SearchTabPanel({
             <CopyAllBar resolved={resolved} total={total} selected={selected} onClear={onClear} />
           </div>
         </ScrollBody>
-        {active && isMobile && books.length > 0 && (
+        {active && isTouch && books.length > 0 && (
           <BookRail books={books} scrollRef={scrollRef} />
         )}
       </div>

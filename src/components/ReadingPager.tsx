@@ -233,8 +233,8 @@ export function ReadingPager() {
         </div>
       </header>
 
-      {isTouch && railVerses.length > 1 && (
-        <VerseRail verses={railVerses} onScrub={(v) => scrub?.(v)} />
+      {isTouch && railVerses.length > 0 && (
+        <VerseRail verses={railVerses} onScrub={(v) => scrub?.(v)} areaRef={bodyRef} />
       )}
       {isTouch ? (
         <div

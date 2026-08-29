@@ -24,8 +24,13 @@ const PAD = 12
 export function VerseRail({
   verses,
   onScrub,
+  areaRef,
 }: {
   verses: number[]
+  /** The reading surface the bubble centres on. Portalled to the body, the
+   * bubble would otherwise sit in the middle of the *window* — which on a
+   * tablet is the sidebar, since the reading column is only the right of it. */
+  areaRef?: React.RefObject<HTMLElement | null>
   /** Runs on press and on every move, so the page tracks the finger — then once
    * with null when the finger lifts, which is the page's cue to drop whatever
    * it was showing only for the duration of the drag. */
@@ -34,6 +39,7 @@ export function VerseRail({
   const railRef = useRef<HTMLDivElement | null>(null)
   const marksRef = useRef<HTMLDivElement | null>(null)
   const [held, setHeld] = useState<number | null>(null)
+  const [heldX, setHeldX] = useState<number | null>(null)
   const [budget, setBudget] = useState(() => window.innerHeight * 0.62)
 
   useEffect(() => {
@@ -60,6 +66,8 @@ export function VerseRail({
     const frac = Math.min(1, Math.max(0, (clientY - top) / height))
     const verse = verses[Math.round(frac * (verses.length - 1))]
     if (verse == null) return
+    const area = areaRef?.current?.getBoundingClientRect()
+    setHeldX(area ? area.left + area.width / 2 : null)
     setHeld(verse)
     onScrub(verse)
   }
@@ -83,7 +91,10 @@ export function VerseRail({
         // are about 22px and px-2 adds 16, so 2.5rem covers both and one digit
         // is padded out to match. Three keeps growing, which is right — the
         // psalms have verses past a hundred.
-        <div className="pointer-events-none fixed top-1/2 left-1/2 z-50 flex min-w-10 -translate-x-1/2 -translate-y-1/2 justify-center rounded-lg bg-foreground px-2 py-1.5 font-sans text-lg font-normal text-background shadow-lg tabular-nums">
+        <div
+          style={heldX != null ? { left: heldX } : undefined}
+          className="pointer-events-none fixed top-1/2 left-1/2 z-50 flex min-w-10 -translate-x-1/2 -translate-y-1/2 justify-center rounded-lg bg-foreground px-2 py-1.5 font-sans text-lg font-normal text-background shadow-lg tabular-nums"
+        >
           {held}
         </div>
       )}
