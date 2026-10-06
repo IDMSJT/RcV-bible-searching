@@ -29,6 +29,7 @@ import {
   formatCitation,
   DEFAULT_CITE_FORMAT,
   DEFAULT_CITE_POSITION,
+  DEFAULT_CITE_TEMPLATE,
   DEFAULT_COPY_LANG,
   type CiteFormat,
   type CitePosition,
@@ -252,6 +253,7 @@ export function ChapterView({
   const [showRefs] = useLocalStorage('rcv/show-crossrefs', true)
   const [citeFormat] = useLocalStorage<CiteFormat>('rcv/cite-format', DEFAULT_CITE_FORMAT)
   const [citePosition] = useLocalStorage<CitePosition>('rcv/cite-position', DEFAULT_CITE_POSITION)
+  const [citeTemplate] = useLocalStorage('rcv/cite-template', DEFAULT_CITE_TEMPLATE)
   const [copyLang] = useLocalStorage<CopyLang>('rcv/copy-lang', DEFAULT_COPY_LANG)
   const { data: bibleEn } = useBibleEn(showEnglish)
   const { data: annotations } = useAnnotations(showNotes)
@@ -861,13 +863,13 @@ export function ChapterView({
       if (key.startsWith('n')) {
         const [verseStr, nStr] = key.slice(1).split(':')
         const label = `${formatVerseRef(bookNo, chapterNo, Number(verseStr), citeFormat)}註${nStr}`
-        return formatCitation(label, `『${byNote.get(key) ?? ''}』`, citePosition)
+        return formatCitation(label, byNote.get(key) ?? '', citePosition, ['『', '』'], '', citeTemplate)
       }
       const verse = Number(key.slice(1))
       const portion = byVerse.get(verse) ?? ''
       if (isEn) {
         const abbr = BOOK_ABBREV_EN[bookNo] ?? ''
-        return formatCitation(`${abbr} ${chapterNo}:${verse}`, `"${portion}"`, citePosition, ' ')
+        return formatCitation(`${abbr} ${chapterNo}:${verse}`, portion, citePosition, ['"', '"'], ' ', citeTemplate)
       }
       const full = norm(chapter?.verses.find((x) => x.verse === verse)?.text ?? '')
       const p = norm(portion)
@@ -880,7 +882,7 @@ export function ChapterView({
         else if (full.includes(p)) segMark = '中'
       }
       const label = formatVerseRef(bookNo, chapterNo, verse, citeFormat) + segMark
-      return formatCitation(label, `『${portion}』`, citePosition)
+      return formatCitation(label, portion, citePosition, ['『', '』'], '', citeTemplate)
     })
 
     e.clipboardData.setData('text/plain', lines.join('\n'))
@@ -898,8 +900,11 @@ export function ChapterView({
       if (verseSet.has(v.verse)) {
         const zh = formatCitation(
           formatVerseRef(bookNo, chapterNo, v.verse, citeFormat),
-          `『${v.text}』`,
+          v.text,
           citePosition,
+          ['『', '』'],
+          '',
+          citeTemplate,
         )
         if (copyLangEff === 'zh') {
           parts.push(zh)
@@ -908,9 +913,11 @@ export function ChapterView({
           const en = enText
             ? formatCitation(
                 `${BOOK_ABBREV_EN[bookNo] ?? ''} ${chapterNo}:${v.verse}`,
-                `"${enText}"`,
+                enText,
                 citePosition,
+                ['"', '"'],
                 ' ',
+                citeTemplate,
               )
             : ''
           if (copyLangEff === 'en') {
@@ -926,7 +933,7 @@ export function ChapterView({
         for (const n of vNotes) {
           if (noteSet.has(`${v.verse}:${n.n}`)) {
             const label = `${formatVerseRef(bookNo, chapterNo, v.verse, citeFormat)}註${n.n}`
-            parts.push(formatCitation(label, `『${n.text}』`, citePosition))
+            parts.push(formatCitation(label, n.text, citePosition, ['『', '』'], '', citeTemplate))
           }
         }
       }

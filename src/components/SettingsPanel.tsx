@@ -9,11 +9,14 @@ import {
   COPY_LANGS,
   DEFAULT_CITE_FORMAT,
   DEFAULT_CITE_POSITION,
+  DEFAULT_CITE_TEMPLATE,
   DEFAULT_COPY_LANG,
+  formatCitation,
   type CiteFormat,
   type CitePosition,
   type CopyLang,
 } from '@/lib/cite'
+import { Textarea } from '@/components/ui/textarea'
 
 type Theme = 'light' | 'dark' | 'system'
 
@@ -32,6 +35,7 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
   const [fontSize, setFontSize] = useLocalStorage('rcv/font-size', 16)
   const [citeFormat, setCiteFormat] = useLocalStorage<CiteFormat>('rcv/cite-format', DEFAULT_CITE_FORMAT)
   const [citePosition, setCitePosition] = useLocalStorage<CitePosition>('rcv/cite-position', DEFAULT_CITE_POSITION)
+  const [citeTemplate, setCiteTemplate] = useLocalStorage('rcv/cite-template', DEFAULT_CITE_TEMPLATE)
   const [copyLang, setCopyLang] = useLocalStorage<CopyLang>('rcv/copy-lang', DEFAULT_COPY_LANG)
   // With 顯示英文 off, 英文/中英文 can't apply, so the *shown* selection follows the
   // effective language (中文); the stored copyLang is kept for when English comes
@@ -79,7 +83,12 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
           </div>
         </SettingRow>
         <SettingRow label="複製格式" stack>
-          <div className="flex flex-col gap-3 pt-1">
+          {/* Block flow, not flex — each section below owns a `mt-3` lead-in
+           * instead of a parent `gap-3`, so while the 自訂 template box is
+           * collapsed (zero height, no border/padding of its own) its margins
+           * collapse straight through, leaving one 12px gap rather than the
+           * two flex-gap slots either side of it stacking into 24px. */}
+          <div className="pt-1">
             {/* 語言 — when 顯示英文 is off, only 英文 / 中英文 are disabled (they
              * need the English text); 中文 stays selectable. */}
             <div className="grid grid-cols-3 gap-3">
@@ -105,8 +114,8 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
                 </button>
               ))}
             </div>
-            {/* 經文 vs 標籤 order — two side-by-side toggles. */}
-            <div className="grid grid-cols-2 gap-3 border-t border-dashed border-border pt-3">
+            {/* 經文 vs 標籤 order, plus 自訂 (a user-written {ref}/{text} template). */}
+            <div className="mt-3 grid grid-cols-3 gap-3 border-t border-dashed border-border pt-3">
               {CITE_POSITIONS.map((p) => (
                 <button
                   key={p.value}
@@ -128,9 +137,40 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
                 </button>
               ))}
             </div>
-            {/* dashed divider, then the cite-format options — their 『經文』
-             * preview flips to match the position selected above. */}
-            <div className="flex flex-col gap-3 border-t border-dashed border-border pt-3">
+            {/* The 自訂 template box, height-animated open/closed. A single-line
+             * input. Starts one line tall and grows with real Enter presses
+             * (`field-sizing-content` on Textarea). `min-h-0` on the grid
+             * item is required for the 0fr row to actually collapse — a grid
+             * item's default auto-min-size is its content size, which would
+             * otherwise keep a sliver of height (and clip content slightly
+             * when open) no matter what the row track is set to. */}
+            <div
+              className={cn(
+                'mt-3 grid transition-[grid-template-rows] duration-200 ease-out',
+                citePosition === 'custom' ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+              )}
+            >
+              <div className="min-h-0 overflow-hidden">
+                <div className="flex flex-col gap-2 border-t border-dashed border-border pt-3">
+                  <Textarea
+                    value={citeTemplate}
+                    onChange={(e) => setCiteTemplate(e.target.value)}
+                    rows={1}
+                    placeholder={DEFAULT_CITE_TEMPLATE}
+                    className="min-h-10 resize-none"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    可用 <code className="rounded bg-muted px-1 py-0.5">{'{ref}'}</code> 和{' '}
+                    <code className="rounded bg-muted px-1 py-0.5">{'{text}'}</code>,其餘文字(含換行)照打。
+                  </p>
+                </div>
+              </div>
+            </div>
+            {/* dashed divider, then the cite-format options. Their preview
+             * either flips 『經文』 to match the position above, or — in 自訂
+             * — shows the actual template applied, so a keystroke in the
+             * input above shows up here immediately. */}
+            <div className="mt-3 flex flex-col gap-3 border-t border-dashed border-border pt-3">
               {CITE_FORMATS.map((f) => (
                 <button
                   key={f.value}
@@ -143,16 +183,23 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
                       : 'text-muted-foreground ring-1 ring-border hover:bg-muted/40',
                   )}
                 >
-                  <span>
-                    {/* 『經文』 goes before or after the ref by position. The
-                     * leading form gets -ml so the full-width 『 (which sits in
-                     * the right half of its em box) lines up with the text edge. */}
-                    {citePosition === 'text-first' && (
-                      <span className="-ml-[0.5em] text-muted-foreground">『經文』</span>
-                    )}
-                    {f.example}
-                    {citePosition === 'ref-first' && (
-                      <span className="text-muted-foreground">『經文』</span>
+                  <span className="whitespace-pre-wrap">
+                    {citePosition === 'custom' ? (
+                      formatCitation(f.example, '經文', 'custom', ['', ''], '', citeTemplate)
+                    ) : (
+                      <>
+                        {/* 『經文』 goes before or after the ref by position. The
+                         * leading form gets -ml so the full-width 『 (which sits
+                         * in the right half of its em box) lines up with the
+                         * text edge. */}
+                        {citePosition === 'text-first' && (
+                          <span className="-ml-[0.5em] text-muted-foreground">『經文』</span>
+                        )}
+                        {f.example}
+                        {citePosition === 'ref-first' && (
+                          <span className="text-muted-foreground">『經文』</span>
+                        )}
+                      </>
                     )}
                   </span>
                   {citeFormat === f.value && (

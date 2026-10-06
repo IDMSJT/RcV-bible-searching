@@ -18,6 +18,7 @@ import {
   formatCitation,
   DEFAULT_CITE_FORMAT,
   DEFAULT_CITE_POSITION,
+  DEFAULT_CITE_TEMPLATE,
   DEFAULT_COPY_LANG,
   type CiteFormat,
   type CitePosition,
@@ -105,19 +106,20 @@ function formatCopyText(
   format: 'zh' | 'en' | 'both',
   cite: CiteFormat,
   pos: CitePosition,
+  template: string,
 ): string {
   // Note-only rows have no verse text and no English source — fold every
   // format down to the note body with a 註N-suffixed label.
   if (r.noteOnly && r.noteToShow) {
     if (format === 'en') return ''
     const label = `${formatVerseRef(r.bookNo, r.chapterNo, r.verse.verse, cite)}註${r.noteToShow.n}`
-    return formatCitation(label, `『${r.noteToShow.text}』`, pos)
+    return formatCitation(label, r.noteToShow.text, pos, ['『', '』'], '', template)
   }
   const zhLabel = formatVerseRef(r.bookNo, r.chapterNo, r.verse.verse, cite)
   const enLabel = `${BOOK_ABBREV_EN[r.bookNo] ?? ''} ${r.chapterNo}:${r.verse.verse}`
-  const zh = formatCitation(zhLabel, `『${r.verse.text}』`, pos)
+  const zh = formatCitation(zhLabel, r.verse.text, pos, ['『', '』'], '', template)
   if (format === 'zh') return zh
-  const en = r.enText ? formatCitation(enLabel, `"${r.enText}"`, pos, ' ') : ''
+  const en = r.enText ? formatCitation(enLabel, r.enText, pos, ['"', '"'], ' ', template) : ''
   if (format === 'en') return en
   return r.enText ? `${zh}\n${en}` : zh
 }
@@ -946,6 +948,7 @@ function CopyAllBar({
 }) {
   const [cite] = useLocalStorage<CiteFormat>('rcv/cite-format', DEFAULT_CITE_FORMAT)
   const [pos] = useLocalStorage<CitePosition>('rcv/cite-position', DEFAULT_CITE_POSITION)
+  const [template] = useLocalStorage('rcv/cite-template', DEFAULT_CITE_TEMPLATE)
   const [copyLang] = useLocalStorage<CopyLang>('rcv/copy-lang', DEFAULT_COPY_LANG)
   const [showEnglish] = useLocalStorage('rcv/show-english', false)
   // Nothing to copy → no bar over the (also empty) results.
@@ -956,7 +959,8 @@ function CopyAllBar({
   const sep = lang === 'both' ? '\n\n' : '\n'
   const selecting = selected.size > 0
   const target = selecting ? resolved.filter((_, i) => selected.has(i)) : resolved
-  const text = () => target.map((r) => formatCopyText(r, lang, cite, pos)).filter(Boolean).join(sep)
+  const text = () =>
+    target.map((r) => formatCopyText(r, lang, cite, pos, template)).filter(Boolean).join(sep)
 
   const copy = async () => {
     const t = text()

@@ -36,25 +36,43 @@ export function formatVerseRef(
   return `${abbrev}${chapter}:${verse}` // 'colon' (default)
 }
 
-/** Whether the ref label comes before or after the 『經文』 when copying. */
-export type CitePosition = 'ref-first' | 'text-first'
+/** Whether the ref label comes before or after the verse text when copying, or
+ * 'custom' to lay both out with a user-written template (see
+ * `DEFAULT_CITE_TEMPLATE`). */
+export type CitePosition = 'ref-first' | 'text-first' | 'custom'
 
 export const CITE_POSITIONS: { value: CitePosition; label: string }[] = [
   { value: 'text-first', label: '經文在前' },
   { value: 'ref-first', label: '經文在後' },
+  { value: 'custom', label: '自訂' },
 ]
 
 export const DEFAULT_CITE_POSITION: CitePosition = 'ref-first'
 
-/** Join a ref label and its already-quoted text into one line, ordered per
- * `pos`. `sep` sits between them — empty for the 『』 Chinese form, a space for
- * the English "…" form. */
+/** `{ref}` / `{text}` placeholder template for 'custom' — everything else
+ * (quotes, punctuation, newlines) is literal, typed by the user. The default
+ * reproduces the built-in ref-first / 『』 look exactly. */
+export const DEFAULT_CITE_TEMPLATE = '{ref}『{text}』'
+
+function applyCiteTemplate(template: string, label: string, text: string): string {
+  return template.replaceAll('{ref}', label).replaceAll('{text}', text)
+}
+
+/** Join a ref label and its verse/note text into one line. `quote` wraps
+ * `text` for the two built-in positions (『』 for Chinese, "" for English);
+ * `sep` sits between label and quoted text — empty for the 『』 Chinese form, a
+ * space for the English "…" form. `pos === 'custom'` ignores both and runs
+ * `template` (raw `label` / `text`, no quotes added) instead. */
 export function formatCitation(
   label: string,
-  quoted: string,
+  text: string,
   pos: CitePosition,
+  quote: readonly [string, string] = ['', ''],
   sep = '',
+  template: string = DEFAULT_CITE_TEMPLATE,
 ): string {
+  if (pos === 'custom') return applyCiteTemplate(template, label, text)
+  const quoted = `${quote[0]}${text}${quote[1]}`
   return pos === 'text-first' ? `${quoted}${sep}${label}` : `${label}${sep}${quoted}`
 }
 
