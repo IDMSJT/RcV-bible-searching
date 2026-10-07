@@ -83,6 +83,11 @@ function RootComponent() {
   // Mobile-only: the sidebar content lives inside a Drawer below md. On desktop
   // the aside is permanently visible and this flag is ignored.
   const [drawerOpen, setDrawerOpen] = useState(false)
+  // Desktop-only counterpart to drawerOpen: the aside has no drawer to
+  // dismiss, so tapping the already-open nav button collapses it via this
+  // instead (see openMode). Persisted so a collapsed sidebar stays collapsed
+  // across a reload.
+  const [desktopSidebarOpen, setDesktopSidebarOpen] = useLocalStorage('rcv/desktop-sidebar-open', true)
   const [drawerSnap, setDrawerSnap] = useState<number | string | null>(1)
   const [changelogOpen, setChangelogOpen] = useState(false)
   // Which catalog pane the mobile drawer shows (0 = books, 1 = chapters). Lifted
@@ -216,15 +221,23 @@ function RootComponent() {
   }, [])
 
   const openMode = (m: SidebarMode, onNav?: () => void) => {
-    // Tapping the lit nav button while its drawer is already open closes it
-    // (the nav button acts as a toggle for the current mode). Compare against
+    // Tapping the lit nav button while its panel is already open closes it —
+    // every button toggles. Mobile dismisses the drawer; desktop (no drawer to
+    // dismiss) collapses the aside via its own flag instead. Compare against
     // effectiveMode so the toggle still fires correctly on /compose, where the
     // displayed mode is the forced 'compose' rather than the persisted one.
+    // 'compose' is excluded off-route (onNav still needs to navigate there —
+    // see onNavTap, which handles the on-route toggle itself).
     if (m === effectiveMode && drawerOpen) {
       setDrawerOpen(false)
       return
     }
+    if (m === effectiveMode && !isMobile && desktopSidebarOpen && !(m === 'compose' && !onCompose)) {
+      setDesktopSidebarOpen(false)
+      return
+    }
     setMode(m)
+    setDesktopSidebarOpen(true)
     // On /compose the sidebar belongs to the document, so anything else shows
     // as an overlay on top of it instead of replacing the persisted mode.
     if (onCompose) setComposeOverlay(m === 'compose' ? null : m)
@@ -284,12 +297,12 @@ function RootComponent() {
   const onNavTap = (target: SidebarMode) => {
     if (target === 'lookup') {
       // Phone: search is its own page. Dismiss any overlay (settings can sit
-      // over it), then go unless we're already there. Desktop: the aside, opened
-      // like the rest; tapping the open one is a no-op.
+      // over it), then go unless we're already there. Desktop: openMode's own
+      // toggle opens or closes the aside.
       if (isMobile) {
         setDrawerOpen(false)
         if (!onSearch) navigate({ to: '/search' })
-      } else if (!(drawerOpen && effectiveMode === 'lookup')) {
+      } else {
         openMode('lookup', onCompose ? goToLastChapter : undefined)
       }
       return
@@ -297,22 +310,31 @@ function RootComponent() {
 
     if (target === 'compose') {
       // On /compose the outline is the surface, so this toggles the editor
-      // drawer (closing also dismisses a settings overlay). From elsewhere,
-      // navigate to /compose — arriving keeps the editor down (see openMode).
-      if (!onCompose) openMode('compose', () => navigate({ to: '/compose' }))
-      else if (drawerOpen) setDrawerOpen(false)
-      else {
-        setComposeOverlay(null)
-        setMode('compose')
-        setDrawerOpen(true)
+      // overlay (closing also dismisses a settings overlay) — the mobile
+      // drawer, or desktop's own aside flag. From elsewhere, navigate to
+      // /compose — arriving keeps the editor down (see openMode).
+      if (!onCompose) {
+        openMode('compose', () => navigate({ to: '/compose' }))
+        return
       }
+      if (drawerOpen) {
+        setDrawerOpen(false)
+        return
+      }
+      if (!isMobile && desktopSidebarOpen && effectiveMode === 'compose') {
+        setDesktopSidebarOpen(false)
+        return
+      }
+      setComposeOverlay(null)
+      setMode('compose')
+      setDesktopSidebarOpen(true)
+      setDrawerOpen(true)
       return
     }
 
     if (target === 'settings') {
-      // The button toggles: tapping it with settings already up puts the drawer
-      // away. On desktop settingsOpen is never true, so this is just openMode
-      // there.
+      // The button toggles: tapping it with settings already up puts the
+      // drawer away (mobile) or collapses the aside (desktop, via openMode).
       if (settingsOpen) closeDrawer()
       else openMode('settings')
       return
@@ -340,7 +362,12 @@ function RootComponent() {
       }
       return
     }
-    // Desktop reading (no pane cycle): toggle the catalog.
+    // Desktop reading (no pane cycle): openMode's own toggle handles open vs.
+    // close here.
+    if (!isMobile) {
+      openMode('catalog')
+      return
+    }
     if (drawerOpen) setDrawerOpen(false)
     else openMode('catalog')
   }
@@ -433,8 +460,11 @@ function RootComponent() {
     )
 
   // Settings is a single narrow column of rows, so it gets a tighter width than
-  // the content-heavy panels (catalog / lookup / compose).
+  // the content-heavy panels (catalog / lookup / compose). The inner content
+  // div always keeps this (so it never reflows); the aside itself collapses to
+  // 0 instead when closed, letting overflow-x-hidden clip it away.
   const sidebarWidth = effectiveMode === 'settings' ? 'md:w-[320px]' : 'md:w-[426px]'
+  const asideWidth = desktopSidebarOpen ? sidebarWidth : 'md:w-0'
   const sidebarFlexCol = effectiveMode === 'compose' || effectiveMode === 'settings'
 
   return (
@@ -449,9 +479,9 @@ function RootComponent() {
       <nav className="hidden w-16 shrink-0 flex-col items-center border-r border-border bg-background p-2 md:flex print:hidden">
         {/* Desktop always names the chapter (詩46) — reading, it's where you are;
           * off a book route, it's what the button returns you to. */}
-        {sharedNavButtons((m) => effectiveMode === m, readingLabel)}
+        {sharedNavButtons((m) => effectiveMode === m && desktopSidebarOpen, readingLabel)}
         <NavButton
-          active={effectiveMode === 'settings'}
+          active={effectiveMode === 'settings' && desktopSidebarOpen}
           label="設定"
           className="mt-auto"
           onClick={() => onNavTap('settings')}
@@ -466,10 +496,11 @@ function RootComponent() {
           // overflow-x-hidden clips the fixed-width inner while the aside's width
           // animates, so the content lands at its final layout immediately and
           // only the box glides.
-          'hidden shrink-0 overflow-x-hidden overflow-y-auto border-r border-border bg-background transition-[width] duration-200 ease-out md:block print:hidden',
+          'hidden shrink-0 overflow-x-hidden overflow-y-auto border-border bg-background transition-[width] duration-200 ease-out md:block print:hidden',
           sidebarFlexCol && 'md:flex md:flex-col',
           effectiveMode === 'lookup' && 'md:overflow-hidden',
-          sidebarWidth,
+          desktopSidebarOpen ? 'md:border-r' : 'md:border-r-0',
+          asideWidth,
         )}
       >
         {/* Desktop aside swaps panels instantly — the mobile drawer is where
