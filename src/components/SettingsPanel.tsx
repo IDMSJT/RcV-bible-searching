@@ -84,10 +84,12 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
         </SettingRow>
         <SettingRow label="複製格式" stack>
           {/* Block flow, not flex — each section below owns a `mt-3` lead-in
-           * instead of a parent `gap-3`, so while the 自訂 template box is
-           * collapsed (zero height, no border/padding of its own) its margins
-           * collapse straight through, leaving one 12px gap rather than the
-           * two flex-gap slots either side of it stacking into 24px. */}
+           * instead of a parent `gap-3`. The 自訂 template box's own `mt-3`
+           * only applies while it's open (see below): a `display:grid` box
+           * establishes its own formatting context, so margins don't reliably
+           * collapse through it the way they would through a plain empty
+           * `<div>` — closed, it must carry no margin of its own, leaving the
+           * cite-format list's `mt-3` as the only gap. */}
           <div className="pt-1">
             {/* 語言 — when 顯示英文 is off, only 英文 / 中英文 are disabled (they
              * need the English text); 中文 stays selectable. */}
@@ -146,8 +148,8 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
              * when open) no matter what the row track is set to. */}
             <div
               className={cn(
-                'mt-3 grid transition-[grid-template-rows] duration-200 ease-out',
-                citePosition === 'custom' ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+                'grid transition-[grid-template-rows,margin-top] duration-200 ease-out',
+                citePosition === 'custom' ? 'mt-3 grid-rows-[1fr]' : 'mt-0 grid-rows-[0fr]',
               )}
             >
               <div className="min-h-0 overflow-hidden">
