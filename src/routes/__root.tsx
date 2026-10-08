@@ -668,7 +668,9 @@ function NavButton({
       {...rest}
       className={cn(
         // Active is a colour change only — the icon + label go gold
-        // (text-primary), no filled chip. currentColor carries it to the SVG.
+        // (text-primary), no filled chip. Only this button declares a text
+        // colour or a transition-colors for it; the icon and label below
+        // both just inherit currentColor, so they always move together.
         'group inline-flex flex-col items-center justify-center gap-1.5 rounded-md transition-colors md:p-2',
         active ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
         className,
@@ -677,14 +679,19 @@ function NavButton({
       <span
         className={cn(
           'inline-flex items-center justify-center',
-          // Desktop-only: square icon chip with its own hover / active bg —
-          // its colour transition lives here. On mobile the icon has no
-          // transition of its own; it inherits the button's animated colour
-          // (currentColor), so icon + label change colour in lock-step.
+          // Desktop-only: square icon chip with its own hover background —
+          // its own transition-colors is for THAT (bg-muted), not for text
+          // colour. The icon's own text colour must stay pure inheritance
+          // (no competing class, on either viewport) so it only ever follows
+          // the button's single animated colour — giving it its own colour
+          // rule here, even one that lands on the same value, had it
+          // transitioning on its own separate clock and drifting out of step
+          // with the label (also pure inheritance) whenever the hover and
+          // active changes didn't land in the same frame.
           'md:size-9 md:rounded-md md:transition-colors',
           // No fill on the active chip — the gold text does the work. Inactive
           // still gets a hover chip on desktop.
-          !active && 'md:group-hover:bg-muted md:group-hover:text-foreground',
+          !active && 'md:group-hover:bg-muted',
           // The open tab's icon outline thickens a step on either viewport, on
           // top of the gold.
           active && '[&_svg]:[stroke-width:1.6] md:[&_svg]:[stroke-width:1.8]',
