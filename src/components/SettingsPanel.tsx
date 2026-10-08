@@ -111,11 +111,18 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
                   )}
                 >
                   <span>{l.label}</span>
-                  {effCopyLang === l.value && (
-                    <span className="absolute top-1/2 right-3 flex size-5 -translate-y-1/2 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
-                      <Check className="size-3 [stroke-width:3]" />
-                    </span>
-                  )}
+                  {/* Always mounted (not conditionally rendered) so its
+                   * appearance can transition in step with the ring — a
+                   * mount/unmount pops instantly regardless of the button's
+                   * own transition-all. */}
+                  <span
+                    className={cn(
+                      'absolute top-1/2 right-3 flex size-5 -translate-y-1/2 items-center justify-center rounded-full bg-primary text-primary-foreground shadow transition-all duration-200',
+                      effCopyLang === l.value ? 'scale-100 opacity-100' : 'scale-50 opacity-0',
+                    )}
+                  >
+                    <Check className="size-3 [stroke-width:3]" />
+                  </span>
                 </button>
               ))}
             </div>
@@ -134,11 +141,14 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
                   )}
                 >
                   <span>{p.label}</span>
-                  {citePosition === p.value && (
-                    <span className="absolute top-1/2 right-3 flex size-5 -translate-y-1/2 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
-                      <Check className="size-3 [stroke-width:3]" />
-                    </span>
-                  )}
+                  <span
+                    className={cn(
+                      'absolute top-1/2 right-3 flex size-5 -translate-y-1/2 items-center justify-center rounded-full bg-primary text-primary-foreground shadow transition-all duration-200',
+                      citePosition === p.value ? 'scale-100 opacity-100' : 'scale-50 opacity-0',
+                    )}
+                  >
+                    <Check className="size-3 [stroke-width:3]" />
+                  </span>
                 </button>
               ))}
             </div>
@@ -220,11 +230,14 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
                       </>
                     )}
                   </span>
-                  {citeFormat === f.value && (
-                    <span className="absolute top-1/2 right-3 flex size-5 -translate-y-1/2 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
-                      <Check className="size-3 [stroke-width:3]" />
-                    </span>
-                  )}
+                  <span
+                    className={cn(
+                      'absolute top-1/2 right-3 flex size-5 -translate-y-1/2 items-center justify-center rounded-full bg-primary text-primary-foreground shadow transition-all duration-200',
+                      citeFormat === f.value ? 'scale-100 opacity-100' : 'scale-50 opacity-0',
+                    )}
+                  >
+                    <Check className="size-3 [stroke-width:3]" />
+                  </span>
                 </button>
               ))}
             </div>
