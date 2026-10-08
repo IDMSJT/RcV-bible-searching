@@ -187,7 +187,7 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
                   type="button"
                   onClick={() => setCiteFormat(f.value)}
                   className={cn(
-                    'relative rounded-lg px-3 py-2.5 text-left text-base transition-all duration-150 select-none active:scale-95 md:py-2 md:text-sm',
+                    'relative rounded-lg px-3 py-2.5 text-left text-base transition-all duration-150 select-none active:scale-[0.98] md:py-2 md:text-sm',
                     citeFormat === f.value
                       ? 'text-foreground ring-2 ring-primary'
                       : 'text-muted-foreground ring-1 ring-border hover:bg-muted/40',
@@ -195,14 +195,15 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
                 >
                   <span className="whitespace-pre-wrap">
                     {citePosition === 'custom' ? (
-                      // A trailing `\n` alone (nothing typed after it yet)
-                      // doesn't render as an extra line under plain
-                      // white-space: pre-wrap — browsers collapse a line
-                      // break with nothing following it. Explicit <br>s
-                      // always force the break, trailing or not.
+                      // An empty line (including a bare trailing `\n`, nothing
+                      // typed after it yet) still needs to render as a line —
+                      // a <br> with truly nothing following it doesn't
+                      // reliably claim a line box, so a bare empty string
+                      // after it renders no visible height either. A
+                      // non-breaking space gives that line real content.
                       formatCitation(f.example, '經文', 'custom', ['', ''], '', citeTemplate)
                         .split('\n')
-                        .flatMap((line, i) => (i === 0 ? [line] : [<br key={i} />, line]))
+                        .flatMap((line, i) => (i === 0 ? [line || ' '] : [<br key={i} />, line || ' ']))
                     ) : (
                       <>
                         {/* 『經文』 goes before or after the ref by position. The
