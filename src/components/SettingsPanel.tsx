@@ -101,7 +101,10 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
                   disabled={!showEnglish && l.value !== 'zh'}
                   onClick={() => setCopyLang(l.value)}
                   className={cn(
-                    'flex items-center justify-between rounded-lg px-3 py-2.5 text-left text-base transition-all duration-150 select-none active:scale-95 disabled:pointer-events-none disabled:opacity-40 md:py-2 md:text-sm',
+                    // relative + an absolute check mark (below) instead of a
+                    // flex row, so the check circle's reserved width can't
+                    // force a short label like 經文在前 to wrap.
+                    'relative rounded-lg px-3 py-2.5 text-left text-base transition-all duration-150 select-none active:scale-95 disabled:pointer-events-none disabled:opacity-40 md:py-2 md:text-sm',
                     effCopyLang === l.value
                       ? 'text-foreground ring-2 ring-primary'
                       : 'text-muted-foreground ring-1 ring-border hover:bg-muted/40',
@@ -109,7 +112,7 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
                 >
                   <span>{l.label}</span>
                   {effCopyLang === l.value && (
-                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
+                    <span className="absolute top-1/2 right-3 flex size-5 -translate-y-1/2 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
                       <Check className="size-3 [stroke-width:3]" />
                     </span>
                   )}
@@ -124,7 +127,7 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
                   type="button"
                   onClick={() => setCitePosition(p.value)}
                   className={cn(
-                    'flex items-center justify-between rounded-lg px-3 py-2.5 text-left text-base transition-all duration-150 select-none active:scale-95 md:py-2 md:text-sm',
+                    'relative rounded-lg px-3 py-2.5 text-left text-base transition-all duration-150 select-none active:scale-95 md:py-2 md:text-sm',
                     citePosition === p.value
                       ? 'text-foreground ring-2 ring-primary'
                       : 'text-muted-foreground ring-1 ring-border hover:bg-muted/40',
@@ -132,7 +135,7 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
                 >
                   <span>{p.label}</span>
                   {citePosition === p.value && (
-                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
+                    <span className="absolute top-1/2 right-3 flex size-5 -translate-y-1/2 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
                       <Check className="size-3 [stroke-width:3]" />
                     </span>
                   )}
@@ -152,7 +155,12 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
                 citePosition === 'custom' ? 'mt-3 grid-rows-[1fr]' : 'mt-0 grid-rows-[0fr]',
               )}
             >
-              <div className="min-h-0 overflow-hidden">
+              {/* -mx-1 px-1: the clipping box needs room for the Textarea's
+               * focus ring (a box-shadow a few px past its border), which a
+               * flush overflow-hidden boundary clips off. The padding gives
+               * the ring that room; the matching negative margin cancels it
+               * back out so the content still lines up with its siblings. */}
+              <div className="-mx-1 min-h-0 overflow-hidden px-1">
                 <div className="flex flex-col gap-2 border-t border-dashed border-border pt-3">
                   <Textarea
                     value={citeTemplate}
@@ -179,7 +187,7 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
                   type="button"
                   onClick={() => setCiteFormat(f.value)}
                   className={cn(
-                    'flex items-center justify-between rounded-lg px-3 py-2.5 text-left text-base transition-all duration-150 select-none active:scale-95 md:py-2 md:text-sm',
+                    'relative rounded-lg px-3 py-2.5 text-left text-base transition-all duration-150 select-none active:scale-95 md:py-2 md:text-sm',
                     citeFormat === f.value
                       ? 'text-foreground ring-2 ring-primary'
                       : 'text-muted-foreground ring-1 ring-border hover:bg-muted/40',
@@ -187,7 +195,14 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
                 >
                   <span className="whitespace-pre-wrap">
                     {citePosition === 'custom' ? (
+                      // A trailing `\n` alone (nothing typed after it yet)
+                      // doesn't render as an extra line under plain
+                      // white-space: pre-wrap — browsers collapse a line
+                      // break with nothing following it. Explicit <br>s
+                      // always force the break, trailing or not.
                       formatCitation(f.example, '經文', 'custom', ['', ''], '', citeTemplate)
+                        .split('\n')
+                        .flatMap((line, i) => (i === 0 ? [line] : [<br key={i} />, line]))
                     ) : (
                       <>
                         {/* 『經文』 goes before or after the ref by position. The
@@ -205,7 +220,7 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
                     )}
                   </span>
                   {citeFormat === f.value && (
-                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
+                    <span className="absolute top-1/2 right-3 flex size-5 -translate-y-1/2 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
                       <Check className="size-3 [stroke-width:3]" />
                     </span>
                   )}
