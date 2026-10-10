@@ -1,12 +1,19 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 /** Past this finger speed (px/ms) a release commits even if it never reached
  * the distance threshold — a quick flick pages like a snap. */
 const FLICK = 0.4
 
+/** Duration of the commit/snap-back slide. Callers use this for their own
+ * `transition` style (it has to match — the hook only drives transform) and
+ * the hook times the actual page-change off it below, so there's one number
+ * to tune the whole feel. */
+export const COMMIT_MS = 200
+
 /**
- * Horizontal paging for the reading carousel. The track holds [prev, current,
- * next] panels at translateX(-100% + dx); dragging adjusts dx, release snaps. A
+ * Horizontal paging for the reading carousel. Dragging writes the track's
+ * transform (via `getTransform`) straight to `trackRef`'s DOM node — no React
+ * state in the loop, so a drag never re-renders the panels it's sliding. A
  * release commits when the drag passed ~25% of the width OR was a fast flick.
  * `targetDir` arms as soon as the drag crosses the threshold (so the caller can
  * flip the title before the finger lifts) and is kept through the commit slide;
@@ -17,6 +24,8 @@ const FLICK = 0.4
  */
 export function useCarousel({
   containerRef,
+  trackRef,
+  getTransform,
   hasPrev,
   hasNext,
   onPrev,
@@ -26,6 +35,19 @@ export function useCarousel({
   enabled = true,
 }: {
   containerRef: React.RefObject<HTMLElement | null>
+  /** The sliding track itself — the element `getTransform`'s string is
+   * applied to. Written straight to `el.style.transform` on every pointer
+   * move, bypassing React state: a drag used to call `setState` per pixel,
+   * which re-rendered the whole panel tree (all three chapters' worth of
+   * text, notes and cross-refs) 60 times a second just to move one transform.
+   * Nothing about a drag needs React to know about it frame by frame — only
+   * the rare, discrete moments (threshold crossed, released, landed) do, and
+   * those still go through state below. */
+  trackRef: React.RefObject<HTMLElement | null>
+  /** Builds the track's transform from the current drag offset — callers
+   * differ in what the offset sits on top of (a fixed -100% for a 3-slot
+   * reading track, -activeIndex*100% for a 2-tab one). */
+  getTransform: (dx: number) => string
   hasPrev: boolean
   hasNext: boolean
   onPrev: () => void
@@ -41,7 +63,6 @@ export function useCarousel({
   /** Off while selecting verses, so a swipe doesn't page away. */
   enabled?: boolean
 }) {
-  const [dx, setDx] = useState(0)
   const [animating, setAnimating] = useState(false)
   // The direction the swipe is heading: armed while dragging past the threshold,
   // kept through the commit slide, cleared on snap-back / land.
@@ -58,17 +79,45 @@ export function useCarousel({
   } | null>(null)
   const committing = useRef(false)
 
-  const set = (v: number) => {
-    dxRef.current = v
-    setDx(v)
-  }
+  // Latest getTransform, read from event handlers rather than closed over —
+  // those handlers are only (re)subscribed via the JSX spread below, so a
+  // stale closure would apply a stale base offset (e.g. the search tabs'
+  // -activeIndex*100%) until the next drag.
+  const getTransformRef = useRef(getTransform)
+
+  const applyTransform = useCallback(
+    (v: number) => {
+      dxRef.current = v
+      const el = trackRef.current
+      if (el) el.style.transform = getTransformRef.current(v)
+    },
+    [trackRef],
+  )
+
+  // Re-applies on every render, not just when getTransform's identity
+  // changes (it's a fresh arrow function each render anyway) — cheap (one
+  // style write) and keeps the track correct the instant a non-drag cause
+  // (e.g. tapping a tab directly) changes what getTransform would return for
+  // the same dx.
+  useLayoutEffect(() => {
+    getTransformRef.current = getTransform
+    applyTransform(dxRef.current)
+  })
 
   useLayoutEffect(() => {
     committing.current = false
     setTargetDir(null)
     setAnimating(false)
-    set(0)
-  }, [resetKey])
+    // Land at dx 0 with the transition killed *synchronously* — not via the
+    // animating state round-trip, which only reaches the DOM on React's next
+    // commit. The commit slide a moment ago left transition: '…Nms ease-out'
+    // sitting in the DOM; a plain applyTransform(0) here would change the
+    // transform while that's still in effect and the browser would animate
+    // the snap, undoing the slide that just finished landing the new page.
+    const el = trackRef.current
+    if (el) el.style.transition = 'none'
+    applyTransform(0)
+  }, [resetKey, applyTransform, trackRef])
 
   // Once the gesture is locked horizontal, swallow the browser's vertical pan so
   // it can't steal (and cancel) the swipe mid-drag.
@@ -128,7 +177,7 @@ export function useCarousel({
       if (dxRef.current !== 0) {
         setAnimating(true)
         setTargetDir(null)
-        set(0)
+        applyTransform(0)
       }
       return
     }
@@ -153,7 +202,7 @@ export function useCarousel({
     if ((ddx > 0 && !hasPrev) || (ddx < 0 && !hasNext)) v = ddx * 0.2
     else if (v > w) v = w + (v - w) * 0.2
     else if (v < -w) v = -w + (v + w) * 0.2
-    set(v)
+    applyTransform(v)
 
     // Arm the title direction once the drag passes the commit distance.
     const t = Math.min(w * 0.25, 100)
@@ -180,17 +229,16 @@ export function useCarousel({
     if (commit && dir) {
       committing.current = true
       setTargetDir(dir)
-      set(dir === 'prev' ? w : -w)
+      applyTransform(dir === 'prev' ? w : -w)
       onCommit?.(dir) // synchronous — inside the gesture, so focus() can open the keyboard
-      window.setTimeout(dir === 'prev' ? onPrev : onNext, 260)
+      window.setTimeout(dir === 'prev' ? onPrev : onNext, COMMIT_MS + 10)
     } else {
       setTargetDir(null)
-      set(0) // snap back
+      applyTransform(0) // snap back
     }
   }
 
   return {
-    dx,
     animating,
     targetDir,
     // Capture, not bubble: a note card, a verse preview and every citation

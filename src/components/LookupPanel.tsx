@@ -27,7 +27,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { useIsTouch } from '@/lib/useIsTouch'
-import { useCarousel } from '@/lib/useCarousel'
+import { useCarousel, COMMIT_MS } from '@/lib/useCarousel'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { renderMarkedText, renderNoteText } from '@/lib/renderVerse'
 import { InputActions } from '@/components/InputActions'
@@ -268,9 +268,11 @@ function highlightTokens(text: string, tokens: string[]): ReactNode {
   return out
 }
 
-/** The result rows for one tab, memoized so a swipe (which re-renders the
- * parent every frame via `dx`) doesn't re-render the up-to-500-row list. All
- * props are referentially stable during a drag, so the memo holds. */
+/** The result rows for one tab, memoized so the up-to-500-row list doesn't
+ * re-render for reasons that have nothing to do with it — a drag no longer
+ * re-renders the parent at all (useCarousel writes the track's transform
+ * straight to the DOM), but other parent-level state still can. All props
+ * are referentially stable in those cases, so the memo holds. */
 const ResultList = memo(function ResultList({
   rows,
   tokens,
@@ -385,8 +387,11 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   // Reuses the reading pager's gesture hook — prev = 關鍵字 (left), next = 經節.
   const activeIndex = tab === 'kw' ? 0 : 1
   const bodyRef = useRef<HTMLDivElement>(null)
-  const { dx, animating, targetDir, trackProps } = useCarousel({
+  const trackRef = useRef<HTMLDivElement>(null)
+  const { animating, targetDir, trackProps } = useCarousel({
     containerRef: bodyRef,
+    trackRef,
+    getTransform: (dx) => `translateX(calc(${-activeIndex * 100}% + ${dx}px))`,
     hasPrev: activeIndex > 0,
     hasNext: activeIndex < 1,
     onPrev: () => setTab('kw'),
@@ -692,19 +697,20 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
       </div>
 
       {isMobile ? (
-        // Mobile: both tabs ride a 200%-wide track; the gesture hook slides dx
-        // and a release snaps to the nearer tab. touch-pan-y lets vertical
-        // scrolling through while the hook locks + owns horizontal drags.
+        // Mobile: both tabs ride a 200%-wide track; the gesture hook slides it
+        // (straight to the DOM — see useCarousel) and a release snaps to the
+        // nearer tab. touch-pan-y lets vertical scrolling through while the
+        // hook locks + owns horizontal drags.
         <div
           ref={bodyRef}
           {...trackProps}
           className="relative min-h-0 flex-1 touch-pan-y overflow-hidden"
         >
           <div
+            ref={trackRef}
             className="flex h-full"
             style={{
-              transform: `translateX(calc(${-activeIndex * 100}% + ${dx}px))`,
-              transition: animating ? 'transform 250ms ease-out' : undefined,
+              transition: animating ? `transform ${COMMIT_MS}ms ease-out` : undefined,
             }}
           >
             <div className="h-full w-full shrink-0">{kwPanel}</div>

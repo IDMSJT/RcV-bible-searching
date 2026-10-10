@@ -14,7 +14,7 @@ import { chapterUnit } from '@/lib/chinese'
 import { parseHighlight, type HlItem } from '@/lib/highlight'
 import { prevRef, nextRef, refKey, type ReadingRef } from '@/lib/readingRef'
 import { skipNextVisit } from '@/lib/readingHistory'
-import { useCarousel } from '@/lib/useCarousel'
+import { useCarousel, COMMIT_MS } from '@/lib/useCarousel'
 import { useIsTouch } from '@/lib/useIsTouch'
 import { ChapterView } from '@/components/ChapterView'
 import { VerseRail } from '@/components/VerseRail'
@@ -170,8 +170,11 @@ export function ReadingPager() {
   // it hands its jump function up.
   const [scrub, setScrub] = useState<((verse: number | null) => void) | null>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
-  const { dx, animating, targetDir, trackProps } = useCarousel({
+  const trackRef = useRef<HTMLDivElement>(null)
+  const { animating, targetDir, trackProps } = useCarousel({
     containerRef: bodyRef,
+    trackRef,
+    getTransform: (dx) => `translateX(calc(-100% + ${dx}px))`,
     hasPrev: prev != null,
     hasNext: next != null,
     onPrev: () => prev && goTo(prev),
@@ -253,10 +256,10 @@ export function ReadingPager() {
           className="relative min-h-0 flex-1 touch-pan-y overflow-hidden"
         >
           <div
+            ref={trackRef}
             className="flex h-full"
             style={{
-              transform: `translateX(calc(-100% + ${dx}px))`,
-              transition: animating ? 'transform 250ms ease-out' : undefined,
+              transition: animating ? `transform ${COMMIT_MS}ms ease-out` : undefined,
             }}
           >
             {slots.map(({ ref, active }, i) => (
