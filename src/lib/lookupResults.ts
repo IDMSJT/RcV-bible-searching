@@ -1,7 +1,7 @@
 import { eachVerseInRange, findChapter, notesForVerse } from '@/data/loadBible'
 import { hasVariant, tokenPattern } from '@/lib/variants'
 import type { VerseRef } from '@/lib/parseRefs'
-import type { Annotation, AnnotationData, Bible, Verse } from '@/types/bible'
+import type { Annotation, AnnotationData, Bible, Outline, Verse } from '@/types/bible'
 
 /**
  * Turning a query into rows: the part of the lookup that is only data.
@@ -36,6 +36,16 @@ export interface ResolvedVerse {
    *   itself isn't shown and the note takes its place. */
   noteToShow?: Annotation
   noteOnly?: boolean
+  /** 綱目 heading title, for an outline-scope keyword match — shown where the
+   * verse text normally goes, same idea as `noteToShow` but there's no
+   * Annotation (no note number, no offsets) backing an outline entry. The
+   * verse the row carries is just the one the heading anchors to, printed for
+   * its reference and copy text. */
+  outlineTitle?: string
+  /** That entry's hierarchy marker (壹/一/1/a/（一）…) — the result row's left
+   * label uses it instead of a chapter:verse, since a heading's place in the
+   * outline is what identifies it, not the verse it happens to anchor to. */
+  outlineMarker?: string
   /** The ref this row answers, narrowed to this one verse. Navigation and the
    * input's own highlighting both key off it. */
   ref: VerseRef
@@ -45,6 +55,7 @@ export interface Sources {
   bible: Bible | null
   bibleEn: Bible | null
   annotations: AnnotationData | null
+  outline: Outline | null
   showEnglish: boolean
 }
 
@@ -194,18 +205,26 @@ export function refsExist(refs: VerseRef[], bible: Bible | null): boolean[] {
  * the total is honest, but only `cap` rows are built — a one-character query
  * would otherwise put every verse in the canon into an unvirtualised list.
  */
+/** Where a keyword search looks: verse text (+ English), footnote text, 綱目
+ * heading titles, or (`all`) every one of those. Note rows come out
+ * `noteOnly` (same shape 經節 search already uses for 註N citations); outline
+ * rows carry `outlineTitle` instead — see `ResolvedVerse`. */
+export type KeywordScope = 'all' | 'verse' | 'note' | 'outline'
+
 export function searchKeyword(
   query: string,
   src: Sources,
   cap: number,
+  scope: KeywordScope = 'verse',
 ): { rows: ResolvedVerse[]; total: number } {
-  const { bible, bibleEn, showEnglish } = src
+  const { bible, bibleEn, annotations, outline, showEnglish } = src
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
   if (!bible || words.length === 0) return { rows: [], total: 0 }
 
   // A variant-expanded regex (吃 also matches 喫) when the word carries a
   // variant character, otherwise the plain fast `includes`. Built once per
-  // query and reused across every verse.
+  // query and reused across every verse, footnote, or outline title —
+  // whichever `scope` is searching.
   const matchers = words.map((t) => {
     if (hasVariant(t)) {
       const re = new RegExp(tokenPattern(t))
@@ -213,27 +232,94 @@ export function searchKeyword(
     }
     return { t, zh: (h: string) => h.includes(t) }
   })
+  const matchesText = (text: string) => matchers.every((m) => m.zh(text))
 
+  const searchVerse = scope === 'verse' || scope === 'all'
+  const searchNote = scope === 'note' || scope === 'all'
+  const searchOutline = scope === 'outline' || scope === 'all'
   const rows: ResolvedVerse[] = []
   let total = 0
-  for (const book of bible.books) {
-    for (const chapter of book.chapters) {
-      const en = showEnglish ? findChapter(bibleEn, book.bookNo, chapter.chapterNo) : null
-      for (const v of chapter.verses) {
-        const enText = en?.verses.find((x) => x.verse === v.verse)?.text ?? ''
-        const enLower = enText.toLowerCase()
-        if (!matchers.every((m) => m.zh(v.text) || enLower.includes(m.t))) continue
+
+  // Verse and footnote text are both organized by chapter/verse, so one pass
+  // covers both; skip it entirely rather than iterate the whole canon for
+  // nothing when only 綱目 is wanted.
+  if (searchVerse || searchNote) {
+    for (const book of bible.books) {
+      for (const chapter of book.chapters) {
+        const en = showEnglish ? findChapter(bibleEn, book.bookNo, chapter.chapterNo) : null
+        for (const v of chapter.verses) {
+          const ref = {
+            bookNo: book.bookNo,
+            chapter: chapter.chapterNo,
+            endChapter: chapter.chapterNo,
+            verseStart: v.verse,
+            verseEnd: v.verse,
+            seg: null,
+            source: '',
+          }
+          if (searchVerse) {
+            const enText = en?.verses.find((x) => x.verse === v.verse)?.text ?? ''
+            const enLower = enText.toLowerCase()
+            if (matchers.every((m) => m.zh(v.text) || enLower.includes(m.t))) {
+              total++
+              if (rows.length < cap) {
+                rows.push({
+                  bookNo: book.bookNo,
+                  chapterNo: chapter.chapterNo,
+                  verse: v,
+                  enText: enText || undefined,
+                  ref,
+                })
+              }
+            }
+          }
+          if (searchNote) {
+            for (const note of notesForVerse(annotations, book.bookNo, chapter.chapterNo, v.verse)) {
+              if (!matchesText(note.text)) continue
+              total++
+              if (rows.length >= cap) continue
+              rows.push({
+                bookNo: book.bookNo,
+                chapterNo: chapter.chapterNo,
+                verse: v,
+                noteToShow: note,
+                noteOnly: true,
+                // note + noteDirect — not the bare `ref` — so refHl() (in
+                // LookupPanel) encodes "this note alone" (「5:2」) instead of
+                // falling through to a plain verse tint that doesn't open it.
+                ref: { ...ref, note: note.n, noteDirect: true },
+              })
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // 綱目 isn't organized by chapter/verse the way the canon is, so it gets its
+  // own pass — one entry per heading, not per verse. Comes after verse/note so
+  // an `all`-scope list reads as "matches, then headings" rather than jumbled.
+  if (searchOutline) {
+    for (const book of outline?.books ?? []) {
+      for (const entry of book.outline) {
+        if (!matchesText(entry.title)) continue
+        const chapterNo = entry.anchor.chapter
+        const verseNo = entry.anchor.verse ?? 1
+        const chapter = findChapter(bible, book.bookNo, chapterNo)
+        const v = chapter?.verses.find((x) => x.verse === verseNo) ?? chapter?.verses[0]
+        if (!v) continue // outline/verse data out of sync — skip rather than crash
         total++
         if (rows.length >= cap) continue
         rows.push({
           bookNo: book.bookNo,
-          chapterNo: chapter.chapterNo,
+          chapterNo,
           verse: v,
-          enText: enText || undefined,
+          outlineTitle: entry.title,
+          outlineMarker: entry.marker,
           ref: {
             bookNo: book.bookNo,
-            chapter: chapter.chapterNo,
-            endChapter: chapter.chapterNo,
+            chapter: chapterNo,
+            endChapter: chapterNo,
             verseStart: v.verse,
             verseEnd: v.verse,
             seg: null,
@@ -243,5 +329,6 @@ export function searchKeyword(
       }
     }
   }
+
   return { rows, total }
 }

@@ -46,7 +46,7 @@ const annotations: AnnotationData = {
     ],
   },
 }
-const src: Sources = { bible, bibleEn, annotations, showEnglish: false }
+const src: Sources = { bible, bibleEn, annotations, outline: null, showEnglish: false }
 const refs = (q: string) => parseRefs(q).refs
 const rows = (q: string, s: Sources = src) =>
   resolveRefs(refs(q), s).map((r) => `${r.bookNo}:${r.chapterNo}:${r.verse.verse}${r.noteOnly ? `註${r.noteToShow?.n}` : ''}`)

@@ -1,16 +1,17 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useLocation } from '@tanstack/react-router'
-import { X } from 'lucide-react'
+import { ChevronDown, Star, X } from 'lucide-react'
 import { parseRefs, type Segment, type VerseRef } from '@/lib/parseRefs'
 import {
   refsExist,
   resolveRefs,
   searchKeyword,
+  type KeywordScope,
   type ResolvedVerse,
 } from '@/lib/lookupResults'
 import { groupRefs } from '@/lib/refGroups'
 import { tokenPattern } from '@/lib/variants'
-import { useBible, useBibleEn, useAnnotations } from '@/data/loadBible'
+import { useBible, useBibleEn, useAnnotations, useOutline } from '@/data/loadBible'
 import { BOOK_ABBREV } from '@/data/abbrev'
 import { BOOK_ABBREV_EN } from '@/data/abbrevEn'
 import {
@@ -29,6 +30,7 @@ import { useIsMobile } from '@/lib/useIsMobile'
 import { useIsTouch } from '@/lib/useIsTouch'
 import { useCarousel, COMMIT_MS } from '@/lib/useCarousel'
 import { useLocalStorage } from '@/lib/useLocalStorage'
+import { useSavedQueries } from '@/lib/savedQueries'
 import { renderMarkedText, renderNoteText } from '@/lib/renderVerse'
 import { InputActions } from '@/components/InputActions'
 import { BookRail, type RailBook } from '@/components/BookRail'
@@ -114,6 +116,13 @@ function formatCopyText(
     if (format === 'en') return ''
     const label = `${formatVerseRef(r.bookNo, r.chapterNo, r.verse.verse, cite)}註${r.noteToShow.n}`
     return formatCitation(label, r.noteToShow.text, pos, ['『', '』'], '', template)
+  }
+  // Outline rows, same idea — no note number to suffix with, so 「綱目」 says
+  // what kind of text this is instead.
+  if (r.outlineTitle) {
+    if (format === 'en') return ''
+    const label = `${formatVerseRef(r.bookNo, r.chapterNo, r.verse.verse, cite)}綱目`
+    return formatCitation(label, r.outlineTitle, pos, ['『', '』'], '', template)
   }
   const zhLabel = formatVerseRef(r.bookNo, r.chapterNo, r.verse.verse, cite)
   const enLabel = `${BOOK_ABBREV_EN[r.bookNo] ?? ''} ${r.chapterNo}:${r.verse.verse}`
@@ -351,10 +360,71 @@ const ResultList = memo(function ResultList({
   )
 })
 
+/** Favourited query strings, shown as chips while the field is empty — tap one
+ * to fill it (and run the search) and get back to it faster than retyping.
+ * Hidden the moment there's text, so it never competes with real results. */
+function SavedQueriesList({
+  queries,
+  onPick,
+  onRemove,
+}: {
+  queries: string[]
+  onPick: (q: string) => void
+  onRemove: (q: string) => void
+}) {
+  if (queries.length === 0) return null
+  return (
+    <div className="-mt-2 flex flex-col">
+      {queries.map((q) => (
+        // Overlaid remove button, not nested in the pick button — same reason
+        // as the catalog's history rows: a press on the corner is the remove
+        // button's alone, never the pick button's.
+        <div key={q} className="relative flex w-full items-center">
+          <button
+            type="button"
+            onClick={() => onPick(q)}
+            // min-w-0 here too — a flex item's own default min-width is its
+            // content size, same issue as the text span below one level down.
+            // Without it this button (not just its text) refuses to shrink,
+            // so the span's min-w-0/truncate never has a constrained box to
+            // elide against.
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-lg py-2.5 pr-10 pl-1 text-left text-base transition-colors hover:bg-muted"
+          >
+            <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <Star className="size-4" />
+            </span>
+            {/* min-w-0: a flex item's default min-width is its content size,
+             * which overrides truncate's overflow-hidden and lets it push the
+             * row wider / off-screen instead of eliding. */}
+            <span className="min-w-0 truncate">{q}</span>
+          </button>
+          <button
+            type="button"
+            aria-label="移除收藏"
+            onClick={() => onRemove(q)}
+            // right-0, not right-1: the row sits in the same p-4 box the
+            // InputActions bar's px-4 does, and that star button's flush
+            // against its own edge (justify-end, no extra inset) — matching
+            // that exactly is what lines the two columns of icons up.
+            className="absolute top-1/2 right-0 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors after:absolute after:-inset-2 after:content-[''] hover:bg-muted hover:text-foreground md:after:inset-0"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   const [tab, setTab] = useLocalStorage<LookupTab>('rcv/lookup-tab', 'kw')
   const [q, setQ] = useLocalStorage('rcv/lookup-q', '')
   const [kw, setKw] = useLocalStorage('rcv/lookup-kw', '')
+  // Prototyping with a plain <select> before deciding whether this earns the
+  // app's usual segmented-button look.
+  const [kwScope, setKwScope] = useLocalStorage<KeywordScope>('rcv/lookup-kw-scope', 'verse')
+  const savedRef = useSavedQueries('ref')
+  const savedKw = useSavedQueries('kw')
   const { data, error } = useBible()
   const [showEnglish] = useLocalStorage('rcv/show-english', false)
   const { data: bibleEn } = useBibleEn(showEnglish)
@@ -363,6 +433,10 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   // an automatic per-verse decoration. 顯示註釋 setting only gates ChapterView's
   // own sup markers.
   const { data: annotations } = useAnnotations()
+  // Unconditional too, same reasoning as annotations above — 綱目-scope search
+  // is the only consumer, and outline.json is already cached app-wide by the
+  // time a reader reaches the search panel (catalog, reading view's 綱目).
+  const { data: outline } = useOutline()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -457,13 +531,19 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   }, [q])
 
   const resolvedRefs = useMemo(
-    () => resolveRefs(refs, { bible: data, bibleEn, annotations, showEnglish }),
-    [refs, data, bibleEn, annotations, showEnglish],
+    () => resolveRefs(refs, { bible: data, bibleEn, annotations, outline, showEnglish }),
+    [refs, data, bibleEn, annotations, outline, showEnglish],
   )
 
   const resolvedKw = useMemo(
-    () => searchKeyword(kw, { bible: data, bibleEn, annotations, showEnglish }, KW_RESULT_CAP),
-    [kw, data, bibleEn, annotations, showEnglish],
+    () =>
+      searchKeyword(
+        kw,
+        { bible: data, bibleEn, annotations, outline, showEnglish },
+        KW_RESULT_CAP,
+        kwScope,
+      ),
+    [kw, data, bibleEn, annotations, outline, showEnglish, kwScope],
   )
 
   const resolved = tab === 'ref' ? resolvedRefs : resolvedKw.rows
@@ -603,7 +683,15 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
           className={cn(FIELD_INPUT, 'relative min-h-[4.5rem] text-transparent caret-foreground')}
         />
       </div>
-      <InputActions value={q} onChange={setQ} focusRef={textareaRef} scan variant="bar" />
+      <InputActions
+        value={q}
+        onChange={setQ}
+        focusRef={textareaRef}
+        scan
+        variant="bar"
+        favorited={savedRef.isSaved(q)}
+        onToggleFavorite={() => savedRef.toggle(q)}
+      />
     </div>
   )
 
@@ -621,7 +709,31 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
           className={FIELD_INPUT}
         />
       </div>
-      <InputActions value={kw} onChange={setKw} focusRef={kwTextareaRef} variant="bar" />
+      <div className="flex items-center justify-between gap-2">
+        {/* appearance-none + a drawn-in chevron — the native dropdown arrow is
+         * OS-rendered and doesn't reliably pick up our dark-mode colours. */}
+        <div className="relative">
+          <select
+            value={kwScope}
+            onChange={(e) => setKwScope(e.target.value as KeywordScope)}
+            className="h-7 appearance-none rounded-md bg-secondary py-0 pr-6 pl-2.5 text-xs font-medium text-secondary-foreground"
+          >
+            <option value="all">全部</option>
+            <option value="verse">經文</option>
+            <option value="note">註解</option>
+            <option value="outline">綱目</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute top-1/2 right-1.5 size-3 -translate-y-1/2 text-secondary-foreground" />
+        </div>
+        <InputActions
+          value={kw}
+          onChange={setKw}
+          focusRef={kwTextareaRef}
+          variant="bar"
+          favorited={savedKw.isSaved(kw)}
+          onToggleFavorite={() => savedKw.toggle(kw)}
+        />
+      </div>
     </div>
   )
 
@@ -635,6 +747,18 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
       scrollKey={`lookup:kw:${kw}`}
       active={tab === 'kw'}
     >
+      {/* Below the input's own bordered box, not inside it — these are
+       * results-area content (an alternate empty state), not input chrome. */}
+      {kw.trim() === '' && (
+        <SavedQueriesList
+          queries={savedKw.saved}
+          onPick={(v) => {
+            setKw(v)
+            kwTextareaRef.current?.focus()
+          }}
+          onRemove={savedKw.toggle}
+        />
+      )}
       <ResultList
         rows={resolvedKw.rows}
         tokens={kwTokens}
@@ -664,6 +788,16 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
       scrollKey={`lookup:ref:${q}`}
       active={tab === 'ref'}
     >
+      {q.trim() === '' && (
+        <SavedQueriesList
+          queries={savedRef.saved}
+          onPick={(v) => {
+            setQ(v)
+            textareaRef.current?.focus()
+          }}
+          onRemove={savedRef.toggle}
+        />
+      )}
       <ResultList
         rows={resolvedRefs}
         fromHoveredRef={litRefRange}
@@ -844,14 +978,19 @@ function ResultRow({
   }, [])
   useEffect(() => () => clearPressTimer(), [clearPressTimer])
 
-  const { bookNo, chapterNo, verse, enText, noteToShow, noteOnly } = resolved
+  const { bookNo, chapterNo, verse, enText, noteToShow, noteOnly, outlineTitle, outlineMarker } =
+    resolved
   const abbrev = BOOK_ABBREV[bookNo] ?? ''
   // Direct-note rows tag the label with the note number — 「啟21:23註1」 — so
-  // the left column matches what the user typed in the input.
+  // the left column matches what the user typed in the input. An outline row's
+  // label is its place in the outline (「創 綱目 四」), not a chapter:verse —
+  // that's what identifies a heading, the verse is just where it happens to land.
   const label =
     noteOnly && noteToShow
       ? `${abbrev}${chapterNo}:${verse.verse}註${noteToShow.n}`
-      : `${abbrev}${chapterNo}:${verse.verse}`
+      : outlineTitle
+        ? `${abbrev} 綱目 ${outlineMarker}`
+        : `${abbrev}${chapterNo}:${verse.verse}`
   const lit = active || hover
 
   const handlers = {
@@ -904,15 +1043,26 @@ function ResultRow({
         {label}
       </span>
       <div className={cn(selected && 'rounded bg-blue-500/20 px-1 -mx-1 dark:bg-blue-400/25')}>
-        {noteToShow ? (
+        {outlineTitle ? (
+          // Outline row — a single-line heading, so no split/link-parsing like
+          // the note branch needs.
+          <p className={cn('transition-colors', lit ? 'text-foreground' : 'text-foreground/90')}>
+            {hlTokens.length > 0 ? highlightTokens(outlineTitle, hlTokens) : outlineTitle}
+          </p>
+        ) : noteToShow ? (
           // Note row — render the note body where verse text normally goes, so a
-          // note result lays out identically to a verse result.
+          // note result lays out identically to a verse result. A keyword hit
+          // inside it shows what matched, same as a verse hit does — at the
+          // cost of its reference links (renderNoteText) while highlighted,
+          // since a plain string is what highlightTokens works on.
           noteToShow.text.split('\n').map((para, i) => (
             <p
               key={i}
               className={cn('transition-colors', lit ? 'text-foreground' : 'text-foreground/90')}
             >
-              {renderNoteText(para, { book: bookNo, chapter: chapterNo })}
+              {hlTokens.length > 0
+                ? highlightTokens(para, hlTokens)
+                : renderNoteText(para, { book: bookNo, chapter: chapterNo })}
             </p>
           ))
         ) : (
