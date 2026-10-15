@@ -26,6 +26,8 @@ export function useCarousel({
   containerRef,
   trackRef,
   getTransform,
+  indicatorRef,
+  getIndicatorTransform,
   hasPrev,
   hasNext,
   onPrev,
@@ -33,6 +35,7 @@ export function useCarousel({
   onCommit,
   resetKey,
   enabled = true,
+  animateDirectReset = false,
 }: {
   containerRef: React.RefObject<HTMLElement | null>
   /** The sliding track itself — the element `getTransform`'s string is
@@ -44,10 +47,18 @@ export function useCarousel({
    * the rare, discrete moments (threshold crossed, released, landed) do, and
    * those still go through state below. */
   trackRef: React.RefObject<HTMLElement | null>
-  /** Builds the track's transform from the current drag offset — callers
-   * differ in what the offset sits on top of (a fixed -100% for a 3-slot
-   * reading track, -activeIndex*100% for a 2-tab one). */
-  getTransform: (dx: number) => string
+  /** Builds the track's transform from the current drag offset (and the
+   * container's width, for a caller that wants the offset as a fraction
+   * rather than raw pixels) — callers differ in what the offset sits on top
+   * of (a fixed -100% for a 3-slot reading track, -activeIndex*100% for a
+   * 2-tab one). */
+  getTransform: (dx: number, w: number) => string
+  /** A second element to drive off the same drag, written in lockstep with
+   * the track — e.g. a tab bar's active-segment pill, so it slides under the
+   * finger instead of snapping at commit. Optional; omit both this and
+   * `getIndicatorTransform` if there's nothing else to move. */
+  indicatorRef?: React.RefObject<HTMLElement | null>
+  getIndicatorTransform?: (dx: number, w: number) => string
   hasPrev: boolean
   hasNext: boolean
   onPrev: () => void
@@ -62,6 +73,14 @@ export function useCarousel({
   resetKey: unknown
   /** Off while selecting verses, so a swipe doesn't page away. */
   enabled?: boolean
+  /** When `resetKey` changes WITHOUT a preceding drag-commit (a tab tapped
+   * directly, say), animate the landing instead of the default instant snap.
+   * Only safe for a fixed small set of slots (a 2-tab bar) where "animate
+   * toward slot 0" is always a meaningful move — the reading pager's 3-slot
+   * track can land on a resetKey change that's an arbitrary jump (picked from
+   * the catalog, not adjacent), where a slide has no direction to make sense
+   * of and snapping is correct. Default false. */
+  animateDirectReset?: boolean
 }) {
   const [animating, setAnimating] = useState(false)
   // The direction the swipe is heading: armed while dragging past the threshold,
@@ -79,19 +98,28 @@ export function useCarousel({
   } | null>(null)
   const committing = useRef(false)
 
-  // Latest getTransform, read from event handlers rather than closed over —
-  // those handlers are only (re)subscribed via the JSX spread below, so a
-  // stale closure would apply a stale base offset (e.g. the search tabs'
-  // -activeIndex*100%) until the next drag.
+  // Latest getTransform/getIndicatorTransform, read from event handlers rather
+  // than closed over — those handlers are only (re)subscribed via the JSX
+  // spread below, so a stale closure would apply a stale base offset (e.g.
+  // the search tabs' -activeIndex*100%) until the next drag.
   const getTransformRef = useRef(getTransform)
+  const getIndicatorTransformRef = useRef(getIndicatorTransform)
 
   const applyTransform = useCallback(
     (v: number) => {
       dxRef.current = v
+      // The container's current width, not the drag state's captured `d.w`
+      // (unset outside an active drag — this runs at rest and on commit too)
+      // — practically the same number either way, since width doesn't change
+      // mid-gesture.
+      const w = containerRef.current?.clientWidth || 1
       const el = trackRef.current
-      if (el) el.style.transform = getTransformRef.current(v)
+      if (el) el.style.transform = getTransformRef.current(v, w)
+      if (indicatorRef?.current && getIndicatorTransformRef.current) {
+        indicatorRef.current.style.transform = getIndicatorTransformRef.current(v, w)
+      }
     },
-    [trackRef],
+    [trackRef, containerRef, indicatorRef],
   )
 
   // Re-applies on every render, not just when getTransform's identity
@@ -101,23 +129,40 @@ export function useCarousel({
   // the same dx.
   useLayoutEffect(() => {
     getTransformRef.current = getTransform
+    getIndicatorTransformRef.current = getIndicatorTransform
     applyTransform(dxRef.current)
   })
 
   useLayoutEffect(() => {
+    // Was this landing preceded by the drag's own commit-slide (true), or did
+    // resetKey change some other way — a tab button tapped directly, with no
+    // drag at all (false)? The two need opposite treatment below.
+    const wasCommitting = committing.current
     committing.current = false
     setTargetDir(null)
-    setAnimating(false)
-    // Land at dx 0 with the transition killed *synchronously* — not via the
-    // animating state round-trip, which only reaches the DOM on React's next
-    // commit. The commit slide a moment ago left transition: '…Nms ease-out'
-    // sitting in the DOM; a plain applyTransform(0) here would change the
-    // transform while that's still in effect and the browser would animate
-    // the snap, undoing the slide that just finished landing the new page.
     const el = trackRef.current
-    if (el) el.style.transition = 'none'
+    if (wasCommitting || !animateDirectReset) {
+      // Land at dx 0 with the transition killed *synchronously* — not via the
+      // animating state round-trip, which only reaches the DOM on React's
+      // next commit. The commit slide a moment ago left transition:
+      // '…Nms ease-out' sitting in the DOM; a plain applyTransform(0) here
+      // would change the transform while that's still in effect and the
+      // browser would animate the snap, undoing the slide that just finished
+      // landing the new page.
+      setAnimating(false)
+      if (el) el.style.transition = 'none'
+      if (indicatorRef?.current) indicatorRef.current.style.transition = 'none'
+    } else {
+      // No drag happened, so nothing has animated this move yet — do it now
+      // (imperatively, same reasoning as above: don't wait on the animating
+      // round-trip) so a direct tap reads the same as a swipe, not a snap.
+      setAnimating(true)
+      const t = `transform ${COMMIT_MS}ms ease-out`
+      if (el) el.style.transition = t
+      if (indicatorRef?.current) indicatorRef.current.style.transition = t
+    }
     applyTransform(0)
-  }, [resetKey, applyTransform, trackRef])
+  }, [resetKey, applyTransform, trackRef, indicatorRef, animateDirectReset])
 
   // Once the gesture is locked horizontal, swallow the browser's vertical pan so
   // it can't steal (and cancel) the swipe mid-drag.

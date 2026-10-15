@@ -462,10 +462,22 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   const activeIndex = tab === 'kw' ? 0 : 1
   const bodyRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
+  // The tab bar's active-segment pill — driven off the same drag as the
+  // track, so it slides under the finger instead of snapping at commit. `w`
+  // is the TRACK's width (passed in by the hook), not the (narrower) bar's —
+  // dx/w is "how far across one tab's worth of drag", and applying that same
+  // fraction as the indicator's OWN translateX% keeps the two in lockstep
+  // regardless of the bar being a different width than the track.
+  const indicatorRef = useRef<HTMLDivElement>(null)
   const { animating, targetDir, trackProps } = useCarousel({
     containerRef: bodyRef,
     trackRef,
     getTransform: (dx) => `translateX(calc(${-activeIndex * 100}% + ${dx}px))`,
+    indicatorRef,
+    // Minus, not plus: a left drag (negative dx) heads toward the next
+    // (right-hand) tab, so the indicator's own position has to increase
+    // toward +100% as dx goes negative.
+    getIndicatorTransform: (dx, w) => `translateX(${(activeIndex - dx / w) * 100}%)`,
     hasPrev: activeIndex > 0,
     hasNext: activeIndex < 1,
     onPrev: () => setTab('kw'),
@@ -486,6 +498,11 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     },
     resetKey: tab,
     enabled: isMobile,
+    // A direct tab-button tap (no drag) should still slide, not snap — only
+    // two fixed slots here, so "move toward the tapped one" always makes
+    // sense (unlike the reading pager's 3-slot track, which can land on an
+    // arbitrary catalog jump with no direction to animate toward).
+    animateDirectReset: true,
   })
   // Light the tab the swipe is heading to as soon as it passes the threshold.
   const visualTab: LookupTab = targetDir === 'prev' ? 'kw' : targetDir === 'next' ? 'ref' : tab
@@ -822,12 +839,40 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   return (
     <div className="flex h-full flex-col">
       {/* A segmented pill at the top — no separate title strip, on either
-       * viewport. visualTab tracks the swipe so the active tab flips the moment
-       * a drag crosses the threshold (mobile only; desktop has no swipe). */}
-      <div className="mx-4 mt-3 mb-3 flex overflow-hidden rounded-xl border border-border bg-muted">
-        <SegTab active={visualTab === 'kw'} onClick={() => setTab('kw')}>關鍵字</SegTab>
-        <span aria-hidden className="w-px self-stretch bg-border" />
-        <SegTab active={visualTab === 'ref'} onClick={() => setTab('ref')}>經節</SegTab>
+       * viewport. The active-segment pill slides continuously with the drag
+       * (see indicatorRef/getIndicatorTransform above); visualTab still flips
+       * the text colour the moment a drag crosses the commit threshold. */}
+      <div className="relative mx-4 mt-3 mb-3 flex overflow-hidden rounded-xl border border-border bg-background">
+        <div
+          ref={indicatorRef}
+          aria-hidden
+          className="absolute inset-y-0 left-0 z-0 w-1/2 bg-muted/40 ring-1 ring-border"
+          style={{ transition: animating ? `transform ${COMMIT_MS}ms ease-out` : undefined }}
+        />
+        <button
+          type="button"
+          onClick={() => setTab('kw')}
+          className={cn(
+            'relative z-10 flex-1 py-2.5 text-center text-sm transition-colors',
+            visualTab === 'kw'
+              ? 'font-medium text-foreground'
+              : 'font-normal text-muted-foreground',
+          )}
+        >
+          關鍵字
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('ref')}
+          className={cn(
+            'relative z-10 flex-1 py-2.5 text-center text-sm transition-colors',
+            visualTab === 'ref'
+              ? 'font-medium text-foreground'
+              : 'font-normal text-muted-foreground',
+          )}
+        >
+          經節
+        </button>
       </div>
 
       {isMobile ? (
@@ -1179,28 +1224,3 @@ function CopyAllBar({
   )
 }
 
-/** One segment of the phone's tab control: the active half fills with the page
- * background (clipped to the container's rounded corners), the inactive half
- * stays on the muted track. */
-function SegTab({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'flex-1 py-2 text-center text-sm transition-colors',
-        active ? 'bg-background font-semibold text-primary' : 'font-medium text-muted-foreground',
-      )}
-    >
-      {children}
-    </button>
-  )
-}
