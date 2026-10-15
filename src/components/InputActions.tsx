@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Scan } from 'lucide-react'
+import { Scan, Star } from 'lucide-react'
 import { citationsOnly, tidyScanned } from '@/lib/scannedText'
 import { useScanner } from '@/lib/scanner'
 import { cn } from '@/lib/utils'
@@ -21,6 +21,8 @@ export function InputActions({
   btnClassName,
   scan,
   variant = 'plain',
+  favorited,
+  onToggleFavorite,
 }: {
   value: string
   onChange: (v: string) => void
@@ -36,6 +38,11 @@ export function InputActions({
   /** `plain` = corner pills (compose). `bar` = full-width coloured icon row
    * under the field (search). */
   variant?: 'plain' | 'bar'
+  /** Whether `value` (trimmed) is in the saved-queries list — an icon button
+   * (star, outline/filled) shows beside the text pills when this is passed.
+   * Bar variant only; omit entirely where favouriting doesn't apply (compose). */
+  favorited?: boolean
+  onToggleFavorite?: () => void
 }) {
   const canPaste =
     typeof navigator !== 'undefined' && typeof navigator.clipboard?.readText === 'function'
@@ -107,13 +114,15 @@ export function InputActions({
   )
 
   if (variant === 'bar') {
-    // A left-aligned row of small grey text pills below the field — the same
+    // A right-aligned row of small grey text pills below the field — the same
     // secondary colour the rest of the app's buttons use. Natural width, not
-    // stretched, so they stay compact.
+    // stretched, so they stay compact; justify-end only has room to matter
+    // where this row's own container is stretched full-width (the search
+    // tabs' flex-col), not compose's shrink-to-fit action bar slot.
     const barBtn =
       'rounded-md bg-secondary px-2.5 py-1.5 text-xs font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95 disabled:opacity-60'
     return (
-      <div className={cn('flex items-center gap-2', className)}>
+      <div className={cn('flex items-center justify-end gap-2', className)}>
         {fileInput}
         {canPaste && (
           <button type="button" onClick={paste} className={barBtn}>
@@ -131,6 +140,27 @@ export function InputActions({
             className={cn(barBtn, reading && 'animate-pulse')}
           >
             掃描
+          </button>
+        )}
+        {/* Icon, not a text pill — collecting a query is a different kind of
+         * action from the ones above, and empty/filled star is legible at a
+         * glance without a label. */}
+        {onToggleFavorite && (
+          <button
+            type="button"
+            disabled={!value.trim()}
+            aria-label={favorited ? '取消收藏' : '收藏'}
+            onClick={onToggleFavorite}
+            className={cn(
+              // size-7 (28px) = exactly a barBtn's rendered height: text-xs'
+              // 16px line-height + py-1.5's 6px top/bottom.
+              'inline-flex size-7 items-center justify-center rounded-md transition-all duration-150 active:scale-95 disabled:opacity-60',
+              favorited
+                ? 'text-primary'
+                : 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+            )}
+          >
+            <Star className={cn('size-4', favorited && 'fill-current')} />
           </button>
         )}
       </div>
