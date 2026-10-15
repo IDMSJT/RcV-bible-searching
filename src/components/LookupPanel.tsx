@@ -62,8 +62,7 @@ function autoGrow(el: HTMLTextAreaElement | null): void {
   el.style.height = `${el.scrollHeight}px`
 }
 
-const PLACEHOLDER =
-  '輸入經文出處，例如：\n約翰福音一章一節，三章十六節，十四章六節'
+const PLACEHOLDER = '輸入經文出處，例如：約一1，三16，十四6'
 
 function refHl(ref: VerseRef): string {
   // Cross-chapter range → 「chA:vA-chB:vB」. ChapterView clips it to the
@@ -675,8 +674,8 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   )
 
   // The 經節 field: the highlight backdrop laid under a transparent textarea,
-  // both on FIELD_INPUT so the coloured refs sit exactly under the caret. Two
-  // lines tall to start (min-h-[4.5rem]) so its example placeholder shows whole.
+  // both on FIELD_INPUT so the coloured refs sit exactly under the caret. One
+  // line tall to start, same as 關鍵字 — the placeholder is one line now too.
   const refInput = (
     <div className="flex flex-col gap-3">
       <div className={FIELD_SHELL}>
@@ -697,7 +696,13 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
           rows={1}
           spellCheck={false}
           data-vaul-no-drag
-          className={cn(FIELD_INPUT, 'relative min-h-[4.5rem] text-transparent caret-foreground')}
+          // placeholder:truncate — only the placeholder ellipsizes on a narrow
+          // screen; FIELD_INPUT's own whitespace-pre-wrap still lets real
+          // typed text wrap normally, since that rule only targets ::placeholder.
+          className={cn(
+            FIELD_INPUT,
+            'relative text-transparent caret-foreground placeholder:truncate',
+          )}
         />
       </div>
       <InputActions
