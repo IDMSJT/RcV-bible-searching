@@ -15,6 +15,7 @@ import { ChangelogDrawer } from '@/components/ChangelogDrawer'
 import { ScanProvider } from '@/components/ScanProvider'
 import { SwUpdate } from '@/components/SwUpdate'
 import { HISTORY_KEY, recordVisit, removeVisit, type Visit } from '@/lib/readingHistory'
+import { requestFocusSearch } from '@/lib/focusSearchSignal'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { cn } from '@/lib/utils'
@@ -302,6 +303,7 @@ function RootComponent() {
       if (isMobile) {
         setDrawerOpen(false)
         if (!onSearch) navigate({ to: '/search' })
+        else requestFocusSearch() // already there — tapping it again means "let me type"
       } else {
         openMode('lookup', onCompose ? goToLastChapter : undefined)
       }

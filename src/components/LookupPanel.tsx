@@ -31,6 +31,7 @@ import { useIsTouch } from '@/lib/useIsTouch'
 import { useCarousel, COMMIT_MS } from '@/lib/useCarousel'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { useSavedQueries } from '@/lib/savedQueries'
+import { onFocusSearchRequest } from '@/lib/focusSearchSignal'
 import { renderMarkedText, renderNoteText } from '@/lib/renderVerse'
 import { InputActions } from '@/components/InputActions'
 import { BookRail, type RailBook } from '@/components/BookRail'
@@ -481,19 +482,15 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     hasNext: activeIndex < 1,
     onPrev: () => setTab('kw'),
     onNext: () => setTab('ref'),
-    // Hand the keyboard over while the finger is still down — the only window
-    // iOS lets us open (or dismiss) the soft keyboard in. If the incoming field
-    // is empty, focus it (which also pulls focus off the outgoing one); if it
-    // already has text, just blur so the keyboard drops rather than hovering
-    // over the outgoing field it left behind. Empty-only focus matches the
-    // autofocus effect below; preventScroll so focusing the off-screen panel
-    // doesn't fight the slide.
-    onCommit: (dir) => {
+    // Dismiss the keyboard while the finger is still down — the only window
+    // iOS lets us touch it in. No auto-*opening* here: on touch, nothing in
+    // this panel opens the keyboard on its own anymore, only an explicit tap
+    // into a field does — but a field that was already focused when the
+    // swipe started should still let go of it rather than leave the keyboard
+    // hovering over whichever panel the swipe lands on.
+    onCommit: () => {
       if (!isMobile) return
-      const incoming = dir === 'prev' ? kwTextareaRef.current : textareaRef.current
-      const empty = dir === 'prev' ? kw === '' : q === ''
-      if (empty) incoming?.focus({ preventScroll: true })
-      else (document.activeElement as HTMLElement | null)?.blur()
+      ;(document.activeElement as HTMLElement | null)?.blur()
     },
     resetKey: tab,
     enabled: isMobile,
@@ -506,20 +503,23 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   // Light the tab the swipe is heading to as soon as it passes the threshold.
   const visualTab: LookupTab = targetDir === 'prev' ? 'kw' : targetDir === 'next' ? 'ref' : tab
 
-  // On the mobile drawer, auto-focus the active tab's textarea when its
-  // input is empty so the soft keyboard opens immediately — saves a tap when
-  // the user pulls up the panel intending to type. Skipped on desktop where
-  // explicit focus is the user's call. iOS Safari may still refuse to open
-  // the keyboard if the focus call doesn't happen during a user gesture;
-  // the cursor lands in the field regardless.
-  useEffect(() => {
-    if (!isMobile) return
-    const value = tab === 'ref' ? q : kw
-    if (value !== '') return
-    const ta = tab === 'ref' ? textareaRef.current : kwTextareaRef.current
-    ta?.focus()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMobile, tab])
+  // Tapping the 搜尋 nav icon while already on /search has nowhere to
+  // navigate to, but is still an explicit "let me type" request — the one
+  // case left that still focuses on touch, since nothing here does it
+  // automatically anymore (see onCommit above).
+  useEffect(
+    () =>
+      onFocusSearchRequest(() => {
+        const ta = tab === 'ref' ? textareaRef.current : kwTextareaRef.current
+        if (!ta) return
+        ta.focus()
+        // Land the caret after whatever's already there, not wherever it was
+        // left (often the start, for a field that hasn't been touched since
+        // its text was set some other way — picking a saved query, say).
+        ta.selectionStart = ta.selectionEnd = ta.value.length
+      }),
+    [tab],
+  )
 
   // Keep the highlight backdrop scrolled in lock-step with the textarea. On
   // mobile both tab panels are mounted (carousel), on desktop only the active
@@ -776,7 +776,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
           queries={savedKw.saved}
           onPick={(v) => {
             setKw(v)
-            kwTextareaRef.current?.focus()
+            kwTextareaRef.current?.blur()
           }}
           onRemove={savedKw.toggle}
         />
@@ -815,7 +815,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
           queries={savedRef.saved}
           onPick={(v) => {
             setQ(v)
-            textareaRef.current?.focus()
+            textareaRef.current?.blur()
           }}
           onRemove={savedRef.toggle}
         />
