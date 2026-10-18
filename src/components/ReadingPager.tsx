@@ -9,7 +9,7 @@ import {
 } from '@tanstack/react-router'
 import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
 import { BOOK_BY_NO } from '@/data/canon'
-import { useBible, findChapter } from '@/data/loadBible'
+import { useBible, useOutline, findChapter } from '@/data/loadBible'
 import { chapterUnit } from '@/lib/chinese'
 import { parseHighlight, type HlItem } from '@/lib/highlight'
 import { prevRef, nextRef, refKey, type ReadingRef } from '@/lib/readingRef'
@@ -17,7 +17,8 @@ import { skipNextVisit } from '@/lib/readingHistory'
 import { useCarousel, COMMIT_MS } from '@/lib/useCarousel'
 import { useIsTouch } from '@/lib/useIsTouch'
 import { ChapterView } from '@/components/ChapterView'
-import { VerseRail } from '@/components/VerseRail'
+import { VerseRail, type RailItem } from '@/components/VerseRail'
+import { outlineRailItems } from '@/lib/outlineRail'
 import { OutlineView } from '@/components/OutlineView'
 import { cn } from '@/lib/utils'
 
@@ -63,7 +64,7 @@ export function ReadingPanel({
   oh?: string
   oe?: string
   onSelectingChange?: (selecting: boolean) => void
-  onScrubApi?: (scrub: ((verse: number | null) => void) | null) => void
+  onScrubApi?: (scrub: ((id: number | null) => void) | null) => void
 }) {
   // Parsed once per ?hl, not once per render. The panel re-renders whenever the
   // pager does — starting a selection is enough, since that pauses the swipe —
@@ -84,7 +85,14 @@ export function ReadingPanel({
       />
     )
   }
-  return <OutlineView bookNo={refData.bookNo} active={active} oe={active ? oe : undefined} />
+  return (
+    <OutlineView
+      bookNo={refData.bookNo}
+      active={active}
+      oe={active ? oe : undefined}
+      onScrubApi={active ? onScrubApi : undefined}
+    />
+  )
 }
 
 // Touch back button — a full-height bar at the header's edge.
@@ -168,7 +176,7 @@ export function ReadingPager() {
   // the same ref the title uses — and flip to the chapter a swipe is heading
   // for before the finger lifts. Only the landed panel can actually scroll, so
   // it hands its jump function up.
-  const [scrub, setScrub] = useState<((verse: number | null) => void) | null>(null)
+  const [scrub, setScrub] = useState<((id: number | null) => void) | null>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
   const { animating, targetDir, trackProps } = useCarousel({
@@ -189,12 +197,15 @@ export function ReadingPager() {
     (targetDir === 'prev' ? prev : targetDir === 'next' ? next : null) ?? current
 
   const { data: bible } = useBible()
-  const railVerses =
-    titleRef.kind === 'chapter'
-      ? (findChapter(bible, titleRef.bookNo, titleRef.chapterNo)?.verses ?? [])
-          .map((v) => v.verse)
-          .filter((v) => v > 0)
-      : []
+  const { data: outline } = useOutline()
+  const railItems = useMemo<RailItem[]>(() => {
+    if (titleRef.kind === 'outline') {
+      return outlineRailItems(outline?.books.find((b) => b.bookNo === titleRef.bookNo))
+    }
+    return (findChapter(bible, titleRef.bookNo, titleRef.chapterNo)?.verses ?? [])
+      .filter((v) => v.verse > 0)
+      .map((v) => ({ id: v.verse, label: String(v.verse) }))
+  }, [bible, outline, titleRef])
 
   // 3-slot track: prev / current / next, current centred at translateX(-100%).
   // Keyed by ref so the landed panel keeps its (fresh, top) scroll across a
@@ -246,8 +257,13 @@ export function ReadingPager() {
         </div>
       </header>
 
-      {isTouch && railVerses.length > 0 && (
-        <VerseRail verses={railVerses} onScrub={(v) => scrub?.(v)} areaRef={bodyRef} />
+      {isTouch && railItems.length > 0 && (
+        <VerseRail
+          items={railItems}
+          thin={titleRef.kind === 'chapter'}
+          onScrub={(id) => scrub?.(id)}
+          areaRef={bodyRef}
+        />
       )}
       {isTouch ? (
         <div

@@ -9,6 +9,10 @@ const RAIL_SLOT = 20
  * easy to reach — a drag there clamps to the first / last verse. */
 const PAD = 12
 
+/** One stop on the rail: `id` is what the page is told to jump to, `label` what
+ * is printed on the rail and shown in the bubble. */
+export type RailItem = { id: number; label: string }
+
 /**
  * The verse rail down the right edge — 經節軌 — in the manner of a phone contact
  * list's A–Z index: drag it to run through the chapter, release to land. Only
@@ -22,11 +26,16 @@ const PAD = 12
  * chapter gets a short rail — with the label spacing widening as needed to keep
  * the whole thing inside the reading area. */
 export function VerseRail({
-  verses,
+  items,
+  thin = false,
   onScrub,
   areaRef,
 }: {
-  verses: number[]
+  items: RailItem[]
+  /** Print only every 5th / 10th / … label when there are too many to fit —
+   * for verses, whose ids are the verse numbers. Off, every item is printed:
+   * the outline's few headings are all worth a label. */
+  thin?: boolean
   /** The reading surface the bubble centres on. Portalled to the body, the
    * bubble would otherwise sit in the middle of the *window* — which on a
    * tablet is the sidebar, since the reading column is only the right of it. */
@@ -34,11 +43,11 @@ export function VerseRail({
   /** Runs on press and on every move, so the page tracks the finger — then once
    * with null when the finger lifts, which is the page's cue to drop whatever
    * it was showing only for the duration of the drag. */
-  onScrub: (verse: number | null) => void
+  onScrub: (id: number | null) => void
 }) {
   const railRef = useRef<HTMLDivElement | null>(null)
   const marksRef = useRef<HTMLDivElement | null>(null)
-  const [held, setHeld] = useState<number | null>(null)
+  const [held, setHeld] = useState<string | null>(null)
   const [heldX, setHeldX] = useState<number | null>(null)
   const [budget, setBudget] = useState(() => window.innerHeight * 0.62)
 
@@ -49,13 +58,14 @@ export function VerseRail({
   }, [])
 
   const marks = useMemo(() => {
-    const last = verses[verses.length - 1]
+    if (!thin) return items
+    const last = items[items.length - 1]
     for (const step of [5, 10, 20, 25, 50]) {
-      const out = verses.filter((v, i) => i === 0 || v % step === 0 || v === last)
+      const out = items.filter((v, i) => i === 0 || v.id % step === 0 || v === last)
       if (out.length * RAIL_SLOT <= budget) return out
     }
-    return [verses[0], last]
-  }, [verses, budget])
+    return [items[0], last]
+  }, [items, thin, budget])
 
   const pick = (clientY: number) => {
     // Measure against the marks, not the padded hit area, so a drag in the pad
@@ -64,12 +74,12 @@ export function VerseRail({
     if (!el) return
     const { top, height } = el.getBoundingClientRect()
     const frac = Math.min(1, Math.max(0, (clientY - top) / height))
-    const verse = verses[Math.round(frac * (verses.length - 1))]
-    if (verse == null) return
+    const item = items[Math.round(frac * (items.length - 1))]
+    if (item == null) return
     const area = areaRef?.current?.getBoundingClientRect()
     setHeldX(area ? area.left + area.width / 2 : null)
-    setHeld(verse)
-    onScrub(verse)
+    setHeld(item.label)
+    onScrub(item.id)
   }
 
   const release = () => {
@@ -84,7 +94,7 @@ export function VerseRail({
   // reason.
   return createPortal(
     <>
-      {/* 數字泡泡 — which verse the finger is on, while it is held. */}
+      {/* 數字泡泡 — which stop the finger is on, while it is held. */}
       {held != null && (
         // The minimum has to clear two digits and their padding, or the bubble
         // still grows by a hair between 9 and 10: at text-lg two tabular digits
@@ -121,8 +131,8 @@ export function VerseRail({
           style={{ height: marks.length * RAIL_SLOT }}
           className="flex flex-col items-end justify-between pr-1 font-sans text-[0.6875rem] leading-none font-medium text-muted-foreground/70 tabular-nums"
         >
-          {marks.map((v) => (
-            <span key={v}>{v}</span>
+          {marks.map((m) => (
+            <span key={m.id}>{m.label}</span>
           ))}
         </div>
       </div>

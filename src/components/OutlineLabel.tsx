@@ -19,15 +19,26 @@ import type { OutlineEntry } from '@/types/bible'
 export function OutlineLabel({
   entry,
   highlight,
+  scrubbed,
+  instant,
 }: {
   entry: OutlineEntry
   highlight?: boolean
+  /** The 經節軌 is held over this heading: grey, and instant — it has to keep
+   * up with a finger, so it skips the fade the hover tint has. */
+  scrubbed?: boolean
+  /** No colour fade at all. The tint going *away* — the finger moving on to the
+   * next heading, or lifting — would otherwise fade out even if it came in
+   * instantly, since the transition belongs to the style being changed to. */
+  instant?: boolean
 }) {
   return (
     <span
       className={cn(
         'inline-grid grid-cols-[auto_1fr] gap-x-1.5 rounded px-1 -mx-1 transition-colors group-hover:bg-muted',
         highlight && 'bg-highlight/25',
+        scrubbed && !highlight && 'bg-muted text-foreground',
+        instant && 'transition-none',
       )}
     >
       {/* tabular-nums so 「1」 and 「2」 occupy the same width and the titles of

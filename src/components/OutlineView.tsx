@@ -1,11 +1,13 @@
-import { Fragment, useLayoutEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { Link } from '@tanstack/react-router'
 import { BOOK_BY_NO } from '@/data/canon'
 import { useOutline } from '@/data/loadBible'
 import { OutlineLabel } from '@/components/OutlineLabel'
 import { RefBody, type Open } from '@/lib/renderVerse'
 import { ScrollBody } from '@/components/ScrollBody'
-import { revealInScroll } from '@/lib/revealInScroll'
+import { REVEAL_GAP, revealInScroll } from '@/lib/revealInScroll'
+import { INTRO_ID } from '@/lib/outlineRail'
 import { cn } from '@/lib/utils'
 import type { BookOutline } from '@/types/bible'
 
@@ -17,10 +19,14 @@ export function OutlineView({
   bookNo,
   active = false,
   oe,
+  onScrubApi,
 }: {
   bookNo: number
   active?: boolean
   oe?: string
+  /** Hands the pager the function that jumps to a rail stop: an entry's index,
+   * INTRO_ID for the top, or null when the finger lifts. */
+  onScrubApi?: (scrub: ((id: number | null) => void) | null) => void
 }) {
   const { data: outline } = useOutline()
   const book = outline?.books.find((b) => b.bookNo === bookNo)
@@ -42,6 +48,37 @@ export function OutlineView({
     })
     return () => cancelAnimationFrame(raf)
   }, [bookNo, entries.length, isJump])
+
+  // The entry the 經節軌 is held over, tinted so the bubble and the page agree.
+  const [scrubbing, setScrubbing] = useState<number | null>(null)
+  // Sticky once the rail has been used (it only exists on touch, where the hover
+  // fade is moot anyway), so the tint also vanishes without a fade.
+  const [scrubbedOnce, setScrubbedOnce] = useState(false)
+  const scrubTo = useCallback((id: number | null) => {
+    // flushSync: the tint and the scroll land in the same frame while dragging.
+    flushSync(() => {
+      setScrubbing(id)
+      setScrubbedOnce(true)
+    })
+    const panel = panelRef.current
+    if (id == null || !panel) return
+    if (id === INTRO_ID) {
+      panel.scrollTop = 0
+      return
+    }
+    const el = panel.querySelector<HTMLElement>(`[data-oi="${id}"]`)
+    if (!el) return
+    panel.scrollTop +=
+      el.getBoundingClientRect().top - panel.getBoundingClientRect().top - REVEAL_GAP
+  }, [])
+  useEffect(() => {
+    if (!active) return
+    onScrubApi?.(scrubTo)
+    return () => {
+      onScrubApi?.(null)
+      setScrubbing(null)
+    }
+  }, [active, onScrubApi, scrubTo])
 
   return (
     <ScrollBody
@@ -66,6 +103,7 @@ export function OutlineView({
           {entries.map((e, i) => (
             <Link
               key={i}
+              data-oi={i}
               ref={
                 i === targetIdx
                   ? (el: HTMLElement | null) => {
@@ -79,7 +117,12 @@ export function OutlineView({
               style={{ paddingLeft: `${(e.level - 1) * 0.5}rem` }}
               className="group block pr-2 text-muted-foreground transition-colors hover:text-foreground"
             >
-              <OutlineLabel entry={e} highlight={i === targetIdx} />
+              <OutlineLabel
+                entry={e}
+                highlight={i === targetIdx}
+                scrubbed={i === scrubbing}
+                instant={scrubbedOnce}
+              />
             </Link>
           ))}
         </div>
