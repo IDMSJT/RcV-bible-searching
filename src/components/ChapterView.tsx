@@ -1149,12 +1149,12 @@ export function ChapterView({
                 <span
                   ref={r.ref ? assignScroll : undefined}
                   {...versePress(r.verse)}
-                  // At 0.75em the number needs a line-height of 1.625 / 0.75 ≈
-                  // 2.167 to make a line box the same height as the verse text's
-                  // first line (1em × leading-relaxed = 1.625em), so the digit
+                  // At 0.75em the number needs a line-height of 1.75 / 0.75 ≈
+                  // 2.333 to make a line box the same height as the verse text's
+                  // first line (1em × leading-[1.75] = 1.75em), so the digit
                   // sits centred against it — no manual top nudge. Update both if
                   // the body line-height changes.
-                  className="text-right text-[0.75em] leading-[2.167] font-sans tabular-nums text-muted-foreground select-none"
+                  className="text-right text-[0.75em] leading-[2.333] font-sans tabular-nums text-muted-foreground select-none"
                 >
                   {/* The tint goes on the digits, not on this cell: the cell is
                     * a grid item whose area is the whole row, and a row holding
@@ -1207,13 +1207,13 @@ export function ChapterView({
                       selected.has(r.verse) && 'bg-blue-500/20 dark:bg-blue-400/25',
                     )}
                   >
-                    <p className="px-1 -mx-1 font-normal leading-relaxed">
+                    <p className="px-1 -mx-1 font-normal leading-[1.75]">
                       {renderMarkedText(r.text, r.marks, r.notes, r.refs, (at) =>
                         toggleMarkers(r.verse, at),
                       )}
                     </p>
                     {r.en && (
-                      <p className="mt-0.5 font-sans text-[0.9em] text-muted-foreground">{r.en}</p>
+                      <p className="mt-0.5 font-sans text-[0.9375em] leading-[1.625] text-muted-foreground">{r.en}</p>
                     )}
                   </div>
                   {/* Notes and cross-references share one list, ordered by
