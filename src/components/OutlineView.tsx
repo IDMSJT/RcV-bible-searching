@@ -8,6 +8,7 @@ import { RefBody, type Open } from '@/lib/renderVerse'
 import { ScrollBody } from '@/components/ScrollBody'
 import { REVEAL_GAP, revealInScroll } from '@/lib/revealInScroll'
 import { INTRO_ID } from '@/lib/outlineRail'
+import { useIsTouch } from '@/lib/useIsTouch'
 import { cn } from '@/lib/utils'
 import type { BookOutline } from '@/types/bible'
 
@@ -50,6 +51,7 @@ export function OutlineView({
   }, [bookNo, entries.length, isJump])
 
   // The entry the 經節軌 is held over, tinted so the bubble and the page agree.
+  const isTouch = useIsTouch()
   const [scrubbing, setScrubbing] = useState<number | null>(null)
   // Sticky once the rail has been used (it only exists on touch, where the hover
   // fade is moot anyway), so the tint also vanishes without a fade.
@@ -96,8 +98,16 @@ export function OutlineView({
         * number column (1.3125em of the reading size) and the grid's gap-x-2.
         * Written as the formula rather than the 2.8125rem it comes to at the
         * default size, since the middle term scales with --reading-fs and a
-        * constant would drift out of line the moment the reader changed it. */}
-      <article className="mx-auto max-w-3xl px-[calc(1rem+1.3125*var(--reading-fs,1rem)+0.5rem)] py-6 md:px-[calc(2rem+1.3125*var(--reading-fs,1rem)+0.5rem)] md:py-10">
+        * constant would drift out of line the moment the reader changed it.
+        * Only the left edge takes the offset; the right keeps the article's own px,
+        * or the lines would wrap earlier here than in the chapter. */}
+      <article
+        className={cn(
+          'mx-auto max-w-3xl pl-[calc(1rem+1.3125*var(--reading-fs,1rem)+0.5rem)] pr-4 py-6 md:pl-[calc(2rem+1.3125*var(--reading-fs,1rem)+0.5rem)] md:pr-8 md:py-10',
+          // Clear of the verse rail, as in the chapter.
+          isTouch && 'pr-6',
+        )}
+      >
         <BookIntro book={book} bookNo={bookNo} />
         <div className="flex flex-col gap-y-2.5 font-sans text-[length:calc(var(--reading-fs,1rem)*0.875)]">
           {entries.map((e, i) => (
