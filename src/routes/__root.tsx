@@ -1,7 +1,7 @@
-import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
-import { Outlet, createRootRoute, useLocation, useNavigate } from '@tanstack/react-router'
+import { type CSSProperties, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { Outlet, createRootRoute, useLocation, useNavigate, useRouter, useSearch } from '@tanstack/react-router'
 // import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
-import { BookOpen, FileText, Menu, Search, Settings } from 'lucide-react'
+import { BookOpen, FileText, Image as ImageIcon, Menu, Search, Settings, type LucideIcon } from 'lucide-react'
 import { BOOK_BY_NO } from '@/data/canon'
 import { BOOK_ABBREV } from '@/data/abbrev'
 import { LookupPanel } from '@/components/LookupPanel'
@@ -19,8 +19,12 @@ import { requestFocusSearch } from '@/lib/focusSearchSignal'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { cn } from '@/lib/utils'
+import { modeOf, panelNav, takeOwnPop, panelOfPane, paneOf, parsePanel, withoutPanel, type Panel } from '@/lib/panelNav'
 
 export const Route = createRootRoute({
+  validateSearch: (search: Record<string, unknown>): { panel?: Panel } => ({
+    panel: parsePanel(search.panel),
+  }),
   component: RootComponent,
 })
 
@@ -59,7 +63,37 @@ function RootComponent() {
   // back gesture dismisses it and its scroll is remembered like any other page.
   // On desktop it stays in the aside (see the redirect effect below).
   const onSearch = pathname === '/search'
+  // The chart pages are likewise a page of their own: leaving them is the left
+  // button's job, same as /compose and /search.
+  const onCharts = pathname.startsWith('/charts')
   const isMobile = useIsMobile()
+
+  // The phone's drawer is the ?panel= param (see lib/panelNav): opening it is a
+  // history entry, so back dismisses it, and what it shows survives a reload.
+  // The desktop aside is a layout the reader keeps, not somewhere they went —
+  // it stays open as they navigate and is remembered in localStorage instead.
+  const router = useRouter()
+  const nav = useMemo(() => panelNav(router), [router])
+  const { panel: panelParam } = useSearch({ strict: false }) as { panel?: Panel }
+  const panel = isMobile && !(panelParam === 'compose' && !onCompose) ? panelParam : undefined
+  const drawerOpen = panel != null
+  // Which catalog pane the drawer shows (0 = books, 1 = chapters, 2 = charts);
+  // the bottom-nav button cycles reading → chapters → books → reading.
+  // While it slides away the drawer keeps showing the pane it was on, rather
+  // than flipping to the default one the moment the param goes.
+  const [lastPane, setLastPane] = useState(paneOf(panel))
+  if (panel && paneOf(panel) !== lastPane) setLastPane(paneOf(panel))
+  const catalogPane = panel ? paneOf(panel) : lastPane
+  // history.back() takes a beat to come round; the drawer starts leaving at the
+  // tap instead of waiting for the URL to say so.
+  const [leaving, setLeaving] = useState(false)
+  if (leaving && !drawerOpen) setLeaving(false)
+  // Back stayed put (nothing to go back to): don't leave the drawer hidden.
+  useEffect(() => {
+    if (!leaving) return
+    const t = setTimeout(() => setLeaving(false), 1000)
+    return () => clearTimeout(t)
+  }, [leaving])
 
   const [mode, setMode] = useLocalStorage<SidebarMode>('rcv/sidebar-mode', 'catalog')
   // Lets a panel show over /compose without leaving it — settings, say, which
@@ -70,7 +104,11 @@ function RootComponent() {
   useEffect(() => {
     setComposeOverlay(null)
   }, [pathname])
-  const effectiveMode: SidebarMode = onCompose ? composeOverlay ?? 'compose' : mode
+  const effectiveMode: SidebarMode = panel
+    ? modeOf(panel)
+    : onCompose
+      ? composeOverlay ?? 'compose'
+      : mode
   // Remember the last chapter URL the user was actually reading on; the 閱讀
   // nav button uses this as the jump-target whenever we leave a non-chapter
   // route (e.g. /compose) so clicking it always lands back in a verse view
@@ -80,20 +118,30 @@ function RootComponent() {
   // name it by book + chapter (e.g. 詩46) instead of a generic 「閱讀」, which
   // says what tapping it returns you to.
   const lastCh = lastChapter.match(/^\/(\d+)\/(\d+)/)
+  // Off a book (a chart page, say) the catalog still has somewhere to stand: the
+  // chapter the reader last left, so its pane isn't empty.
+  const catalogBookNo = activeBookNo ?? (lastCh ? Number(lastCh[1]) : null)
+  const catalogChapterNo = activeBookNo != null ? activeChapterNo : lastCh ? Number(lastCh[2]) : null
+  const catalogBook = catalogBookNo ? BOOK_BY_NO.get(catalogBookNo) ?? null : null
   const readingLabel = lastCh ? `${BOOK_ABBREV[Number(lastCh[1])] ?? ''}${Number(lastCh[2])}` : '閱讀'
-  // Mobile-only: the sidebar content lives inside a Drawer below md. On desktop
-  // the aside is permanently visible and this flag is ignored.
-  const [drawerOpen, setDrawerOpen] = useState(false)
   // Desktop-only counterpart to drawerOpen: the aside has no drawer to
   // dismiss, so tapping the already-open nav button collapses it via this
   // instead (see openMode). Persisted so a collapsed sidebar stays collapsed
   // across a reload.
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useLocalStorage('rcv/desktop-sidebar-open', true)
   const [drawerSnap, setDrawerSnap] = useState<number | string | null>(1)
+  // Vaul re-arms its 500ms "don't drag while it's still animating in" lock the
+  // first time it re-renders after mounting (a snap-point callback changes
+  // identity then), and with nothing else to re-render it, that was the first
+  // touch — which then couldn't pull the sheet down. One re-render a moment
+  // after opening spends it early.
+  const [, settleDrawer] = useReducer((n: number) => n + 1, 0)
+  useEffect(() => {
+    if (!drawerOpen) return
+    const id = setTimeout(settleDrawer, 50)
+    return () => clearTimeout(id)
+  }, [drawerOpen])
   const [changelogOpen, setChangelogOpen] = useState(false)
-  // Which catalog pane the mobile drawer shows (0 = books, 1 = chapters). Lifted
-  // here so the bottom-nav button can cycle reading → chapters → books → reading.
-  const [catalogPane, setCatalogPane] = useState<0 | 1>(1)
   // Whether settings is the surface on mobile. The desktop aside is always
   // there, so `effectiveMode` alone answers it; on mobile the drawer has to be
   // open too, since the mode outlives a dismiss.
@@ -134,7 +182,7 @@ function RootComponent() {
   // to the last chapter lands back on the verse / note / outline heading that
   // was open — 詩46 read back to where you were looking.
   useEffect(() => {
-    if (/^\/\d+\/\d+/.test(pathname)) setLastChapter(location.href)
+    if (/^\/\d+\/\d+/.test(pathname)) setLastChapter(withoutPanel(location.href))
   }, [location.href, pathname, setLastChapter])
 
   // The chapters the reader has opened, for the catalog's 歷史 list. Recorded
@@ -210,16 +258,32 @@ function RootComponent() {
 
   // Scroll restoration lives in ScrollBody, which every scrolling page uses.
 
-  // If the viewport crosses from mobile to desktop while the drawer is open
-  // (rare but possible — rotate, resize), force it closed so we don't keep
-  // vaul mounted on a layout that doesn't show its content.
+  // Arriving by back / forward, the drawer should simply be there (or gone):
+  // the browser's snapshot of that page already showed it so, and sliding it in
+  // again after that reads as opening twice. The attribute switches the
+  // drawer's motion off in index.css, just long enough for the pop to land.
   useEffect(() => {
-    const mq = window.matchMedia('(min-width: 768px)')
-    const handler = () => { if (mq.matches) setDrawerOpen(false) }
-    handler()
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
+    let t: number | undefined
+    const onPop = () => {
+      if (takeOwnPop()) return // a tap closing the drawer: let it slide
+      document.documentElement.dataset.historyPop = ''
+      window.clearTimeout(t)
+      t = window.setTimeout(() => delete document.documentElement.dataset.historyPop, 700)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => {
+      window.removeEventListener('popstate', onPop)
+      window.clearTimeout(t)
+    }
   }, [])
+
+  // A drawer param seen at desktop width (a link shared from a phone, or the
+  // viewport widening while it is up) means nothing there — the aside is already
+  // showing — so take it back out rather than leave it to reopen on rotate.
+  const strayPanel = !isMobile && panelParam != null
+  useEffect(() => {
+    if (strayPanel) nav.close()
+  }, [strayPanel, nav])
 
   const openMode = (m: SidebarMode, onNav?: () => void) => {
     // Tapping the lit nav button while its panel is already open closes it —
@@ -230,7 +294,7 @@ function RootComponent() {
     // 'compose' is excluded off-route (onNav still needs to navigate there —
     // see onNavTap, which handles the on-route toggle itself).
     if (m === effectiveMode && drawerOpen) {
-      setDrawerOpen(false)
+      closeDrawer()
       return
     }
     if (m === effectiveMode && !isMobile && desktopSidebarOpen && !(m === 'compose' && !onCompose)) {
@@ -249,20 +313,14 @@ function RootComponent() {
     // the rare one — tapping 綱要 again, now that we are here, is what opens it,
     // which is what the empty state behind it already says to do.
     //
-    // Closed, not merely left alone: the tap may have come from a chapter with
-    // the catalog drawer already up, and that one would otherwise stay open and
-    // just swap to the editor.
-    if (m === 'compose' && !onCompose) {
-      setDrawerOpen(false)
-      return
-    }
-    // Below md the drawer is the visible part — flip it open. On desktop the
-    // aside is permanently mounted, so we skip the state change: otherwise
-    // vaul's overlay (which has no md:hidden) would dim the page and its body-
-    // lock would pause scrolling, both for no visible reason.
-    if (typeof window !== 'undefined' && !window.matchMedia('(min-width: 768px)').matches) {
-      setDrawerOpen(true)
-    }
+    // The navigation to /compose drops the param, which is what closes a
+    // catalog drawer the tap may have come from.
+    if (m === 'compose' && !onCompose) return
+    // Below md the drawer is the visible part — open it. On desktop the aside is
+    // permanently mounted, so we skip it: otherwise vaul's overlay (which has no
+    // md:hidden) would dim the page and its body-lock would pause scrolling,
+    // both for no visible reason.
+    if (isMobile && m !== 'lookup') nav.open(m === 'catalog' ? (activeBook ? 'chapters' : 'books') : m)
   }
 
   // Same icon size on both viewports — desktop now stacks icon + label
@@ -288,6 +346,8 @@ function RootComponent() {
       to: '/$bookNo/$chapterNo',
       params: { bookNo: Number(m[1]), chapterNo: Number(m[2]) },
       search,
+      // Taking over the drawer's own entry, if one is up, so back doesn't land on it.
+      replace: drawerOpen,
     })
   }
 
@@ -301,9 +361,11 @@ function RootComponent() {
       // over it), then go unless we're already there. Desktop: openMode's own
       // toggle opens or closes the aside.
       if (isMobile) {
-        setDrawerOpen(false)
-        if (!onSearch) navigate({ to: '/search' })
-        else requestFocusSearch() // already there — tapping it again means "let me type"
+        if (!onSearch) navigate({ to: '/search', replace: drawerOpen })
+        else {
+          closeDrawer()
+          requestFocusSearch() // already there — tapping it again means "let me type"
+        }
       } else {
         openMode('lookup', onCompose ? goToLastChapter : undefined)
       }
@@ -316,11 +378,11 @@ function RootComponent() {
       // drawer, or desktop's own aside flag. From elsewhere, navigate to
       // /compose — arriving keeps the editor down (see openMode).
       if (!onCompose) {
-        openMode('compose', () => navigate({ to: '/compose' }))
+        openMode('compose', () => navigate({ to: '/compose', replace: drawerOpen }))
         return
       }
       if (drawerOpen) {
-        setDrawerOpen(false)
+        closeDrawer()
         return
       }
       if (!isMobile && desktopSidebarOpen && effectiveMode === 'compose') {
@@ -330,7 +392,7 @@ function RootComponent() {
       setComposeOverlay(null)
       setMode('compose')
       setDesktopSidebarOpen(true)
-      setDrawerOpen(true)
+      if (isMobile) nav.open('compose')
       return
     }
 
@@ -346,21 +408,26 @@ function RootComponent() {
     // On a meta route (/compose, /search) it means "leave for something
     // readable" — even with a drawer up (settings can overlay /search), close it
     // and go.
-    if (onCompose || onSearch) {
-      setDrawerOpen(false)
+    if (onCompose || onSearch || (onCharts && !isMobile)) {
       goToLastChapter()
+      return
+    }
+    // On a chart, the phone's button is 選圖 until the catalog is up; then it
+    // names the chapter the reader left off at, and goes back to it.
+    if (onCharts) {
+      if (drawerOpen && effectiveMode === 'catalog') goToLastChapter()
+      else nav.open('charts')
       return
     }
     // Reading, on the phone: cycle reading → chapter pane → book pane → reading.
     if (isMobile && /^\/\d+/.test(pathname)) {
       if (drawerOpen && effectiveMode === 'catalog') {
-        if (catalogPane === 1) setCatalogPane(0) // chapters → books
+        if (catalogPane === 1) nav.open('books') // chapters → books
         else closeDrawer() // books → back to reading, chapter pane ready again
       } else if (drawerOpen) {
         closeDrawer() // some other panel (settings) over reading → close it
       } else {
-        setCatalogPane(1) // reading → open onto the chapter pane
-        openMode('catalog')
+        openMode('catalog') // reading → open onto the chapter pane
       }
       return
     }
@@ -370,7 +437,7 @@ function RootComponent() {
       openMode('catalog')
       return
     }
-    if (drawerOpen) setDrawerOpen(false)
+    if (drawerOpen) closeDrawer()
     else openMode('catalog')
   }
 
@@ -380,7 +447,11 @@ function RootComponent() {
   // on the book pane it returns to the chapter (詩46). Off the reading surface it
   // just says the chapter it returns to.
   const catalogNavLabel =
-    drawerOpen && effectiveMode === 'catalog'
+    onCharts
+      ? drawerOpen && effectiveMode === 'catalog'
+        ? readingLabel
+        : '選圖'
+      : drawerOpen && effectiveMode === 'catalog'
       ? catalogPane === 1
         ? '選書'
         : readingLabel
@@ -397,10 +468,13 @@ function RootComponent() {
     (/^\/\d+/.test(pathname) && !drawerOpen) ||
     (drawerOpen && effectiveMode === 'catalog' && catalogPane === 1)
 
+  const catalogIcon: LucideIcon =
+    onCharts && !(drawerOpen && effectiveMode === 'catalog') ? ImageIcon : catalogIsMenuStep ? Menu : BookOpen
+
   const sharedNavButtons = (
     isActive: (m: SidebarMode) => boolean,
     catalogLabel: string,
-    catalogIsMenu = false,
+    icon: LucideIcon = BookOpen,
   ) => (
     <>
       <NavButton
@@ -409,8 +483,9 @@ function RootComponent() {
         onClick={() => onNavTap('catalog')}
       >
         {/* A menu icon while the button is a step into the catalog; the book
-          * once it points back to reading. */}
-        <NavIcon icon={catalogIsMenu ? Menu : BookOpen} className={navIcon} />
+          * once it points back to reading; a map on a chart, where it opens
+          * the chart list. */}
+        <NavIcon icon={icon} className={navIcon} />
       </NavButton>
       <NavButton
         active={isActive('lookup')}
@@ -433,11 +508,11 @@ function RootComponent() {
   // children don't re-render on every root render — without this every prev/
   // next chapter URL change cascades through the 66 Tooltip wrappers.
   // A dismissed drawer forgets it was left on the book pane: the catalog is for
-  // picking a chapter, so that's the pane waiting the next time it opens.
+  // picking a chapter, so the next open starts on the chapter pane again.
   const closeDrawer = useCallback(() => {
-    setDrawerOpen(false)
-    setCatalogPane(1)
-  }, [])
+    setLeaving(true)
+    nav.close()
+  }, [nav])
 
   // Sidebar body, shared between desktop aside and mobile drawer. Its outer
   // width is set by the wrapper (aside on desktop, drawer on mobile).
@@ -450,12 +525,13 @@ function RootComponent() {
       <SettingsPanel onShowChangelog={() => setChangelogOpen(true)} />
     ) : (
       <CatalogPanel
-        activeBookNo={activeBookNo}
-        activeChapterNo={activeChapterNo}
-        activeBook={activeBook}
-        onPick={closeDrawer}
+        activeBookNo={catalogBookNo}
+        activeChapterNo={catalogChapterNo}
+        activeBook={catalogBook}
+        onDismiss={closeDrawer}
+        inDrawer={drawerOpen}
         pane={catalogPane}
-        onPaneChange={setCatalogPane}
+        onPaneChange={(p) => nav.open(panelOfPane(p))}
         history={history}
         onRemoveHistory={removeHistoryEntry}
       />
@@ -547,11 +623,11 @@ function RootComponent() {
             if (drawerOpen) return effectiveMode === m
             if (onSearch) return m === 'lookup'
             if (onCompose) return m === 'compose'
-            if (/^\/\d+/.test(pathname)) return m === 'catalog'
+            if (/^\/\d+/.test(pathname) || onCharts) return m === 'catalog'
             return false
           },
           catalogNavLabel,
-          catalogIsMenuStep,
+          catalogIcon,
         )}
         <NavButton
           // The drawer is what makes settings the surface: `effectiveMode`
@@ -569,13 +645,12 @@ function RootComponent() {
 
       {/* Mobile: drawer holding the sidebar content */}
       <Drawer
-        open={drawerOpen}
+        open={drawerOpen && !leaving}
         onOpenChange={(o) => {
           // A bottom-nav tap drives its own open/close through onNavTap; ignore
           // vaul's close for it so a pane-swap tap doesn't also shut the drawer.
           if (!o && lastPointerInNavRef.current) return
-          if (!o) setCatalogPane(1)
-          setDrawerOpen(o)
+          if (!o) closeDrawer()
         }}
         snapPoints={snapsFor(effectiveMode)}
         activeSnapPoint={drawerSnap}
@@ -604,7 +679,7 @@ function RootComponent() {
             // rather than as the lip of a sheet. Written in the same
             // data-direction variant the radius comes from, or the base rule
             // outranks it.
-            drawerSnap === 1 && 'data-[vaul-drawer-direction=bottom]:rounded-t-none',
+            drawerSnap === 1 && 'snap-full data-[vaul-drawer-direction=bottom]:rounded-t-none',
           )}
           // The scanner is opened from in here but rendered on the body, so to
           // a modal drawer every tap in it reads as a tap outside — which

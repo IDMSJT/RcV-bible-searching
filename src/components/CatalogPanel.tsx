@@ -1,9 +1,10 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
-import { Link } from '@tanstack/react-router'
-import { ChevronLeft, X } from 'lucide-react'
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { Link, useLocation } from '@tanstack/react-router'
+import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { CHARTS } from '@/data/charts'
 import { CANON, BOOK_BY_NO, type CanonBook } from '@/data/canon'
 import { BOOK_ABBREV } from '@/data/abbrev'
-import { chapterUnit } from '@/lib/chinese'
+import { chapterUnit, toChineseNumber } from '@/lib/chinese'
 import type { Visit } from '@/lib/readingHistory'
 import {
   Tooltip,
@@ -11,6 +12,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { COMMIT_MS } from '@/lib/useCarousel'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { cn } from '@/lib/utils'
 
@@ -28,13 +30,18 @@ interface SharedProps {
   activeBookNo: number | null
   activeChapterNo: number | null
   activeBook: CanonBook | null
-  /** Fires when the user taps a chapter link or the 綱目 link — lets the
-   * mobile drawer close itself snappily. */
-  onPick?: () => void
-  /** Mobile only: which pane is showing (0 = books, 1 = chapters). Controlled
+  /** Put the drawer away without going anywhere (tapping the chapter you are
+   * already on). Links dismiss it themselves: the drawer is a search param, and
+   * a link without it takes the param out. */
+  onDismiss?: () => void
+  /** The phone's drawer is up. Its links replace the drawer's history entry
+   * rather than stack on it, so back from the page they open skips over it —
+   * except charts, which push, so back from one returns to the list. */
+  inDrawer?: boolean
+  /** Mobile only: which pane is showing (0 = books, 1 = chapters, 2 = charts). Controlled
    * from __root so the bottom-nav button can cycle it. Desktop shows both. */
-  pane?: 0 | 1
-  onPaneChange?: (pane: 0 | 1) => void
+  pane?: 0 | 1 | 2
+  onPaneChange?: (pane: 0 | 1 | 2) => void
   /** Chapters the reader has opened, newest first — shown by the 歷史 button in
    * the book pane's header. Swiped-past chapters aren't in it. */
   history?: Visit[]
@@ -51,37 +58,121 @@ export function CatalogPanel(props: SharedProps) {
   return <DesktopCatalog {...props} />
 }
 
+// The 閱讀 / 圖表 switch — the same segmented pill as the search panel's. The
+// indicator is positioned by whoever owns the gesture (the phone drags it along
+// with the panes); `tab` is only where it rests.
+function CatalogTabs({
+  tab,
+  onSelect,
+  indicatorRef,
+}: {
+  tab: 0 | 1
+  onSelect: (tab: 0 | 1) => void
+  indicatorRef?: RefObject<HTMLDivElement | null>
+}) {
+  return (
+    <div className="shrink-0 px-4 pt-3 pb-1">
+    <div className="relative flex overflow-hidden rounded-xl border border-border bg-background">
+      <div
+        ref={indicatorRef}
+        aria-hidden
+        className="absolute inset-y-0 left-0 z-0 w-1/2 bg-muted/40 ring-1 ring-border"
+        style={{
+          transform: `translateX(${tab * 100}%)`,
+          transition: `transform ${COMMIT_MS}ms ease-out`,
+        }}
+      />
+      {(['閱讀', '圖表'] as const).map((label, i) => (
+        <button
+          key={label}
+          type="button"
+          onClick={() => onSelect(i as 0 | 1)}
+          className={cn(
+            'relative z-10 flex-1 py-2.5 text-center text-sm transition-colors',
+            tab === i ? 'font-medium text-foreground' : 'font-normal text-muted-foreground',
+          )}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+    </div>
+  )
+}
+
+function ChartsPane() {
+  const { pathname } = useLocation()
+  return (
+    <ul className="mt-2 min-h-[calc(100%-0.5rem)]">
+      {CHARTS.map((c) => (
+        <li key={c.n} className="border-b border-border last:border-b-0">
+          <Link
+            to="/charts/$n"
+            params={{ n: String(c.n) }}
+            viewTransition={false}
+            // Opened from a chart, the drawer's entry is the one this replaces:
+            // back from the next chart should reach this one, not the drawer.
+            replace={pathname.startsWith('/charts')}
+            className={cn(
+              'flex items-center gap-2 px-6 py-4 text-base transition-colors hover:bg-muted md:py-2.5 md:text-sm',
+              pathname === `/charts/${c.n}` && 'bg-muted/40 font-medium',
+            )}
+          >
+            <span className="w-8 shrink-0 text-muted-foreground md:w-7">圖{toChineseNumber(c.n)}</span>
+            <span className="flex-1">{c.name}</span>
+            <ChevronRight className="size-4 text-muted-foreground" />
+          </Link>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function DesktopCatalog({
   activeBookNo,
   activeChapterNo,
   activeBook,
-  onPick,
+  onDismiss,
   history = [],
   onRemoveHistory,
 }: SharedProps) {
+  const { pathname } = useLocation()
+  // Opened over a chart, it starts on the charts; the sidebar stays mounted, so
+  // after that it keeps whichever the reader last chose.
+  const [tab, setTab] = useState<0 | 1>(() => (pathname.startsWith('/charts') ? 1 : 0))
   return (
-    <div className="relative flex h-full">
-      <div className="w-1/2 overflow-y-auto">
-        <BookPicker
-          activeBookNo={activeBookNo}
-          history={history}
-          onPickHistory={onPick}
-          onRemoveHistory={onRemoveHistory}
-        />
-      </div>
-      <div className="w-1/2 overflow-y-auto">
-        {activeBook && (
-          <ChapterPicker
-            book={activeBook}
-            activeChapterNo={activeChapterNo}
-            onPick={onPick}
-          />
+    <div className="flex h-full flex-col">
+      <CatalogTabs tab={tab} onSelect={setTab} />
+      <div className="min-h-0 flex-1">
+        {tab === 1 ? (
+          <div className="h-full overflow-y-auto">
+            <ChartsPane />
+          </div>
+        ) : (
+          <div className="relative flex h-full">
+            <div className="w-1/2 overflow-y-auto">
+              <BookPicker
+                activeBookNo={activeBookNo}
+                history={history}
+                onRemoveHistory={onRemoveHistory}
+              />
+            </div>
+            <div className="w-1/2 overflow-y-auto">
+              {activeBook && (
+                <ChapterPicker
+                  book={activeBook}
+                  activeChapterNo={activeChapterNo}
+                  onDismiss={onDismiss}
+                />
+              )}
+            </div>
+            {/* Absolutely-positioned divider so it doesn't subtract from either
+              * pane's content width — a `border-r` on one pane would shrink its
+              * content by 1px and offset its grid cells from the other side's. */}
+            <div className="pointer-events-none absolute top-3 bottom-0 left-1/2 z-20 -ml-px w-px bg-border" />
+          </div>
         )}
       </div>
-      {/* Absolutely-positioned divider so it doesn't subtract from either
-        * pane's content width — a `border-r` on one pane would shrink its
-        * content by 1px and offset its grid cells from the other side's. */}
-      <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 -ml-px w-px bg-border" />
     </div>
   )
 }
@@ -94,7 +185,8 @@ function MobileCatalog({
   activeBookNo,
   activeChapterNo,
   activeBook,
-  onPick,
+  onDismiss,
+  inDrawer,
   pane,
   onPaneChange,
   history = [],
@@ -104,14 +196,14 @@ function MobileCatalog({
   const innerRef = useRef<HTMLDivElement>(null)
   const bookPaneRef = useRef<HTMLDivElement>(null)
   const chapterPaneRef = useRef<HTMLDivElement>(null)
-  // Controlled by __root (falls back to a sensible default if used standalone),
-  // so the bottom-nav button and the swipe drive the same pane.
-  const paneIdx: 0 | 1 = pane ?? (activeBook ? 1 : 0)
-  const setPaneIdx = useCallback((p: 0 | 1) => onPaneChange?.(p), [onPaneChange])
+  // Controlled by __root (it is the ?panel= param), so the bottom-nav button,
+  // the swipe and the back gesture all drive the same pane.
+  const paneIdx: 0 | 1 | 2 = pane ?? (activeBook ? 1 : 0)
+  const setPaneIdx = useCallback((p: 0 | 1 | 2) => onPaneChange?.(p), [onPaneChange])
+  const indicatorRef = useRef<HTMLDivElement>(null)
   const isFirstRender = useRef(true)
-  // Stable so the memoized BookPicker doesn't re-render every time the pane
-  // commits (which would force its 66 Tooltips to rebuild).
-  const handlePickBook = useCallback(() => setPaneIdx(1), [setPaneIdx])
+  // Stable so the memoized ChapterPicker doesn't re-render every time the pane
+  // commits.
   const handleBackToBooks = useCallback(() => setPaneIdx(0), [setPaneIdx])
 
   // Apply the committed transform whenever the active pane changes. First
@@ -121,7 +213,7 @@ function MobileCatalog({
     const inner = innerRef.current
     if (!inner) return
     inner.style.transition = isFirstRender.current ? 'none' : 'transform 200ms ease-out'
-    inner.style.transform = `translateX(${-paneIdx * 50}%)`
+    inner.style.transform = `translateX(${(-paneIdx * 100) / 3}%)`
     isFirstRender.current = false
   }, [paneIdx])
 
@@ -154,14 +246,6 @@ function MobileCatalog({
     }
   }, [activeBookNo, activeChapterNo])
 
-  // Auto-snap to the chapter pane whenever the active book / chapter changes
-  // (user picked a new book — either from the book pane here or some other
-  // path that hit the same URL).
-  useLayoutEffect(() => {
-    if (!activeBookNo) return
-    setPaneIdx(1)
-  }, [activeBookNo, activeChapterNo, setPaneIdx])
-
   // Custom touch swipe — gives us a free hand to allow vertical pane scroll
   // even while the horizontal commit animation is still running. Native
   // scroll-snap couldn't do that on iOS: its settle animation captured touch
@@ -169,6 +253,7 @@ function MobileCatalog({
   useEffect(() => {
     const el = containerRef.current
     const inner = innerRef.current
+    const indicator = indicatorRef.current
     if (!el || !inner) return
 
     let startX = 0
@@ -188,8 +273,9 @@ function MobileCatalog({
       // Freeze whatever animation is mid-flight, capture the current visual
       // position so drag continues from where the finger lands rather than
       // from the committed paneIdx (which might still be the previous pane).
-      startPct = -paneIdx * 50
+      startPct = (-paneIdx * 100) / 3
       inner.style.transition = 'none'
+      if (indicator) indicator.style.transition = 'none'
     }
 
     const onMove = (e: TouchEvent) => {
@@ -207,9 +293,15 @@ function MobileCatalog({
         e.preventDefault()
         const w = el.clientWidth
         if (w === 0) return
-        let pct = startPct + (dx / w) * 50
-        pct = Math.max(-50, Math.min(0, pct))
+        let pct = startPct + (dx / w) * (100 / 3)
+        pct = Math.max(-200 / 3, Math.min(0, pct))
         inner.style.transform = `translateX(${pct}%)`
+        // The pill's indicator rides the same drag: it crosses from 閱讀 to
+        // 圖表 as the strip passes from the chapters to the charts.
+        if (indicator) {
+          const t = Math.max(0, Math.min(1, (-pct * 3) / 100 - 1))
+          indicator.style.transform = `translateX(${t * 100}%)`
+        }
         lastDx = dx
       }
       // Vertical: don't intercept — pane's own overflow-y handles it.
@@ -225,11 +317,17 @@ function MobileCatalog({
         const dt = Math.max(performance.now() - startTime, 1)
         const velocity = lastDx / dt
         const velocityThreshold = 0.3
-        let newIdx: 0 | 1 = paneIdx
-        if (lastDx < -distanceThreshold || velocity < -velocityThreshold) newIdx = 1
-        else if (lastDx > distanceThreshold || velocity > velocityThreshold) newIdx = 0
-        inner.style.transition = 'transform 200ms ease-out'
-        inner.style.transform = `translateX(${-newIdx * 50}%)`
+        let newIdx: 0 | 1 | 2 = paneIdx
+        if (lastDx < -distanceThreshold || velocity < -velocityThreshold)
+          newIdx = Math.min(2, paneIdx + 1) as 0 | 1 | 2
+        else if (lastDx > distanceThreshold || velocity > velocityThreshold)
+          newIdx = Math.max(0, paneIdx - 1) as 0 | 1 | 2
+        inner.style.transition = `transform ${COMMIT_MS}ms ease-out`
+        inner.style.transform = `translateX(${(-newIdx * 100) / 3}%)`
+        if (indicator) {
+          indicator.style.transition = `transform ${COMMIT_MS}ms ease-out`
+          indicator.style.transform = `translateX(${newIdx === 2 ? 100 : 0}%)`
+        }
         if (newIdx !== paneIdx) setPaneIdx(newIdx)
       }
       mode = 'idle'
@@ -249,36 +347,49 @@ function MobileCatalog({
     }
   }, [paneIdx, setPaneIdx])
 
+  const tab = paneIdx === 2 ? 1 : 0
   return (
-    <div ref={containerRef} className="h-full overflow-hidden">
-      {/* will-change + transform-gpu hint the browser to promote the inner
-        * row to its own GPU layer up front, so each touchmove just retransforms
-        * a composited layer instead of re-painting the underlying book/chapter
-        * grids. */}
-      <div ref={innerRef} className="relative flex h-full w-[200%] transform-gpu will-change-transform">
-        <div ref={bookPaneRef} className="w-1/2 shrink-0 overflow-y-auto">
-          <BookPicker
-            activeBookNo={activeBookNo}
-            onPickBook={handlePickBook}
-            history={history}
-            onPickHistory={onPick}
-            onRemoveHistory={onRemoveHistory}
-          />
-        </div>
-        <div ref={chapterPaneRef} className="w-1/2 shrink-0 overflow-y-auto">
-          {activeBook && (
-            <ChapterPicker
-              book={activeBook}
-              activeChapterNo={activeChapterNo}
-              onPick={onPick}
-              onBack={handleBackToBooks}
+    <div className="flex h-full flex-col">
+      <CatalogTabs
+        tab={tab}
+        indicatorRef={indicatorRef}
+        onSelect={(t) => setPaneIdx(t === 1 ? 2 : paneIdx === 2 ? (activeBook ? 1 : 0) : paneIdx)}
+      />
+      <div ref={containerRef} className="min-h-0 flex-1 overflow-hidden">
+        {/* will-change + transform-gpu hint the browser to promote the inner
+          * row to its own GPU layer up front, so each touchmove just retransforms
+          * a composited layer instead of re-painting the underlying book/chapter
+          * grids. */}
+        <div ref={innerRef} className="relative flex h-full w-[300%] transform-gpu will-change-transform">
+          <div ref={bookPaneRef} className="w-1/3 shrink-0 overflow-y-auto">
+            <BookPicker
+              activeBookNo={activeBookNo}
+              drill
+              history={history}
+              replace={inDrawer}
+              onRemoveHistory={onRemoveHistory}
             />
-          )}
+          </div>
+          <div ref={chapterPaneRef} className="w-1/3 shrink-0 overflow-y-auto">
+            {activeBook && (
+              <ChapterPicker
+                book={activeBook}
+                activeChapterNo={activeChapterNo}
+                onDismiss={onDismiss}
+                replace={inDrawer}
+                onBack={handleBackToBooks}
+              />
+            )}
+          </div>
+          <div className="w-1/3 shrink-0 overflow-y-auto">
+            <ChartsPane />
+          </div>
+          {/* Dividers ride on the inner wrapper so they follow the translate —
+            * each sits exactly at a pane boundary, offscreen when one pane fills
+            * the container and visible only mid-swipe. */}
+          <div className="pointer-events-none absolute top-3 bottom-0 left-1/3 z-20 -ml-px w-px bg-border" />
+          <div className="pointer-events-none absolute top-3 bottom-0 left-2/3 z-20 -ml-px w-px bg-border" />
         </div>
-        {/* Divider rides on the inner wrapper so it follows the translate —
-          * sits exactly at the pane boundary, which is offscreen when one
-          * pane fills the container and visible only mid-swipe. */}
-        <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 -ml-px w-px bg-border" />
       </div>
     </div>
   )
@@ -286,15 +397,16 @@ function MobileCatalog({
 
 const BookPicker = memo(function BookPicker({
   activeBookNo,
-  onPickBook,
+  drill,
+  replace,
   history = [],
-  onPickHistory,
   onRemoveHistory,
 }: {
   activeBookNo: number | null
-  onPickBook?: () => void
+  /** Phone: picking a book opens its chapters in the drawer rather than closing it. */
+  drill?: boolean
+  replace?: boolean
   history?: Visit[]
-  onPickHistory?: () => void
   onRemoveHistory?: (visit: Visit) => void
 }) {
   // Each header stacks at the top once its section has scrolled above the
@@ -309,31 +421,31 @@ const BookPicker = memo(function BookPicker({
         stickyCls={cn(
           'sticky top-0',
           hasHistory
-            ? 'bottom-[calc(var(--header-h)*2-1px)] md:bottom-[calc(4.5rem-1px)]'
-            : 'bottom-[var(--header-h)] md:bottom-9',
+            ? 'bottom-[calc(var(--acc-h)*2-1px)] md:bottom-[calc(4.5rem-1px)]'
+            : 'bottom-[var(--acc-h)] md:bottom-9',
         )}
         anchorCls="scroll-mt-0"
       />
-      <BookSection books={OT_BOOKS} activeBookNo={activeBookNo} onPickBook={onPickBook} />
+      <BookSection books={OT_BOOKS} activeBookNo={activeBookNo} drill={drill} />
       <AccordionHeader
         label="新約"
         topBorder
         stickyCls={cn(
-          'sticky top-[calc(var(--header-h)-1px)] md:top-[calc(2.25rem-1px)]',
-          hasHistory ? 'bottom-[calc(var(--header-h)-1px)] md:bottom-[calc(2.25rem-1px)]' : 'bottom-0',
+          'sticky top-[calc(var(--acc-h)-1px)] md:top-[calc(2.25rem-1px)]',
+          hasHistory ? 'bottom-[calc(var(--acc-h)-1px)] md:bottom-[calc(2.25rem-1px)]' : 'bottom-0',
         )}
-        anchorCls="scroll-mt-[calc(var(--header-h)-1px)] md:scroll-mt-[calc(2.25rem-1px)]"
+        anchorCls="scroll-mt-[calc(var(--acc-h)-1px)] md:scroll-mt-[calc(2.25rem-1px)]"
       />
-      <BookSection books={NT_BOOKS} activeBookNo={activeBookNo} onPickBook={onPickBook} />
+      <BookSection books={NT_BOOKS} activeBookNo={activeBookNo} drill={drill} />
       {hasHistory && (
         <>
           <AccordionHeader
             label="歷史紀錄"
             topBorder
-            stickyCls="sticky top-[calc(var(--header-h)*2-2px)] md:top-[calc(4.5rem-2px)] bottom-0"
-            anchorCls="scroll-mt-[calc(var(--header-h)*2-2px)] md:scroll-mt-[calc(4.5rem-2px)]"
+            stickyCls="sticky top-[calc(var(--acc-h)*2-2px)] md:top-[calc(4.5rem-2px)] bottom-0"
+            anchorCls="scroll-mt-[calc(var(--acc-h)*2-2px)] md:scroll-mt-[calc(4.5rem-2px)]"
           />
-          <HistoryList history={history} onPick={onPickHistory} onRemove={onRemoveHistory} />
+          <HistoryList history={history} replace={replace} onRemove={onRemoveHistory} />
         </>
       )}
     </>
@@ -349,11 +461,11 @@ const BookPicker = memo(function BookPicker({
  */
 function HistoryList({
   history,
-  onPick,
+  replace,
   onRemove,
 }: {
   history: Visit[]
-  onPick?: () => void
+  replace?: boolean
   onRemove?: (visit: Visit) => void
 }) {
   return (
@@ -370,7 +482,7 @@ function HistoryList({
             to="/$bookNo/$chapterNo"
             params={{ bookNo: v.bookNo, chapterNo: v.chapterNo }}
             search={{}}
-            onClick={onPick}
+            replace={replace}
             viewTransition={false}
             // pr leaves the remove button its corner; the link still runs the
             // full width beneath it, so the row reads (and highlights) as one.
@@ -407,12 +519,14 @@ function HistoryList({
 const ChapterPicker = memo(function ChapterPicker({
   book,
   activeChapterNo,
-  onPick,
+  onDismiss,
+  replace,
   onBack,
 }: {
   book: CanonBook
   activeChapterNo: number | null
-  onPick?: () => void
+  onDismiss?: () => void
+  replace?: boolean
   /** When provided, the header renders a back arrow that jumps the user back
    * to the book pane — mobile only, since desktop shows both panes at once. */
   onBack?: () => void
@@ -421,14 +535,15 @@ const ChapterPicker = memo(function ChapterPicker({
   const rows = chunkRows(chapters)
   return (
     <>
-      <ChapterHeader book={book} onPick={onPick} onBack={onBack} />
+      <ChapterHeader book={book} replace={replace} onBack={onBack} />
       {rows.map((row, i) => (
         <ChapterRow
           key={i}
           rowChapters={row}
           book={book}
           activeChapterNo={activeChapterNo}
-          onPick={onPick}
+          onDismiss={onDismiss}
+          replace={replace}
         />
       ))}
     </>
@@ -442,15 +557,15 @@ const ChapterPicker = memo(function ChapterPicker({
 // 帖撒羅尼迦前書 wraps to two lines while 綱目 sits in space it never needed.
 function ChapterHeader({
   book,
-  onPick,
+  replace,
   onBack,
 }: {
   book: CanonBook
-  onPick?: () => void
+  replace?: boolean
   onBack?: () => void
 }) {
   return (
-    <div className="sticky top-0 z-10 grid h-[var(--header-h)] grid-cols-[1fr_auto_1fr] items-stretch border-b border-border bg-muted/80 text-base font-medium backdrop-blur md:h-9 md:grid-cols-[1fr_auto_auto] md:text-xs md:font-semibold">
+    <div className="sticky top-0 z-10 grid h-[var(--acc-h)] grid-cols-[1fr_auto_1fr] items-stretch border-b border-border bg-popover text-[15px] font-medium md:h-9 md:bg-background md:grid-cols-[1fr_auto_auto] md:text-xs md:font-semibold">
       <div className="flex items-stretch">
         {onBack ? (
           <button
@@ -472,7 +587,7 @@ function ChapterHeader({
         <Link
           to="/$bookNo"
           params={{ bookNo: book.bookNo }}
-          onClick={onPick}
+          replace={replace}
           viewTransition={false}
           className="inline-flex items-center px-4 font-medium text-primary transition-colors hover:bg-muted"
         >
@@ -535,7 +650,7 @@ function AccordionHeader({
         onClick={scrollToSection}
         className={cn(
           stickyCls,
-          'z-10 flex h-[var(--header-h)] w-full items-center justify-between border-b border-border bg-muted/80 px-4 text-base font-medium backdrop-blur transition-colors hover:bg-muted md:h-9 md:text-xs md:font-semibold',
+          'z-10 flex h-[var(--acc-h)] w-full items-center justify-center border-b border-border bg-popover px-4 text-[15px] font-medium transition-colors hover:bg-muted md:h-9 md:bg-background md:text-xs md:font-semibold',
           topBorder && 'border-t',
         )}
       >
@@ -548,11 +663,11 @@ function AccordionHeader({
 function BookSection({
   books,
   activeBookNo,
-  onPickBook,
+  drill,
 }: {
   books: CanonBook[]
   activeBookNo: number | null
-  onPickBook?: () => void
+  drill?: boolean
 }) {
   const rows = chunkRows(books)
   // -mb-px overlaps the last row's border-b with the next AccordionHeader's
@@ -566,7 +681,7 @@ function BookSection({
             key={i}
             rowBooks={row}
             activeBookNo={activeBookNo}
-            onPickBook={onPickBook}
+            drill={drill}
           />
         ))}
       </div>
@@ -577,11 +692,11 @@ function BookSection({
 function BookRow({
   rowBooks,
   activeBookNo,
-  onPickBook,
+  drill,
 }: {
   rowBooks: CanonBook[]
   activeBookNo: number | null
-  onPickBook?: () => void
+  drill?: boolean
 }) {
   return (
     <div className="grid grid-cols-5">
@@ -591,7 +706,7 @@ function BookRow({
           book={b}
           active={activeBookNo === b.bookNo}
           isLastCol={col === COLS - 1}
-          onPick={onPickBook}
+          drill={drill}
         />
       ))}
     </div>
@@ -602,12 +717,12 @@ function BookGridCell({
   book,
   active,
   isLastCol,
-  onPick,
+  drill,
 }: {
   book: CanonBook
   active: boolean
   isLastCol: boolean
-  onPick?: () => void
+  drill?: boolean
 }) {
   const abbrev = BOOK_ABBREV[book.bookNo] ?? book.name.slice(0, 1)
   return (
@@ -617,14 +732,18 @@ function BookGridCell({
           <Link
             to="/$bookNo"
             params={{ bookNo: book.bookNo }}
-            onClick={onPick}
+            // On the phone the drawer stays up on that book's chapters: the page
+            // behind changes, the entry doesn't grow, and it carries no
+            // "I opened the drawer" mark, so dismissing it later strips the
+            // param instead of going back to the book it replaced.
+            {...(drill ? { search: { panel: 'chapters' as const }, replace: true } : {})}
             // Lets the pane find what to bring into view when it opens.
             data-active={active || undefined}
             className={cn(
               '@container flex aspect-square items-center justify-center border-b border-border transition-colors',
               !isLastCol && 'border-r',
               active
-                ? 'bg-secondary text-secondary-foreground font-medium'
+                ? 'bg-muted/40 text-foreground font-medium'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground',
             )}
           />
@@ -641,17 +760,23 @@ function ChapterRow({
   rowChapters,
   book,
   activeChapterNo,
-  onPick,
+  onDismiss,
+  replace,
 }: {
   rowChapters: number[]
   book: CanonBook
   activeChapterNo: number | null
-  onPick?: () => void
+  onDismiss?: () => void
+  replace?: boolean
 }) {
+  const { pathname } = useLocation()
   return (
     <div className="grid grid-cols-5">
       {rowChapters.map((ch, col) => {
         const active = activeChapterNo === ch
+        // Marked as where the reader left off, but not necessarily where they
+        // are: from a chart page it is still a way back, not a place to stay.
+        const here = active && pathname === `/${book.bookNo}/${ch}`
         // data-active marks the cell the pane centres on when it opens.
         const cellProps = {
           'data-active': active || undefined,
@@ -659,7 +784,7 @@ function ChapterRow({
             '@container flex aspect-square items-center justify-center border-b border-border transition-colors',
             col !== COLS - 1 && 'border-r',
             active
-              ? 'bg-secondary text-secondary-foreground font-medium'
+              ? 'bg-muted/40 text-foreground font-medium'
               : 'text-muted-foreground hover:bg-muted hover:text-foreground',
           ),
         }
@@ -667,8 +792,8 @@ function ChapterRow({
         // The chapter you're already on is nowhere to go: routing to the page
         // you're on still re-commits and repaints the reading surface under the
         // closing drawer, which read as a flicker. Just put the drawer away.
-        return active ? (
-          <button key={ch} type="button" onClick={onPick} {...cellProps}>
+        return here ? (
+          <button key={ch} type="button" onClick={onDismiss} {...cellProps}>
             {label}
           </button>
         ) : (
@@ -677,7 +802,7 @@ function ChapterRow({
             to="/$bookNo/$chapterNo"
             params={{ bookNo: book.bookNo, chapterNo: ch }}
             search={{}}
-            onClick={onPick}
+            replace={replace}
             // The drawer sliding away is the transition. A cross-fade on top of
             // it captures the whole page — drawer included — so the old
             // snapshot's still-open drawer ghosts over the one actually closing.

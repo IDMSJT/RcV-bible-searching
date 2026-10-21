@@ -143,6 +143,7 @@
    * derived from it — so one value keeps them in lockstep. Desktop panels
    * compact themselves to h-9 via their own md: overrides. */
   --header-h: 3.25rem;
+  --acc-h: 2.5rem; /* the catalog's 舊約 / 新約 / 歷史紀錄 bars — slimmer than a page header */
 }
 
 html, body, #root {
@@ -225,4 +226,32 @@ body {
   ::view-transition-new(root) {
     animation: none;
   }
+}
+
+/* Drawer reached by history (back / forward) rather than a tap: the browser
+ * has just shown a snapshot of that page, already in its final state, so a
+ * slide or fade on top only plays the opening again after it was seen open.
+ * Set for a moment by __root on popstate. */
+html[data-history-pop] [data-vaul-drawer],
+html[data-history-pop] [data-vaul-overlay],
+html[data-history-pop] [data-vaul-drawer] * {
+  transition: none !important;
+  /* Not `animation: none`: dropping the name when the flag clears restarts the
+   * animation (a second fade-in). A zero duration just finishes it in place. */
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+}
+
+/* A pop that opens the drawer shows it open at once. Vaul mounts it at the
+ * closed offset and only moves it once it has measured — a frame or more with
+ * the page behind showing bare, longer on a slow phone. At the full snap the
+ * open position is simply no offset. */
+html[data-history-pop] [data-vaul-drawer].snap-full[data-state='open'] {
+  transform: translate3d(0, 0, 0) !important;
+}
+
+/* A sheet standing at full height covers the page, so the dimming layer has
+ * nothing left to dim — only the slide in and out would show it. */
+body:has([data-vaul-drawer].snap-full) [data-vaul-overlay] {
+  background: transparent;
 }
