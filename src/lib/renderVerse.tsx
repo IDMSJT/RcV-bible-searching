@@ -2,6 +2,7 @@ import { Fragment, useLayoutEffect, useRef, useState, type ReactNode } from 'rea
 import { Link } from '@tanstack/react-router'
 import { X } from 'lucide-react'
 import { parseRefs, type ParseOptions, type Segment, type VerseRef } from '@/lib/parseRefs'
+import { linkCharts } from '@/lib/chartRefs'
 import { groupRefs, runOf, type RefGroup } from '@/lib/refGroups'
 import { useBible, useAnnotations, eachVerseInRange, notesForVerse } from '@/data/loadBible'
 import { formatVerseRef } from '@/lib/cite'
@@ -204,11 +205,11 @@ export function renderNoteText(
   initialCtx: { book: number; chapter: number },
 ): ReactNode {
   const { segments } = parseRefs(text, initialCtx)
-  if (segments.length === 0) return text
+  if (segments.length === 0) return linkCharts(text)
 
   return segments.map((seg, i) => {
     if (!seg.refs || seg.refs.length === 0) {
-      return <Fragment key={i}>{seg.text}</Fragment>
+      return <Fragment key={i}>{linkCharts(seg.text)}</Fragment>
     }
     // A segment can carry more than one ref — a footnote chain like
     // 「二1注3與注4」 yields one ref per note (all same book/chapter/verse).
@@ -756,7 +757,7 @@ export function RefBody({
         const renderUnit = (u: Unit, text?: string, half?: string) => {
           const body = text ?? u.text
           if (u.gi < 0) {
-            return <Fragment key={`${u.start}${half ?? ''}`}>{body}</Fragment>
+            return <Fragment key={`${u.start}${half ?? ''}`}>{linkCharts(body)}</Fragment>
           }
           const key = base + u.gi
           const on = active === key

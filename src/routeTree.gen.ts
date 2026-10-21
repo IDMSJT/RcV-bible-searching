@@ -14,6 +14,7 @@ import { Route as ComposeRouteImport } from './routes/compose'
 import { Route as BookNoRouteImport } from './routes/$bookNo'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BookNoIndexRouteImport } from './routes/$bookNo.index'
+import { Route as ChartsNRouteImport } from './routes/charts.$n'
 import { Route as BookNoChapterNoRouteImport } from './routes/$bookNo.$chapterNo'
 
 const SearchRoute = SearchRouteImport.update({
@@ -41,6 +42,11 @@ const BookNoIndexRoute = BookNoIndexRouteImport.update({
   path: '/',
   getParentRoute: () => BookNoRoute,
 } as any)
+const ChartsNRoute = ChartsNRouteImport.update({
+  id: '/charts/$n',
+  path: '/charts/$n',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BookNoChapterNoRoute = BookNoChapterNoRouteImport.update({
   id: '/$chapterNo',
   path: '/$chapterNo',
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/compose': typeof ComposeRoute
   '/search': typeof SearchRoute
   '/$bookNo/$chapterNo': typeof BookNoChapterNoRoute
+  '/charts/$n': typeof ChartsNRoute
   '/$bookNo/': typeof BookNoIndexRoute
 }
 export interface FileRoutesByTo {
@@ -60,6 +67,7 @@ export interface FileRoutesByTo {
   '/compose': typeof ComposeRoute
   '/search': typeof SearchRoute
   '/$bookNo/$chapterNo': typeof BookNoChapterNoRoute
+  '/charts/$n': typeof ChartsNRoute
   '/$bookNo': typeof BookNoIndexRoute
 }
 export interface FileRoutesById {
@@ -69,6 +77,7 @@ export interface FileRoutesById {
   '/compose': typeof ComposeRoute
   '/search': typeof SearchRoute
   '/$bookNo/$chapterNo': typeof BookNoChapterNoRoute
+  '/charts/$n': typeof ChartsNRoute
   '/$bookNo/': typeof BookNoIndexRoute
 }
 export interface FileRouteTypes {
@@ -79,9 +88,16 @@ export interface FileRouteTypes {
     | '/compose'
     | '/search'
     | '/$bookNo/$chapterNo'
+    | '/charts/$n'
     | '/$bookNo/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/compose' | '/search' | '/$bookNo/$chapterNo' | '/$bookNo'
+  to:
+    | '/'
+    | '/compose'
+    | '/search'
+    | '/$bookNo/$chapterNo'
+    | '/charts/$n'
+    | '/$bookNo'
   id:
     | '__root__'
     | '/'
@@ -89,6 +105,7 @@ export interface FileRouteTypes {
     | '/compose'
     | '/search'
     | '/$bookNo/$chapterNo'
+    | '/charts/$n'
     | '/$bookNo/'
   fileRoutesById: FileRoutesById
 }
@@ -97,6 +114,7 @@ export interface RootRouteChildren {
   BookNoRoute: typeof BookNoRouteWithChildren
   ComposeRoute: typeof ComposeRoute
   SearchRoute: typeof SearchRoute
+  ChartsNRoute: typeof ChartsNRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -136,6 +154,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BookNoIndexRouteImport
       parentRoute: typeof BookNoRoute
     }
+    '/charts/$n': {
+      id: '/charts/$n'
+      path: '/charts/$n'
+      fullPath: '/charts/$n'
+      preLoaderRoute: typeof ChartsNRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$bookNo/$chapterNo': {
       id: '/$bookNo/$chapterNo'
       path: '/$chapterNo'
@@ -164,6 +189,7 @@ const rootRouteChildren: RootRouteChildren = {
   BookNoRoute: BookNoRouteWithChildren,
   ComposeRoute: ComposeRoute,
   SearchRoute: SearchRoute,
+  ChartsNRoute: ChartsNRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
