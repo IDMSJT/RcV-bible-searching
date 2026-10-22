@@ -8,7 +8,7 @@
 > - `public/outline.json` ← `scrape_outline_youversion.py`
 > - `public/annotations.json` ← `scrape_annotations.py`(彙整)→
 >   `extract_annotations.py`(逐章抽 EPUB 註釋)→ `normalize_simplified.py`(簡轉繁)
-> - `public/verse_en.json` ← `build_verse_en.py`
+> - `public/verse_en.json` ← `build_verse_en_lsm.py`
 >
 > 已過時的舊管線(line.twgbr.org / recoveryversion 舊站 + 遷移期的比對工具)都移到
 > **`scripts/deprecated/`**,別拿來覆蓋 `public/`。
@@ -22,7 +22,7 @@
 | `scrape_annotations.py` | (彙整器) | `public/annotations.json` | 跑全本,呼叫 `extract_annotations.extract_chapter`;參數 `nt`/`ot`/`all` |
 | `extract_annotations.py` | RcV EPUB | 單章 JSON / 供彙整器呼叫 | 從 EPUB 抽註釋,difflib 把 marker offset 對到 YV 座標,並呼叫 `normalize_text` 簡轉繁 |
 | `normalize_simplified.py` | — | 簡轉繁工具 | `normalize_text()`(白名單 + OpenCC s2tw)被 `extract_annotations` import;直接執行可重新正規化既有 `annotations.json`(`--apply` 才寫回) |
-| `build_verse_en.py` | — | `public/verse_en.json` | 英文經文 |
+| `build_verse_en_lsm.py` | text.recoveryversion.bible(LSM 官方純文字版) | `public/verse_en.json` | 英文經文(含詩篇標題為第 0 節);`--check` 只比對不寫檔 |
 | `scrape_verse_recoveryversion.py` | recoveryversion.com.tw | — | verse 爬取已過時,但 `fetch_menu`(各書章/節數)與 `BOOK_NAMES` 仍供現役 youversion 爬蟲使用,故留在現役 |
 | `compare_epub_yv.py` | — | `output/…` | EPUB vs YouVersion 比對(驗證 annotations 來源) |
 | `build_variant_classes.py` | `variant_glyphs.json` + Unihan + OpenCC | `variant_classes.json` · `variant_review.json` | 異體字等價類(供搜尋容錯);見下節 |

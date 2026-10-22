@@ -6,6 +6,7 @@
 
 ## 待辦
 
+- **綱目改用新版 API?** — `public/outline.json` 的綱目目前出自 YouVersion v4230,但 recoveryversion.com.tw 新版 API 也有(`/api/getOutlines?VERSION=1&chapter_code=<卷序>&ORDER=volume_order`,欄位 `level`、`outline_content`、`related_chapters`、`related_number`、`related_section_code`;馬太福音回 149 筆)。經文、註解、串珠、書介都已改用該 API,只有綱目沒換。要不要換,得先逐卷比對標題文字、層級與位置;注意 API 的位置只到「節」,YouVersion 版能對到上下半節的切段。
 - **英文搜尋** — 關鍵字搜尋的範圍選單(全部/經文/註解/綱目)目前沒有「只搜英文」的選項;英文比對只附帶在經文範圍內跟中文一起篩(`searchKeyword` 裡 `enLower.includes`)。要不要獨立一個範圍、UI 放哪,還沒定案。
 
 ## 舊版有、新版缺
@@ -23,7 +24,6 @@
 
 ## 待決
 
-- **英文經文來源** — `public/verse_en.json` 整份出自 bibleread.online,而水流職事站把該站列在侵權名單上。`scripts/build_verse_en_bibleread.py` 的檔頭和當初的 commit 訊息都寫成「官方」,是錯的。要決定留、換回舊版、還是另找來源;1.3 的更新說明因此沒提這件事。
 - **節次 highlight 在手機上左邊沒有留白** — 桌機看不出來。推測是數字欄 `minmax(1.3125em, auto)` 剛好被兩位數填滿,底色的 `px-1 -mx-1` 只能往頁面 `px-4` 溢出;但還沒在真機上量過,量到再改。
 
 ## 掃描紙本(新,已實作但未實機驗證)
