@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
-import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, History, X } from 'lucide-react'
 import { CHARTS } from '@/data/charts'
 import { CANON, BOOK_BY_NO, type CanonBook } from '@/data/canon'
 import { BOOK_ABBREV } from '@/data/abbrev'
@@ -486,11 +486,16 @@ function HistoryList({
             viewTransition={false}
             // pr leaves the remove button its corner; the link still runs the
             // full width beneath it, so the row reads (and highlights) as one.
-            className="flex flex-1 items-baseline gap-2 py-4 pl-4 pr-12 text-base transition-colors hover:bg-muted md:py-2.5 md:text-sm"
+            className="flex flex-1 items-center gap-3 py-3 pl-4 pr-12 text-base transition-colors hover:bg-muted md:py-2 md:text-sm"
           >
-            <span className="font-medium">{BOOK_BY_NO.get(v.bookNo)?.name ?? ''}</span>
-            <span className="text-muted-foreground">
-              第 {v.chapterNo} {chapterUnit(v.bookNo)}
+            <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground md:size-6">
+              <History className="size-4 md:size-3.5" />
+            </span>
+            <span className="flex items-baseline gap-2">
+              <span className="font-medium">{BOOK_BY_NO.get(v.bookNo)?.name ?? ''}</span>
+              <span className="text-muted-foreground">
+                第 {v.chapterNo} {chapterUnit(v.bookNo)}
+              </span>
             </span>
           </Link>
           {onRemove && (
@@ -650,7 +655,7 @@ function AccordionHeader({
         onClick={scrollToSection}
         className={cn(
           stickyCls,
-          'z-10 flex h-[var(--acc-h)] w-full items-center justify-center border-b border-border bg-popover px-4 text-[15px] font-medium transition-colors hover:bg-muted md:h-9 md:bg-background md:text-xs md:font-semibold',
+          'z-10 flex h-[var(--acc-h)] w-full items-center justify-center border-b border-border bg-popover px-4 text-[15px] font-medium text-primary transition-colors hover:bg-muted md:h-9 md:bg-background md:text-xs md:font-semibold',
           topBorder && 'border-t',
         )}
       >

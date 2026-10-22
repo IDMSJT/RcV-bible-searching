@@ -179,9 +179,9 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
                     placeholder={DEFAULT_CITE_TEMPLATE}
                     className="min-h-10 resize-none"
                   />
-                  <p className="text-xs text-muted-foreground">
+                  <p className="pb-1 text-xs text-muted-foreground">
                     可用 <code className="rounded bg-muted px-1 py-0.5">{'{ref}'}</code> 和{' '}
-                    <code className="rounded bg-muted px-1 py-0.5">{'{text}'}</code>,其餘文字(含換行)照打。
+                    <code className="rounded bg-muted px-1 py-0.5">{'{text}'}</code>，其餘文字 (含換行) 照打。
                   </p>
                 </div>
               </div>
