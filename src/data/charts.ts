@@ -23,3 +23,7 @@ export const CHARTS: Chart[] = [
 export function chartSrc(n: number): string {
   return `${import.meta.env.BASE_URL}charts/chart-${String(n).padStart(2, '0')}.webp`
 }
+
+export function chartThumbSrc(n: number): string {
+  return `${import.meta.env.BASE_URL}charts/chart-${String(n).padStart(2, '0')}-thumb.webp`
+}

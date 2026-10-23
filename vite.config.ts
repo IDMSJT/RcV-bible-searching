@@ -149,11 +149,11 @@ export default defineConfig(({ command }) => ({
           {
             // The charts (~1.2 MB of WebP) aren't precached: they're kept the
             // first time one is opened, so only readers who look pay for them.
-            urlPattern: ({ url }) => /\/charts\/chart-\d+\.webp$/.test(url.pathname),
+            urlPattern: ({ url }) => /\/charts\/chart-\d+(-thumb)?\.webp$/.test(url.pathname),
             handler: 'CacheFirst',
             options: {
               cacheName: 'charts',
-              expiration: { maxEntries: 12 },
+              expiration: { maxEntries: 24 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },

@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
 import { ChevronLeft, ChevronRight, History, X } from 'lucide-react'
-import { CHARTS } from '@/data/charts'
+import { CHARTS, chartThumbSrc } from '@/data/charts'
 import { CANON, BOOK_BY_NO, type CanonBook } from '@/data/canon'
 import { BOOK_ABBREV } from '@/data/abbrev'
 import { chapterUnit, toChineseNumber } from '@/lib/chinese'
@@ -100,6 +100,30 @@ function CatalogTabs({
   )
 }
 
+// Fades in once decoded; a thumbnail already in the cache is complete before
+// React attaches onLoad, so that case is read off the element on mount.
+function ChartThumb({ n }: { n: number }) {
+  const [loaded, setLoaded] = useState(false)
+  const ref = useCallback((img: HTMLImageElement | null) => {
+    if (img?.complete && img.naturalWidth > 0) setLoaded(true)
+  }, [])
+  return (
+    <span className="size-11 shrink-0 overflow-hidden rounded border border-border bg-white">
+      <img
+        ref={ref}
+        src={chartThumbSrc(n)}
+        alt=""
+        loading="lazy"
+        onLoad={() => setLoaded(true)}
+        className={cn(
+          'size-full object-cover transition-opacity duration-300 motion-reduce:transition-none',
+          loaded ? 'opacity-100' : 'opacity-0',
+        )}
+      />
+    </span>
+  )
+}
+
 function ChartsPane() {
   const { pathname } = useLocation()
   return (
@@ -114,12 +138,15 @@ function ChartsPane() {
             // back from the next chart should reach this one, not the drawer.
             replace={pathname.startsWith('/charts')}
             className={cn(
-              'flex items-center gap-2 px-6 py-4 text-base transition-colors hover:bg-muted md:py-2.5 md:text-sm',
+              'flex items-center gap-3 px-6 py-3 text-base transition-colors hover:bg-muted md:py-2 md:text-sm',
               pathname === `/charts/${c.n}` && 'bg-muted/40 font-medium',
             )}
           >
-            <span className="w-8 shrink-0 text-muted-foreground md:w-7">圖{toChineseNumber(c.n)}</span>
-            <span className="flex-1">{c.name}</span>
+            <ChartThumb n={c.n} />
+            <span className="flex-1">
+              <span className="block text-xs text-muted-foreground">圖{toChineseNumber(c.n)}</span>
+              {c.name}
+            </span>
             <ChevronRight className="size-4 text-muted-foreground" />
           </Link>
         </li>

@@ -60,6 +60,9 @@
   --color-background: oklch(0.975 0.014 84.6);   /* slightly lighter米黃 — sidebar chrome */
   --color-foreground: oklch(0.305 0.024 238.8);  /* #24313a 藍黑 */
 
+  /* 經文中文字 — 比一般內文再黑一點 */
+  --color-scripture: oklch(0.2 0.012 238.8);
+
   --color-card: oklch(0.987 0.013 82.4);         /* #fffaf1 */
   --color-card-foreground: oklch(0.305 0.024 238.8);
 
@@ -100,6 +103,8 @@
 .dark {
   --color-background: oklch(0.230 0.025 249.1);  /* lighter chrome — sidebar */
   --color-foreground: oklch(0.94 0.030 80.7);   /* brighter 米色 (was 0.899) */
+
+  --color-scripture: oklch(0.94 0.030 80.7);
 
   --color-card: oklch(0.250 0.028 244.8);        /* #16232e */
   --color-card-foreground: oklch(0.94 0.030 80.7);
@@ -173,6 +178,8 @@ body {
   .dark {
     --color-background: white;
     --color-foreground: oklch(0.305 0.024 238.8);   /* 藍黑 ink */
+
+    --color-scripture: oklch(0.305 0.024 238.8);
 
     --color-card: white;
     --color-card-foreground: oklch(0.305 0.024 238.8);
