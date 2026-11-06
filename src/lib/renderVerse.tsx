@@ -164,29 +164,33 @@ export function renderMarkedText(
   while (pos < text.length) {
     flushSupsAt(pos)
     const m = ms[mIdx]
-    if (m && m.s === pos) {
+    // A mark that starts at or before here (an overlap with the one just drawn
+    // can leave it behind) still owes the text from here to its end.
+    if (m && m.s <= pos) {
       if (m.e <= pos) {
         mIdx++
         continue
       }
+      // A marker can sit inside the span — 「的手」 with a cross-reference
+      // between its two characters. Draw the span in pieces around it: jumping
+      // to the end would leave the marker behind its position, and nothing after
+      // it would be drawn.
+      let end = m.e
+      if (sIdx < sups.length && sups[sIdx].offset < end) end = sups[sIdx].offset
       out.push(
         <span key={`m${keyCounter++}`} className={MARK_CLASS[m.k]}>
-          {text.slice(m.s, m.e)}
+          {text.slice(pos, end)}
         </span>,
       )
-      pos = m.e
-      mIdx++
+      pos = end
+      if (end === m.e) mIdx++
       continue
     }
     const nextMarkStart = m ? m.s : text.length
     const nextSupOffset = sIdx < sups.length ? sups[sIdx].offset : text.length
-    const boundary = Math.min(nextMarkStart, nextSupOffset)
-    if (boundary > pos) {
-      out.push(text.slice(pos, boundary))
-      pos = boundary
-    } else {
-      pos += 1
-    }
+    const boundary = Math.max(Math.min(nextMarkStart, nextSupOffset), pos + 1)
+    out.push(text.slice(pos, boundary))
+    pos = boundary
   }
   flushSupsAt(text.length)
   return <Fragment>{out}</Fragment>
