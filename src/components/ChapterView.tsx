@@ -796,11 +796,11 @@ export function ChapterView({
   // citation format instead of the raw HTML: one line per verse or note, the
   // selected words quoted in 『』/"" with the reference. When only part of a verse
   // is taken the ref gains a 上/中/下 segment marker (prefix / middle / suffix);
-  // notes carry no such marker, only 註N. A verse split by a mid-verse heading
+  // notes carry no such marker, only 註N (cross-refs 串a). A verse split by a mid-verse heading
   // spans several data-verse rows, so its portion is accumulated by verse number
   // and compared against the full verse.text. Verse numbers / footnote markers
-  // are user-select:none, so they stay out, and a selection that touches neither
-  // a verse nor a note (e.g. a cross-ref card) falls through to the browser's
+  // are user-select:none, so they stay out, and a selection that touches none of a
+  // verse, note or cross-ref card falls through to the browser's
   // plain copy. The action-bar copy uses clipboard.writeText and never fires this.
   const handleCopy = (e: React.ClipboardEvent) => {
     const sel = window.getSelection()
@@ -831,7 +831,7 @@ export function ChapterView({
     const byVerse = new Map<number, string>()
     const byNote = new Map<string, string>()
     const order: string[] = []
-    panel.querySelectorAll<HTMLElement>('[data-verse],[data-note]').forEach((el) => {
+    panel.querySelectorAll<HTMLElement>('[data-verse],[data-note],[data-crossref]').forEach((el) => {
       if (!range.intersectsNode(el)) return
       const nr = document.createRange()
       nr.selectNodeContents(el)
@@ -844,8 +844,13 @@ export function ChapterView({
       }
       const portion = cleanText(inter.cloneContents())
       if (!portion) return
+      const refAttr = el.getAttribute('data-crossref')
       const noteAttr = el.getAttribute('data-note')
-      if (noteAttr) {
+      if (refAttr) {
+        const key = `r${refAttr}`
+        if (!byNote.has(key)) order.push(key)
+        byNote.set(key, (byNote.get(key) ?? '') + portion)
+      } else if (noteAttr) {
         const key = `n${noteAttr}`
         if (!byNote.has(key)) order.push(key)
         byNote.set(key, (byNote.get(key) ?? '') + portion)
@@ -860,9 +865,10 @@ export function ChapterView({
 
     const norm = (s: string) => s.replace(/\s+/g, '')
     const lines = order.map((key) => {
-      if (key.startsWith('n')) {
+      if (key.startsWith('n') || key.startsWith('r')) {
         const [verseStr, nStr] = key.slice(1).split(':')
-        const label = `${formatVerseRef(bookNo, chapterNo, Number(verseStr), citeFormat)}註${nStr}`
+        const kind = key.startsWith('n') ? '註' : '串'
+        const label = `${formatVerseRef(bookNo, chapterNo, Number(verseStr), citeFormat)}${kind}${nStr}`
         return formatCitation(label, byNote.get(key) ?? '', citePosition, ['『', '』'], '', citeTemplate)
       }
       const verse = Number(key.slice(1))

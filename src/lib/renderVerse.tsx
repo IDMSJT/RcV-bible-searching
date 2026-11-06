@@ -877,7 +877,7 @@ function CloseButton({ onClose, label }: { onClose: () => void; label: string })
       }}
       // Sized in em so it tracks the reading font-size setting along with the
       // text it sits beside.
-      className="float-right m-[0.0625em] -mr-[0.25em] ml-[0.125em] rounded p-[0.25em] text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
+      className="float-right m-[0.0625em] -mr-[0.25em] ml-[0.125em] rounded p-[0.25em] select-none text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
     >
       <X className="size-[1em]" />
     </button>
@@ -929,7 +929,7 @@ export function CrossRefCard({
         marker={
           <>
             {onClose && <CloseButton onClose={() => onClose(r.m)} label={`關閉串珠 ${r.m}`} />}
-            <sup className="px-0.5 text-[0.75em] font-sans font-medium tabular-nums text-destructive">
+            <sup className="px-0.5 text-[0.75em] font-sans font-medium tabular-nums text-destructive select-none">
               {r.m}
             </sup>
           </>
@@ -1044,7 +1044,7 @@ export function NoteCard({
         marker={
           <>
             {onClose && <CloseButton onClose={() => onClose(n.n)} label={`關閉註釋 ${n.n}`} />}
-            <sup className="px-0.5 text-[0.75em] font-sans font-medium tabular-nums text-destructive">
+            <sup className="px-0.5 text-[0.75em] font-sans font-medium tabular-nums text-destructive select-none">
               {n.n}
             </sup>
           </>
