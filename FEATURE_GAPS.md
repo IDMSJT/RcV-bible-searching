@@ -11,6 +11,9 @@
 - **英文補字** — 官方英文站用 `<i>` 標補字,`build_verse_en_lsm.py` 目前只取純文字、丟掉了。要顯示的話得在 `verse_en.json` 加標記、閱讀頁加樣式。
 - **英文搜尋** — 關鍵字搜尋的範圍選單(全部/經文/註解/綱目)目前沒有「只搜英文」的選項;英文比對只附帶在經文範圍內跟中文一起篩(`searchKeyword` 裡 `enLower.includes`)。要不要獨立一個範圍、UI 放哪,還沒定案。
 
+- **TypeScript 別名等 typescript-eslint 支援 7.1 後拿掉** — 目前 `package.json` 的 `typescript` 是 `npm:@typescript/typescript6`(給 typescript-eslint 用 TS 6 API),`@typescript/native` 才是 TS 7 的 `tsc`。typescript-eslint 支援 TS 7.1 以後,改回單一 `typescript@^7`、移除這兩個別名。
+- **`@types/node` 停在 24** — CI 跑 Node 22、本機 Node 24,型別不追到 26,免得用到 CI 沒有的 API 卻不報錯。
+
 ## 舊版有、新版缺
 
 | 功能 | 舊版行為 | 工程量 | 備註 |
