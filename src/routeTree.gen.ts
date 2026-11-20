@@ -9,22 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SearchRouteImport } from './routes/search'
-import { Route as ComposeRouteImport } from './routes/compose'
-import { Route as BookNoRouteImport } from './routes/$bookNo'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BookNoRouteImport } from './routes/$bookNo'
+import { Route as ComposeRouteImport } from './routes/compose'
+import { Route as SearchRouteImport } from './routes/search'
 import { Route as BookNoIndexRouteImport } from './routes/$bookNo.index'
-import { Route as ChartsNRouteImport } from './routes/charts.$n'
 import { Route as BookNoChapterNoRouteImport } from './routes/$bookNo.$chapterNo'
+import { Route as ChartsNRouteImport } from './routes/charts.$n'
 
-const SearchRoute = SearchRouteImport.update({
-  id: '/search',
-  path: '/search',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ComposeRoute = ComposeRouteImport.update({
-  id: '/compose',
-  path: '/compose',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BookNoRoute = BookNoRouteImport.update({
@@ -32,9 +27,14 @@ const BookNoRoute = BookNoRouteImport.update({
   path: '/$bookNo',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const ComposeRoute = ComposeRouteImport.update({
+  id: '/compose',
+  path: '/compose',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BookNoIndexRoute = BookNoIndexRouteImport.update({
@@ -42,15 +42,15 @@ const BookNoIndexRoute = BookNoIndexRouteImport.update({
   path: '/',
   getParentRoute: () => BookNoRoute,
 } as any)
-const ChartsNRoute = ChartsNRouteImport.update({
-  id: '/charts/$n',
-  path: '/charts/$n',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const BookNoChapterNoRoute = BookNoChapterNoRouteImport.update({
   id: '/$chapterNo',
   path: '/$chapterNo',
   getParentRoute: () => BookNoRoute,
+} as any)
+const ChartsNRoute = ChartsNRouteImport.update({
+  id: '/charts/$n',
+  path: '/charts/$n',
+  getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -119,18 +119,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/search': {
-      id: '/search'
-      path: '/search'
-      fullPath: '/search'
-      preLoaderRoute: typeof SearchRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/compose': {
-      id: '/compose'
-      path: '/compose'
-      fullPath: '/compose'
-      preLoaderRoute: typeof ComposeRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$bookNo': {
@@ -140,11 +133,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BookNoRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/compose': {
+      id: '/compose'
+      path: '/compose'
+      fullPath: '/compose'
+      preLoaderRoute: typeof ComposeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$bookNo/': {
@@ -154,19 +154,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BookNoIndexRouteImport
       parentRoute: typeof BookNoRoute
     }
-    '/charts/$n': {
-      id: '/charts/$n'
-      path: '/charts/$n'
-      fullPath: '/charts/$n'
-      preLoaderRoute: typeof ChartsNRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/$bookNo/$chapterNo': {
       id: '/$bookNo/$chapterNo'
       path: '/$chapterNo'
       fullPath: '/$bookNo/$chapterNo'
       preLoaderRoute: typeof BookNoChapterNoRouteImport
       parentRoute: typeof BookNoRoute
+    }
+    '/charts/$n': {
+      id: '/charts/$n'
+      path: '/charts/$n'
+      fullPath: '/charts/$n'
+      preLoaderRoute: typeof ChartsNRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }

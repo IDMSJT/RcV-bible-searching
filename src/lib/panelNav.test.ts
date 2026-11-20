@@ -1,3 +1,6 @@
+// @vitest-environment happy-dom
+// The router decides it is a server when there is no `document`, and then turns
+// navigation into a no-op — so these need a DOM, even though no page is rendered.
 import { describe, expect, test } from 'vitest'
 import { createMemoryHistory, createRouter } from '@tanstack/react-router'
 import { routeTree } from '../routeTree.gen'
