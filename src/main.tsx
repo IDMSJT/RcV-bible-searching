@@ -3,6 +3,15 @@ import { createRoot } from 'react-dom/client'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { routeTree } from './routeTree.gen'
 import './index.css'
+import { applyScript } from './lib/zhScript'
+
+// 簡體 chosen last time: start converting before the first render, so the page
+// never paints in Traditional first. (<ScriptConverter> keeps it in step after.)
+try {
+  if (JSON.parse(localStorage.getItem('rcv/script') ?? 'null') === 'hans') void applyScript('hans')
+} catch {
+  /* no storage */
+}
 
 // Cross-fade forward navigations, but not history back/forward — the phone's
 // own swipe-back already animates, and a fade on top of it reads as a double

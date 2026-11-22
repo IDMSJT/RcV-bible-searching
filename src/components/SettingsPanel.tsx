@@ -1,7 +1,8 @@
-import { Check } from 'lucide-react'
+import { Check, ChevronDown } from 'lucide-react'
 import { Slider as SliderPrimitive } from '@base-ui/react/slider'
 import { useBibleEn } from '@/data/loadBible'
 import { useLocalStorage } from '@/lib/useLocalStorage'
+import type { Script } from '@/lib/zhScript'
 import { cn } from '@/lib/utils'
 import {
   CITE_FORMATS,
@@ -33,6 +34,7 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
   const [showNotes, setShowNotes] = useLocalStorage('rcv/show-notes', true)
   const [showRefs, setShowRefs] = useLocalStorage('rcv/show-crossrefs', true)
   const [fontSize, setFontSize] = useLocalStorage('rcv/font-size', 16)
+  const [script, setScript] = useLocalStorage<Script>('rcv/script', 'hant')
   const [citeFormat, setCiteFormat] = useLocalStorage<CiteFormat>('rcv/cite-format', DEFAULT_CITE_FORMAT)
   const [citePosition, setCitePosition] = useLocalStorage<CitePosition>('rcv/cite-position', DEFAULT_CITE_POSITION)
   const [citeTemplate, setCiteTemplate] = useLocalStorage('rcv/cite-template', DEFAULT_CITE_TEMPLATE)
@@ -88,6 +90,21 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
             <ThemeSwatch active={theme === 'light'} onClick={() => setTheme('light')} variant="light" label="淺色" />
             <ThemeSwatch active={theme === 'dark'} onClick={() => setTheme('dark')} variant="dark" label="深色" />
             <ThemeSwatch active={theme === 'system'} onClick={() => setTheme('system')} variant="system" label="系統" />
+          </div>
+        </SettingRow>
+        <SettingRow label="繁體 / 簡體">
+          {/* appearance-none + a drawn-in chevron, same as the 範圍 menu in search:
+           * the native arrow is OS-drawn and ignores our dark-mode colours. */}
+          <div className="relative">
+            <select
+              value={script}
+              onChange={(e) => setScript(e.target.value as Script)}
+              className="h-9 appearance-none rounded-lg bg-secondary py-0 pr-9 pl-3 text-base font-medium text-secondary-foreground md:text-sm"
+            >
+              <option value="hant">繁體</option>
+              <option value="hans">简体</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-secondary-foreground" />
           </div>
         </SettingRow>
         <SettingRow label="複製格式" stack>

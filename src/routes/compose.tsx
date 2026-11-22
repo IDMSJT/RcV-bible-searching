@@ -9,6 +9,8 @@ import {
 import { BOOK_ABBREV } from '@/data/abbrev'
 import { displayMarker } from '@/lib/chinese'
 import { useLocalStorage } from '@/lib/useLocalStorage'
+import { toTraditional } from '@/lib/s2t'
+import { displayText } from '@/lib/zhScript'
 import { parseStudyLines, type StudyLine, type StudySegment, type VerseRef } from '@/lib/studyParse'
 import { renderMarkedText, renderNoteText } from '@/lib/renderVerse'
 import { ScrollBody } from '@/components/ScrollBody'
@@ -375,7 +377,10 @@ function BlockItem({ rows }: { rows: VerseRow[] }) {
 }
 
 function ComposePage() {
-  const [input] = useLocalStorage('rcv/compose-input', '')
+  const [raw] = useLocalStorage('rcv/compose-input', '')
+  // The textarea keeps what was typed; everything below reads it as 繁體, so an
+  // outline pasted in 簡體 still lists its verses and reads like the rest.
+  const input = useMemo(() => toTraditional(raw), [raw])
   // Whether a range reads as one passage or as a verse a line. Kept here rather
   // than in 設定: it only ever changes this page, and a setting the reader can't
   // see the effect of while they flip it is a setting they have to go and check.
@@ -405,7 +410,7 @@ function ComposePage() {
   }
 
   const copyText = async () => {
-    const text = buildComposeText(parsed, lines, bible, annotations, merge)
+    const text = displayText(buildComposeText(parsed, lines, bible, annotations, merge))
     if (!text) return
     try {
       await navigator.clipboard.writeText(text)

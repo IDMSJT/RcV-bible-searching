@@ -30,6 +30,8 @@ import { useIsMobile } from '@/lib/useIsMobile'
 import { useIsTouch } from '@/lib/useIsTouch'
 import { useCarousel, COMMIT_MS } from '@/lib/useCarousel'
 import { useLocalStorage } from '@/lib/useLocalStorage'
+import { toTraditional } from '@/lib/s2t'
+import { displayText } from '@/lib/zhScript'
 import { useSavedQueries } from '@/lib/savedQueries'
 import { onFocusSearchRequest } from '@/lib/focusSearchSignal'
 import { renderMarkedText, renderNoteText } from '@/lib/renderVerse'
@@ -449,7 +451,13 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
       ? refKey(activeBookNo, activeChapterNo, activeHl)
       : null
 
-  const { refs, segments } = useMemo(() => parseRefs(q), [q])
+  // Simplified typed here still finds its verses. Only when the length is kept: the
+  // backdrop is laid over the textarea and must stay in step with the caret.
+  const qRead = useMemo(() => {
+    const t = toTraditional(q)
+    return t.length === q.length ? t : q
+  }, [q])
+  const { refs, segments } = useMemo(() => parseRefs(qRead), [qRead])
   const backdropRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const kwTextareaRef = useRef<HTMLTextAreaElement>(null)
@@ -551,15 +559,16 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     [refs, data, bibleEn, annotations, outline, showEnglish],
   )
 
+  const kwRead = useMemo(() => toTraditional(kw), [kw])
   const resolvedKw = useMemo(
     () =>
       searchKeyword(
-        kw,
+        kwRead,
         { bible: data, bibleEn, annotations, outline, showEnglish },
         KW_RESULT_CAP,
         kwScope,
       ),
-    [kw, data, bibleEn, annotations, outline, showEnglish, kwScope],
+    [kwRead, data, bibleEn, annotations, outline, showEnglish, kwScope],
   )
 
   const resolved = tab === 'ref' ? resolvedRefs : resolvedKw.rows
@@ -669,8 +678,8 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   // from kw because the keyword panel is mounted even while the 經節 tab is
   // active (carousel). The ref panel passes [] so its rows use the mark renderer.
   const kwTokens = useMemo(
-    () => kw.trim().toLowerCase().split(/\s+/).filter(Boolean),
-    [kw],
+    () => kwRead.trim().toLowerCase().split(/\s+/).filter(Boolean),
+    [kwRead],
   )
 
   // The 經節 field: the highlight backdrop laid under a transparent textarea,
@@ -1166,7 +1175,7 @@ function CopyAllBar({
   const selecting = selected.size > 0
   const target = selecting ? resolved.filter((_, i) => selected.has(i)) : resolved
   const text = () =>
-    target.map((r) => formatCopyText(r, lang, cite, pos, template)).filter(Boolean).join(sep)
+    displayText(target.map((r) => formatCopyText(r, lang, cite, pos, template)).filter(Boolean).join(sep))
 
   const copy = async () => {
     const t = text()

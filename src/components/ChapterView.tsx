@@ -58,6 +58,7 @@ import type { HlItem } from '@/lib/highlight'
 import { REVEAL_GAP, revealInScroll } from '@/lib/revealInScroll'
 import { useIsTouch } from '@/lib/useIsTouch'
 import { useLocalStorage } from '@/lib/useLocalStorage'
+import { displayText } from '@/lib/zhScript'
 import { cn } from '@/lib/utils'
 import type { Annotation, CrossRef, Mark, OutlineEntry } from '@/types/bible'
 
@@ -877,7 +878,8 @@ export function ChapterView({
         const abbr = BOOK_ABBREV_EN[bookNo] ?? ''
         return formatCitation(`${abbr} ${chapterNo}:${verse}`, portion, citePosition, ['"', '"'], ' ', citeTemplate)
       }
-      const full = norm(chapter?.verses.find((x) => x.verse === verse)?.text ?? '')
+      // The portion comes off the page, so it is in whichever script is showing.
+      const full = norm(displayText(chapter?.verses.find((x) => x.verse === verse)?.text ?? ''))
       const p = norm(portion)
       // Which slice of the verse was taken → 上 (prefix) / 下 (suffix) / 中 (middle);
       // no marker when the whole verse (or an unmatched fragment) is selected.
@@ -891,7 +893,7 @@ export function ChapterView({
       return formatCitation(label, portion, citePosition, ['『', '』'], '', citeTemplate)
     })
 
-    e.clipboardData.setData('text/plain', lines.join('\n'))
+    e.clipboardData.setData('text/plain', displayText(lines.join('\n')))
     e.preventDefault()
   }
 
@@ -946,7 +948,7 @@ export function ChapterView({
     }
     return parts.filter(Boolean).join(sep)
   }
-  const selectedText = () => buildCopyText(selected, selectedNotes)
+  const selectedText = () => displayText(buildCopyText(selected, selectedNotes))
 
   const exitSelection = () => {
     setSelected(new Set())
@@ -988,7 +990,7 @@ export function ChapterView({
   }
   const hlNoteSet = noteHighlights
   const hlActive = active && !hasSelection && (hlVerseSet.size > 0 || hlNoteSet.size > 0)
-  const hlText = () => buildCopyText(hlVerseSet, hlNoteSet)
+  const hlText = () => displayText(buildCopyText(hlVerseSet, hlNoteSet))
   // ✕ removes the highlight by stripping ?hl= from the URL — so re-clicking the
   // same search result re-adds it and re-lights the verse (a local dismiss
   // wouldn't, since the URL never changed). Persist the current scroll first so

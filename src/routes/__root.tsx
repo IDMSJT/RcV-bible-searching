@@ -10,6 +10,7 @@ import { ComposePanel } from '@/components/ComposePanel'
 import { NavIcon } from '@/components/NavIcon'
 import { SettingsPanel } from '@/components/SettingsPanel'
 import { ReadingPreferences } from '@/components/ReadingPreferences'
+import { ScriptConverter } from '@/components/ScriptConverter'
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer'
 import { ChangelogDrawer } from '@/components/ChangelogDrawer'
 import { ScanProvider } from '@/components/ScanProvider'
@@ -552,6 +553,7 @@ function RootComponent() {
     <ScanProvider>
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-card pt-[env(safe-area-inset-top)] text-foreground md:flex-row md:pt-0 print:block print:h-auto print:overflow-visible">
       <ReadingPreferences />
+      <ScriptConverter />
 
       {/* Desktop: left vertical rail */}
       <nav className="hidden w-16 shrink-0 flex-col items-center border-r border-border bg-background p-2 md:flex print:hidden">
