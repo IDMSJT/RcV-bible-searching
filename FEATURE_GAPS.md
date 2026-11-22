@@ -14,6 +14,8 @@
 - **TypeScript 別名等 typescript-eslint 支援 7.1 後拿掉** — 目前 `package.json` 的 `typescript` 是 `npm:@typescript/typescript6`(給 typescript-eslint 用 TS 6 API),`@typescript/native` 才是 TS 7 的 `tsc`。typescript-eslint 支援 TS 7.1 以後,改回單一 `typescript@^7`、移除這兩個別名。
 - **`@types/node` 停在 24** — CI 跑 Node 22、本機 Node 24,型別不追到 26,免得用到 CI 沒有的 API 卻不報錯。
 
+- **原文對照(暫擱,之後再說)** — 想在恢復本旁加希臘文/希伯來文。資料用 STEPBible TAGNT/TAHOT(NA28/列寧格勒抄本)與 TBESG/TBESH 字典,CC BY 4.0,標示出處即可;不要用 xgreek App 的恢復本字對字資料(沒授權文件)。分三級:①每節多一行原文 ②點原文字開字卡(原形、Strong、詞形、字義;中文字義可用信望愛 CBOL) ③恢復本逐字對原文(要自己對齊,舊約品質會較差,最後才考慮)。先做①②。參考站:isaiahovercomer.github.io/interlinear-bible(它的恢復本字對字資料有版權疑慮,別照搬)。還沒決定:字典/索引要不要 precache、放在閱讀頁每節下還是獨立頁。
+
 ## 舊版有、新版缺
 
 | 功能 | 舊版行為 | 工程量 | 備註 |
