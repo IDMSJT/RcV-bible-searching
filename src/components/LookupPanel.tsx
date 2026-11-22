@@ -30,6 +30,7 @@ import { useIsMobile } from '@/lib/useIsMobile'
 import { useIsTouch } from '@/lib/useIsTouch'
 import { useCarousel, COMMIT_MS } from '@/lib/useCarousel'
 import { useLocalStorage } from '@/lib/useLocalStorage'
+import { useDebouncedValue } from '@/lib/useDebouncedValue'
 import { GlossaryCards } from '@/components/GlossaryCards'
 import { toTraditional } from '@/lib/s2t'
 import { loadFold, soundMatches, type Fold } from '@/lib/homophones'
@@ -240,6 +241,8 @@ const KW_RESULT_CAP = 500
 // So above it, with no manual selection, the buttons give way to a nudge to
 // select; picking any verses brings them back, acting on the selection.
 const COPY_ALL_MAX = 200
+// How long typing has to pause before the keyword search runs.
+const KW_DEBOUNCE_MS = 200
 // Stable empty-tokens reference so the 經節 panel's memoized ResultList isn't
 // invalidated by a fresh [] on every parent re-render (e.g. each swipe frame).
 const NO_TOKENS: string[] = []
@@ -352,7 +355,7 @@ const ResultList = memo(function ResultList({
       // a grid gap) so there's no dead strip between rows — hover always tracks
       // the row under the cursor without flicker.
       onMouseLeave={() => onHover(-1, false)}
-      className="grid grid-cols-[auto_1fr] gap-x-2 font-serif text-[length:var(--reading-fs,1rem)] leading-relaxed md:text-[length:calc(var(--reading-fs,1rem)*0.9375)]"
+      className="grid grid-cols-[auto_1fr] gap-x-2 font-serif text-[length:calc(var(--reading-fs,1rem)*0.9375)] leading-relaxed"
     >
       {rows.map((r, i) => {
         const active =
@@ -576,7 +579,11 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     [refs, data, bibleEn, annotations, outline, showEnglish],
   )
 
-  const kwRead = useMemo(() => toTraditional(kw), [kw])
+  // The keyword search reads the whole Bible (and notes, outlines) each time, so
+  // it runs when typing pauses rather than on every keystroke; the field itself
+  // still shows each character at once.
+  const kwSettled = useDebouncedValue(kw, KW_DEBOUNCE_MS, (v) => v.trim() === '')
+  const kwRead = useMemo(() => toTraditional(kwSettled), [kwSettled])
   const resolvedKw = useMemo(
     () =>
       searchKeyword(
@@ -611,16 +618,18 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   const bySound = !!soundKw && soundKw.total > 0
   const kwResult = bySound ? soundKw : resolvedKw
   // What the sound search matched, as the text writes it — 別是巴 for 別士巴 —
-  // to highlight, to tell the reader, and to look up in 名詞解釋.
+  // to highlight, to tell the reader, and to look up in 名詞解釋. Most frequent
+  // first: what was meant is usually the common word, not the rarest one that
+  // happens to sound the same (ties keep canonical order — Map keeps insertion).
   const soundWords = useMemo(() => {
     if (!bySound || !fold) return []
-    const found = new Set<string>()
+    const count = new Map<string, number>()
     const words = kwRead.trim().split(/\s+/).filter(Boolean)
     for (const r of soundKw.rows) {
       const text = r.outlineTitle ?? r.noteToShow?.text ?? r.verse.text
-      for (const w of words) for (const m of soundMatches(text, w, fold)) found.add(m)
+      for (const w of words) for (const m of soundMatches(text, w, fold)) count.set(m, (count.get(m) ?? 0) + 1)
     }
-    return [...found]
+    return [...count.entries()].sort((a, b) => b[1] - a[1]).map(([w]) => w)
   }, [bySound, soundKw, fold, kwRead])
 
   const resolved = tab === 'ref' ? resolvedRefs : kwResult.rows

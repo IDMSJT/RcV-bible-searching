@@ -11,7 +11,20 @@ export type Fold = (text: string) => string
 let pending: Promise<Fold> | null = null
 
 export function loadFold(): Promise<Fold> {
-  pending ??= import('@/data/homophones.json').then((m) => makeConverter({ c: m.default.c, p: '' }))
+  pending ??= import('@/data/homophones.json').then((m) => {
+    const convert = makeConverter({ c: m.default.c, p: '' })
+    // A sound search folds every verse and note it reads; the text doesn't
+    // change, so each is folded once and kept.
+    const cache = new Map<string, string>()
+    return (text: string) => {
+      let f = cache.get(text)
+      if (f === undefined) {
+        f = convert(text)
+        cache.set(text, f)
+      }
+      return f
+    }
+  })
   return pending
 }
 
