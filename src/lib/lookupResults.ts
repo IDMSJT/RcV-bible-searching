@@ -216,6 +216,9 @@ export function searchKeyword(
   src: Sources,
   cap: number,
   scope: KeywordScope = 'verse',
+  /** Compare by sound instead (see homophones.ts): Chinese text and query are
+   * both folded before matching. English is matched as typed either way. */
+  fold?: (text: string) => string,
 ): { rows: ResolvedVerse[]; total: number } {
   const { bible, bibleEn, annotations, outline, showEnglish } = src
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
@@ -226,6 +229,10 @@ export function searchKeyword(
   // query and reused across every verse, footnote, or outline title —
   // whichever `scope` is searching.
   const matchers = words.map((t) => {
+    if (fold) {
+      const ft = fold(t)
+      return { t, zh: (h: string) => fold(h).includes(ft) }
+    }
     if (hasVariant(t)) {
       const re = new RegExp(tokenPattern(t))
       return { t, zh: (h: string) => re.test(h) }

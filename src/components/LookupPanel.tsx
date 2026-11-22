@@ -32,6 +32,7 @@ import { useCarousel, COMMIT_MS } from '@/lib/useCarousel'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { GlossaryCards } from '@/components/GlossaryCards'
 import { toTraditional } from '@/lib/s2t'
+import { loadFold, soundMatches, type Fold } from '@/lib/homophones'
 import { displayText } from '@/lib/zhScript'
 import { useSavedQueries } from '@/lib/savedQueries'
 import { onFocusSearchRequest } from '@/lib/focusSearchSignal'
@@ -587,7 +588,42 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     [kwRead, data, bibleEn, annotations, outline, showEnglish, kwScope],
   )
 
-  const resolved = tab === 'ref' ? resolvedRefs : resolvedKw.rows
+  // Nothing found as typed: try again by sound (別士巴 → 別是巴). The table is
+  // only fetched the first time it's needed.
+  const [fold, setFold] = useState<Fold | null>(null)
+  const needSound = !!data && resolvedKw.total === 0 && /[\u3400-\u9fff]/.test(kwRead)
+  useEffect(() => {
+    if (needSound && !fold) void loadFold().then((f) => setFold(() => f))
+  }, [needSound, fold])
+  const soundKw = useMemo(
+    () =>
+      needSound && fold
+        ? searchKeyword(
+            kwRead,
+            { bible: data, bibleEn, annotations, outline, showEnglish },
+            KW_RESULT_CAP,
+            kwScope,
+            fold,
+          )
+        : null,
+    [needSound, fold, kwRead, data, bibleEn, annotations, outline, showEnglish, kwScope],
+  )
+  const bySound = !!soundKw && soundKw.total > 0
+  const kwResult = bySound ? soundKw : resolvedKw
+  // What the sound search matched, as the text writes it — 別是巴 for 別士巴 —
+  // to highlight, to tell the reader, and to look up in 名詞解釋.
+  const soundWords = useMemo(() => {
+    if (!bySound || !fold) return []
+    const found = new Set<string>()
+    const words = kwRead.trim().split(/\s+/).filter(Boolean)
+    for (const r of soundKw.rows) {
+      const text = r.outlineTitle ?? r.noteToShow?.text ?? r.verse.text
+      for (const w of words) for (const m of soundMatches(text, w, fold)) found.add(m)
+    }
+    return [...found]
+  }, [bySound, soundKw, fold, kwRead])
+
+  const resolved = tab === 'ref' ? resolvedRefs : kwResult.rows
 
   // Per-ref: did it resolve to at least one real verse? (parsed but not found → error)
   const refFound = useMemo(() => refsExist(refs, data), [refs, data])
@@ -667,8 +703,8 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   // from kw because the keyword panel is mounted even while the 經節 tab is
   // active (carousel). The ref panel passes [] so its rows use the mark renderer.
   const kwTokens = useMemo(
-    () => kwRead.trim().toLowerCase().split(/\s+/).filter(Boolean),
-    [kwRead],
+    () => (bySound ? soundWords : kwRead.trim().toLowerCase().split(/\s+/).filter(Boolean)),
+    [bySound, soundWords, kwRead],
   )
 
   // The 經節 field: the highlight backdrop laid under a transparent textarea,
@@ -760,8 +796,8 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   const kwPanel = (
     <SearchTabPanel
       input={kwInput}
-      resolved={resolvedKw.rows}
-      total={resolvedKw.total}
+      resolved={kwResult.rows}
+      total={kwResult.total}
       selected={tab === 'kw' ? selected : EMPTY_SELECTION}
       onClear={clearSel}
       scrollKey={`lookup:kw:${kw}`}
@@ -779,9 +815,27 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
           onRemove={savedKw.toggle}
         />
       )}
-      <GlossaryCards query={kwRead} onNavigate={onNavigate} />
+      {bySound && (
+        <p className="mb-2 text-sm text-muted-foreground">
+          你是不是想搜尋：
+          {soundWords.slice(0, 3).map((w, i) => (
+            <Fragment key={w}>
+              {i > 0 && '、'}
+              {/* Takes the suggestion as the query — the search then runs as typed. */}
+              <button
+                type="button"
+                onClick={() => setKw(w)}
+                className="text-primary underline-offset-2 hover:underline"
+              >
+                {w}
+              </button>
+            </Fragment>
+          ))}
+        </p>
+      )}
+      <GlossaryCards query={bySound ? (soundWords[0] ?? kwRead) : kwRead} onNavigate={onNavigate} />
       <ResultList
-        rows={resolvedKw.rows}
+        rows={kwResult.rows}
         tokens={kwTokens}
         error={error}
         loading={!data}
