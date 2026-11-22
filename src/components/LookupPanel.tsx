@@ -1,5 +1,5 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { useNavigate, useLocation } from '@tanstack/react-router'
+import { Link, useLocation } from '@tanstack/react-router'
 import { ChevronDown, Star, X } from 'lucide-react'
 import { parseRefs, type Segment, type VerseRef } from '@/lib/parseRefs'
 import {
@@ -34,7 +34,7 @@ import { toTraditional } from '@/lib/s2t'
 import { displayText } from '@/lib/zhScript'
 import { useSavedQueries } from '@/lib/savedQueries'
 import { onFocusSearchRequest } from '@/lib/focusSearchSignal'
-import { renderMarkedText, renderNoteText } from '@/lib/renderVerse'
+import { renderMarkedText } from '@/lib/renderVerse'
 import { InputActions } from '@/components/InputActions'
 import { BookRail, type RailBook } from '@/components/BookRail'
 import { ScrollBody } from '@/components/ScrollBody'
@@ -244,7 +244,6 @@ const NO_TOKENS: string[] = []
 // Stable empties for the inactive tab's panel (keeps the memoized ResultList /
 // CopyAllBar from re-rendering during a swipe).
 const EMPTY_SELECTION: ReadonlySet<number> = new Set()
-const noop = () => {}
 
 // Wrap every token occurrence (case-insensitive) in a highlighted <mark>. Used
 // by the keyword tab so the visible text shows the user *what* matched their
@@ -279,6 +278,27 @@ function highlightTokens(text: string, tokens: string[]): ReactNode {
   return out
 }
 
+/** Where the first token hit starts in `text` (same matching as
+ * highlightTokens: case-insensitive, variant-tolerant), or -1. */
+function firstHit(text: string, tokens: string[]): number {
+  if (!text || tokens.length === 0) return -1
+  const pattern = [...tokens].sort((a, b) => b.length - a.length).map(tokenPattern).join('|')
+  const m = new RegExp(pattern, 'i').exec(text)
+  return m ? m.index : -1
+}
+
+// How much of the text before a hit the one-line excerpt keeps. The line is cut
+// at its end by CSS, so the hit has to sit near the start to stay in view on a
+// phone; this many characters of lead-in still says where in the verse it is.
+const EXCERPT_LEAD = 8
+
+/** The verse (or note / heading) cut down to start shortly before its first
+ * hit, with 「…」 where it was cut. */
+function excerptAround(text: string, at: number): string {
+  if (at <= EXCERPT_LEAD) return text
+  return `…${text.slice(at - EXCERPT_LEAD)}`
+}
+
 /** The result rows for one tab, memoized so the up-to-500-row list doesn't
  * re-render for reasons that have nothing to do with it — a drag no longer
  * re-renders the parent at all (useCarousel writes the track's transform
@@ -296,10 +316,8 @@ const ResultList = memo(function ResultList({
   activeHl,
   hovered,
   selected,
-  selecting,
   onHover,
-  onOpen,
-  onToggle,
+  onNavigate,
   fromHoveredRef,
 }: {
   rows: ResolvedVerse[]
@@ -317,11 +335,10 @@ const ResultList = memo(function ResultList({
   hovered: number | null
   /** Indices of the currently selected rows (multi-select). */
   selected: ReadonlySet<number>
-  /** True while a selection exists — tap toggles instead of navigating. */
-  selecting: boolean
   onHover: (index: number, hovering: boolean) => void
-  onOpen: (r: ResolvedVerse) => void
-  onToggle: (index: number) => void
+  /** After a row's link is followed — closes the drawer even when the path
+   * doesn't change (another verse in the chapter on screen). */
+  onNavigate?: () => void
 }) {
   if (error) return <p className="text-base text-destructive">資料載入失敗：{error}</p>
   if (isEmpty) return hint ? <p className="text-base text-muted-foreground">{hint}</p> : null
@@ -351,10 +368,9 @@ const ResultList = memo(function ResultList({
             active={active}
             hover={hovered === i || fromHovered}
             selected={selected.has(i)}
-            selecting={selecting}
+            sameChapter={r.bookNo === activeBookNo && r.chapterNo === activeChapterNo}
             onHover={(h) => onHover(i, h)}
-            onOpen={() => onOpen(r)}
-            onToggle={() => onToggle(i)}
+            onNavigate={onNavigate}
           />
         )
       })}
@@ -439,7 +455,6 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   // is the only consumer, and outline.json is already cached app-wide by the
   // time a reader reaches the search panel (catalog, reading view's 綱目).
   const { data: outline } = useOutline()
-  const navigate = useNavigate()
   const location = useLocation()
 
   const activeMatch = location.pathname.match(/^\/(\d+)\/(\d+)/)
@@ -629,40 +644,13 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     : null
 
   // Stable so the memoized ResultList isn't re-rendered every swipe frame.
-  const openRef = useCallback(
-    (r: ResolvedVerse) => {
-      // Jumping to a verse in the chapter already on screen: suppress the
-      // router's scroll-to-top so ChapterView glides straight to the target
-      // instead of bouncing off the top first. Cross-chapter keeps the default
-      // reset — the content fully changes there.
-      const sameChapter = r.bookNo === activeBookNo && r.chapterNo === activeChapterNo
-      navigate({
-        to: '/$bookNo/$chapterNo',
-        params: { bookNo: r.bookNo, chapterNo: r.chapterNo },
-        search: { hl: refHl(r.ref) },
-        resetScroll: sameChapter ? false : undefined,
-      })
-      // Called even when navigating to the same chapter (different verse): the
-      // pathname doesn't change so the drawer's pathname-effect wouldn't fire.
-      onNavigate?.()
-    },
-    [activeBookNo, activeChapterNo, navigate, onNavigate],
-  )
   const onHover = useCallback((i: number, h: boolean) => setHovered(h ? i : null), [])
 
-  // Multi-select: long-press a result to start, then tap toggles instead of
-  // navigating. Indices into the active tab's result list; reset on tab change
-  // or query edit (so stale indices never linger).
+  // Multi-select. Nothing turns it on yet — rows are plain links now, and the
+  // long-press that used to start it is gone until selection gets a control
+  // of its own; the copy bar still reads it. Indices into the active tab's
+  // result list; reset on tab change or query edit (so stale indices never linger).
   const [selected, setSelected] = useState<Set<number>>(() => new Set())
-  const selecting = selected.size > 0
-  const toggleSel = useCallback((i: number) => {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(i)) next.delete(i)
-      else next.add(i)
-      return next
-    })
-  }, [])
   const clearSel = useCallback(() => setSelected(new Set()), [])
   // Reset the selection when the active tab or its query changes — stale indices
   // would point at the wrong rows. Done during render (React's "adjust state when
@@ -802,10 +790,8 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
         activeHl={activeHl}
         hovered={hovered}
         selected={tab === 'kw' ? selected : EMPTY_SELECTION}
-        selecting={tab === 'kw' && selecting}
         onHover={onHover}
-        onOpen={openRef}
-        onToggle={tab === 'kw' ? toggleSel : noop}
+        onNavigate={onNavigate}
       />
     </SearchTabPanel>
   )
@@ -842,10 +828,8 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
         activeHl={activeHl}
         hovered={hovered}
         selected={tab === 'ref' ? selected : EMPTY_SELECTION}
-        selecting={tab === 'ref' && selecting}
         onHover={onHover}
-        onOpen={openRef}
-        onToggle={tab === 'ref' ? toggleSel : noop}
+        onNavigate={onNavigate}
       />
     </SearchTabPanel>
   )
@@ -1007,10 +991,9 @@ function ResultRow({
   active,
   hover,
   selected,
-  selecting,
+  sameChapter,
   onHover,
-  onOpen,
-  onToggle,
+  onNavigate,
 }: {
   resolved: ResolvedVerse
   /** Lowercased query tokens — when non-empty, verse / English text in the
@@ -1020,23 +1003,11 @@ function ResultRow({
   active: boolean
   hover: boolean
   selected: boolean
-  selecting: boolean
+  /** The row points into the chapter already on screen. */
+  sameChapter: boolean
   onHover: (hovering: boolean) => void
-  onOpen: () => void
-  onToggle: () => void
+  onNavigate?: () => void
 }) {
-  const isMobile = useIsMobile()
-  const pressTimerRef = useRef<number | null>(null)
-  const longPressedRef = useRef(false)
-
-  const clearPressTimer = useCallback(() => {
-    if (pressTimerRef.current != null) {
-      window.clearTimeout(pressTimerRef.current)
-      pressTimerRef.current = null
-    }
-  }, [])
-  useEffect(() => () => clearPressTimer(), [clearPressTimer])
-
   const { bookNo, chapterNo, verse, enText, noteToShow, noteOnly, outlineTitle, outlineMarker } =
     resolved
   const abbrev = BOOK_ABBREV[bookNo] ?? ''
@@ -1052,45 +1023,68 @@ function ResultRow({
         : `${abbrev}${chapterNo}:${verse.verse}`
   const lit = active || hover
 
-  const handlers = {
-    // A long-press already toggled selection; swallow the click that follows.
-    onClick: () => {
-      if (longPressedRef.current) {
-        longPressedRef.current = false
-        return
-      }
-      if (selecting) onToggle()
-      else onOpen()
-    },
+  // Each row is a real link, so it opens in a new tab / shows the link menu like
+  // any other. Into the chapter already on screen, skip the router's
+  // scroll-to-top so the page glides straight to the verse instead of bouncing
+  // off the top first; another chapter keeps the default reset.
+  const linkProps = {
+    to: '/$bookNo/$chapterNo',
+    params: { bookNo, chapterNo },
+    search: { hl: refHl(resolved.ref) },
+    resetScroll: sameChapter ? false : undefined,
+    onClick: onNavigate,
     onMouseEnter: () => onHover(true),
-    // Mobile long-press enters selection mode + selects this row. After that a
-    // tap toggles; only a tap while nothing is selected still navigates.
-    onPointerDown: () => {
-      if (!isMobile) return
-      longPressedRef.current = false
-      clearPressTimer()
-      pressTimerRef.current = window.setTimeout(() => {
-        longPressedRef.current = true
-        onToggle()
-        if ('vibrate' in navigator) navigator.vibrate(40)
-      }, 500)
-    },
-    onPointerUp: clearPressTimer,
-    onPointerCancel: clearPressTimer,
-    // Cancel the long-press if the user starts scrolling rather than holding.
-    onPointerMove: clearPressTimer,
+    // The book rail scrolls to a book by its first data-book row (results are
+    // in canonical order).
+    'data-book': bookNo,
+  } as const
+
+  // Keyword results read as a list of hits, one line each: the reference, then
+  // the text from just before the first match, cut at the end of the line. The
+  // full verse is a tap away; what this list answers is where the word occurs.
+  if (hlTokens.length > 0) {
+    const body = outlineTitle ?? (noteToShow ? noteToShow.text.replace(/\n+/g, ' ') : verse.text)
+    let line = body
+    let at = firstHit(body, hlTokens)
+    // Matched only in the English — show the English line instead.
+    if (at < 0 && enText) {
+      const enAt = firstHit(enText, hlTokens)
+      if (enAt >= 0) {
+        line = enText
+        at = enAt
+      }
+    }
+    return (
+      <Link
+        {...linkProps}
+        className="col-span-2 grid grid-cols-subgrid items-baseline gap-x-4 border-b border-border/60 py-2.5 transition-colors"
+      >
+        <span
+          className={cn(
+            'whitespace-nowrap font-sans text-[0.8em] tabular-nums text-primary transition-opacity',
+            !lit && 'opacity-90',
+          )}
+        >
+          {label}
+        </span>
+        <p
+          className={cn(
+            'min-w-0 truncate transition-colors',
+            line === enText && 'font-sans text-[0.9em]',
+            lit ? 'text-foreground' : 'text-foreground/90',
+            selected && 'rounded bg-blue-500/20 px-1 -mx-1 dark:bg-blue-400/25',
+          )}
+        >
+          {highlightTokens(excerptAround(line, Math.max(at, 0)), hlTokens)}
+        </p>
+      </Link>
+    )
   }
 
   return (
-    <div
-      {...handlers}
-      // The book rail scrolls to a book by its first data-book row (results are
-      // in canonical order).
-      data-book={bookNo}
-      // `select-none` suppresses the native blue text-selection that appears
-      // under a long press; `[-webkit-touch-callout:none]` kills iOS Safari's
-      // grey selection callout the same gesture triggers.
-      className="col-span-2 grid cursor-pointer grid-cols-subgrid items-baseline rounded py-[0.3125rem] transition-colors select-none [-webkit-touch-callout:none]"
+    <Link
+      {...linkProps}
+      className="col-span-2 grid grid-cols-subgrid items-baseline rounded py-[0.3125rem] transition-colors"
     >
       <span
         className={cn(
@@ -1119,9 +1113,9 @@ function ResultRow({
               key={i}
               className={cn('transition-colors', lit ? 'text-foreground' : 'text-foreground/90')}
             >
-              {hlTokens.length > 0
-                ? highlightTokens(para, hlTokens)
-                : renderNoteText(para, { book: bookNo, chapter: chapterNo })}
+              {/* Plain text: the row is itself a link, and a link can't hold
+               * the note's own reference links. */}
+              {hlTokens.length > 0 ? highlightTokens(para, hlTokens) : para}
             </p>
           ))
         ) : (
@@ -1141,12 +1135,12 @@ function ResultRow({
           </>
         )}
       </div>
-    </div>
+    </Link>
   )
 }
 
 /** Bottom action bar for the results. Copies / shares either the current
- * selection (long-press a row to start selecting) or, when nothing is selected,
+ * selection or, when nothing is selected,
  * every result. The language (中文 / 英文 / 中英文) is a setting, so 複製 / 分享 are
  * plain buttons. Same pill shell as the chapter selection bar. Returns null when
  * there's nothing. */
@@ -1209,10 +1203,10 @@ function CopyAllBar({
             : `共 ${total} 節`}
       </span>
       {!selecting && resolved.length > COPY_ALL_MAX ? (
-        // Too many to copy in one go — nudge toward selecting instead of
-        // offering a copy-all that would choke the clipboard / share sheet.
+        // Too many to copy in one go — a copy-all would choke the clipboard /
+        // share sheet. (Pointed at selecting before; that has no control yet.)
         <span className="ml-auto whitespace-nowrap text-sm text-muted-foreground">
-          選取經節以複製
+          結果太多，無法一次複製
         </span>
       ) : (
         <div className="ml-auto flex items-center gap-2">
