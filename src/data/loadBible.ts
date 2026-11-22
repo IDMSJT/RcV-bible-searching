@@ -50,6 +50,15 @@ export const useOutline = makeJsonLoader<Outline>('outline.json')
 export const useAnnotations = makeJsonLoader<AnnotationData>('annotations.json')
 export const useCrossRefs = makeJsonLoader<CrossRefData>('crossrefs.json')
 
+/** 名詞解釋: footnotes that explain a word (「意，…」), with the word they explain —
+ * built from annotations.json by scripts/build_glossary.py. Refs are
+ * [bookNo, chapter, verse, note]. */
+export interface Glossary {
+  source: string
+  entries: { term: string; defs: { text: string; refs: [number, number, number, number][] }[] }[]
+}
+export const useGlossary = makeJsonLoader<Glossary>('glossary.json')
+
 export function findChapter(
   bible: Bible | null,
   bookNo: number,

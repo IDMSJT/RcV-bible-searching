@@ -30,6 +30,7 @@ import { useIsMobile } from '@/lib/useIsMobile'
 import { useIsTouch } from '@/lib/useIsTouch'
 import { useCarousel, COMMIT_MS } from '@/lib/useCarousel'
 import { useLocalStorage } from '@/lib/useLocalStorage'
+import { GlossaryCards } from '@/components/GlossaryCards'
 import { toTraditional } from '@/lib/s2t'
 import { displayText } from '@/lib/zhScript'
 import { useSavedQueries } from '@/lib/savedQueries'
@@ -778,6 +779,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
           onRemove={savedKw.toggle}
         />
       )}
+      <GlossaryCards query={kwRead} onNavigate={onNavigate} />
       <ResultList
         rows={resolvedKw.rows}
         tokens={kwTokens}
