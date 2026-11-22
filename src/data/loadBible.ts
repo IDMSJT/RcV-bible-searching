@@ -51,8 +51,9 @@ export const useAnnotations = makeJsonLoader<AnnotationData>('annotations.json')
 export const useCrossRefs = makeJsonLoader<CrossRefData>('crossrefs.json')
 
 /** 名詞解釋: footnotes that explain a word (「意，…」), with the word they explain —
- * built from annotations.json by scripts/build_glossary.py. Refs are
- * [bookNo, chapter, verse, note]. */
+ * built from annotations.json (and the few verses that explain a name themselves)
+ * by scripts/build_glossary.py. Refs are [bookNo, chapter, verse, note]; note 0
+ * means the verse itself. */
 export interface Glossary {
   source: string
   entries: { term: string; defs: { text: string; refs: [number, number, number, number][] }[] }[]
