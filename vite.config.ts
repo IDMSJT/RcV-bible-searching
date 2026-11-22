@@ -97,9 +97,9 @@ export default defineConfig(({ command }) => ({
       : [
     VitePWA({
       // 'prompt' keeps the new SW parked in `waiting` (so `needRefresh` fires);
-      // <SwUpdate> then applies it *silently* — no prompt, no manual close. The
-      // check runs on app launch (SPA route changes don't trigger it), so the
-      // reload lands at startup, not mid-read.
+      // <ReloadPrompt> then asks before reloading, so the page never swaps out
+      // from under a reader. (Applying it silently flashed the screen at launch
+      // and startled people.)
       registerType: 'prompt',
       includeAssets: ['favicon-64x64.png', 'apple-touch-icon-180x180.png'],
       manifest: {

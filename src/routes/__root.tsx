@@ -13,7 +13,7 @@ import { ReadingPreferences } from '@/components/ReadingPreferences'
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer'
 import { ChangelogDrawer } from '@/components/ChangelogDrawer'
 import { ScanProvider } from '@/components/ScanProvider'
-import { SwUpdate } from '@/components/SwUpdate'
+import { ReloadPrompt } from '@/components/ReloadPrompt'
 import { HISTORY_KEY, recordVisit, removeVisit, type Visit } from '@/lib/readingHistory'
 import { requestFocusSearch } from '@/lib/focusSearchSignal'
 import { useLocalStorage } from '@/lib/useLocalStorage'
@@ -603,7 +603,7 @@ function RootComponent() {
         <Outlet />
       </main>
 
-      <SwUpdate />
+      <ReloadPrompt />
 
       {/* Mobile: bottom nav bar; hidden on md and above. Buttons stretch evenly
        * across the full width so taps are easy with a thumb. */}
