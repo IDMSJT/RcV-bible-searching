@@ -74,6 +74,14 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
         </SettingRow>
         <SettingRow label={`字體大小　${fontSize}px`} stack>
           <FontSizeSlider value={fontSize} min={13} max={24} onChange={setFontSize} />
+          {/* The slider moves a number; this shows what the number does, in the
+           * reading page's own type (serif, scripture colour, its line height). */}
+          <p
+            className="mt-1 rounded-lg bg-muted/40 px-3 py-2.5 font-serif font-normal leading-[1.75] text-scripture"
+            style={{ fontSize: `${fontSize}px` }}
+          >
+            神愛世人，甚至將祂的獨生子賜給他們，叫一切信入祂的，不至滅亡，反得永遠的生命。
+          </p>
         </SettingRow>
         <SettingRow label="主題" stack>
           <div className="grid grid-cols-3 gap-3 pt-1">
