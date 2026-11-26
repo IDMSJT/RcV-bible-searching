@@ -71,20 +71,7 @@ function RootComponent() {
   const isMobile = useIsMobile()
 
   // Analytics: one page view per page — the path, not the drawer opening over it.
-  useEffect(() => {
-    const title = activeBook
-      ? activeChapterNo
-        ? `${activeBook.name} ${activeChapterNo}`
-        : activeBook.name
-      : onSearch
-        ? '搜尋'
-        : onCompose
-          ? '綱要'
-          : onCharts
-            ? `圖表 ${pathname.split('/')[2] ?? ''}`.trim()
-            : '首頁'
-    trackPage(pathname, title)
-  }, [pathname, activeBook, activeChapterNo, onSearch, onCompose, onCharts])
+  useEffect(() => trackPage(pathname), [pathname])
 
   // The phone's drawer is the ?panel= param (see lib/panelNav): opening it is a
   // history entry, so back dismisses it, and what it shows survives a reload.

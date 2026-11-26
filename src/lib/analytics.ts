@@ -1,11 +1,18 @@
-// Google Analytics 4: how many people use the app, which features, what they
-// search for. Only the published site reports — not `pnpm dev`, not a preview
-// build, not a copy served from anywhere else — so testing never shows up in
-// the numbers.
+// Google Analytics 4 — everything the app reports lives here: how many people
+// use it, which features, what they search for. Components call the named
+// functions below with plain data; event names and parameter names are decided
+// in this file only, so the reports stay consistent and there is one place to
+// see what is collected.
 //
-// Page views are sent by hand on route changes (see __root): the stream's
-// "page changes based on browser history events" is switched off, because the
-// drawer (?panel=) also changes the URL and isn't a page.
+// Only the published site reports — not `pnpm dev`, not a preview build, not a
+// copy served from anywhere else — so testing never shows up in the numbers.
+//
+// Page views are sent by hand on route changes (trackPage, from __root): the
+// stream's automatic page views are switched off, because the drawer (?panel=)
+// also changes the URL and isn't a page.
+
+import { BOOK_ABBREV } from '@/data/abbrev'
+import { BOOK_BY_NO } from '@/data/canon'
 
 const GA_ID = 'G-GCP8PFZF98'
 const SITE_HOST = 'idmsjt.github.io'
@@ -46,21 +53,126 @@ export function initAnalytics(): void {
   document.head.appendChild(s)
 }
 
-/** One event, with whatever parameters describe it. Never throws. */
-export function track(event: string, params: Record<string, string | number | boolean | undefined> = {}): void {
+type Params = Record<string, string | number | boolean | undefined>
+
+/** One event. Never throws: analytics must never break the app. */
+function track(event: string, params: Params = {}): void {
   if (!enabled) return
   try {
     window.gtag?.('event', event, params)
   } catch {
-    /* analytics must never break the app */
+    /* ignore */
   }
 }
 
-/** A page view, for the router's path and a readable title (「加拉太書 4」). */
-export function trackPage(path: string, title: string): void {
+/** 「加4:2」, 「加4:2註1」 — how a place in the Bible reads in the reports. */
+function refLabel(bookNo: number, chapter: number, verse: number, note?: number): string {
+  return `${BOOK_ABBREV[bookNo] ?? bookNo}${chapter}:${verse}${note ? `註${note}` : ''}`
+}
+
+// ---------- pages ----------
+
+/** What a route is called in the reports: 「加拉太書 4」, 「搜尋」, 「圖表 3」. */
+function pageTitle(pathname: string): string {
+  const m = pathname.match(/^\/(\d+)(?:\/(\d+))?/)
+  if (m) {
+    const book = BOOK_BY_NO.get(Number(m[1]))?.name ?? m[1]
+    return m[2] ? `${book} ${m[2]}` : book
+  }
+  if (pathname === '/search') return '搜尋'
+  if (pathname === '/compose') return '綱要'
+  if (pathname.startsWith('/charts')) return `圖表 ${pathname.split('/')[2] ?? ''}`.trim()
+  return '首頁'
+}
+
+/** A page view for the router's path (no ?panel=: the drawer isn't a page). */
+export function trackPage(pathname: string): void {
   if (!enabled) return
   // Built from the route, not window.location: the router can still be flushing
-  // the URL when this runs, and the drawer's ?panel= isn't part of the page.
-  const location = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, '') + path
-  track('page_view', { page_path: path, page_location: location, page_title: title })
+  // the URL when this runs.
+  const location = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, '') + pathname
+  track('page_view', { page_path: pathname, page_location: location, page_title: pageTitle(pathname) })
+}
+
+// ---------- search ----------
+
+/** A keyword search the reader waited for. `suggestion` is the word a sound
+ * match found when the typed one wasn't in the text (別士巴 → 別是巴). */
+export function trackSearch(s: {
+  term: string
+  scope: string
+  results: number
+  bySound: boolean
+  suggestion?: string
+}): void {
+  track('search', {
+    search_term: s.term,
+    scope: s.scope,
+    results: s.results,
+    by_sound: s.bySound,
+    suggestion: s.suggestion,
+  })
+}
+
+/** What was typed in the 經節 field, and how many references it made. */
+export function trackVerseLookup(query: string, refs: number): void {
+  track('verse_lookup', { query, refs })
+}
+
+/** The reader took a 「你是不是想搜尋」 suggestion. */
+export function trackSoundSuggestion(typed: string, picked: string): void {
+  track('sound_suggestion', { typed, picked })
+}
+
+// ---------- 名詞解釋 ----------
+
+/** Which word's card a search brought up. */
+export function trackGlossaryView(term: string): void {
+  track('glossary_view', { term })
+}
+
+/** The reader followed a card to its footnote (note 0: the verse itself). */
+export function trackGlossaryOpen(term: string, [bookNo, chapter, verse, note]: [number, number, number, number]): void {
+  track('glossary_open', { term, ref: refLabel(bookNo, chapter, verse, note) })
+}
+
+// ---------- reading ----------
+
+/** A marker tapped open: how many footnotes and cross-references it showed. */
+export function trackOpenNote(bookNo: number, chapter: number, verse: number, notes: number, crossrefs: number): void {
+  track('open_note', { ref: refLabel(bookNo, chapter, verse), notes, crossrefs })
+}
+
+// ---------- copy, share, print ----------
+
+export type CopyFrom = 'chapter' | 'chapter_highlight' | 'search' | 'compose'
+export type CopyMethod = 'copy' | 'share' | 'text_selection'
+
+/** Text leaving the app — where from, how, and how many verses / notes. */
+export function trackCopy(from: CopyFrom, method: CopyMethod, count?: number): void {
+  track('copy', { from, method, count })
+}
+
+export function trackPrint(from: 'compose'): void {
+  track('print', { from })
+}
+
+// ---------- settings, scan ----------
+
+/** A setting the reader changed, as its stored value. */
+export function trackSetting(name: string, value: string | number | boolean): void {
+  track('setting', { name, value: String(value) })
+}
+
+let fontSizeTimer: number | undefined
+/** The slider reports every step of a drag; the size the reader settles on is
+ * the one worth counting. */
+export function trackFontSize(px: number): void {
+  if (!enabled) return
+  window.clearTimeout(fontSizeTimer)
+  fontSizeTimer = window.setTimeout(() => trackSetting('font_size', px), 1500)
+}
+
+export function trackScan(): void {
+  track('scan')
 }

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { Scan, Star } from 'lucide-react'
 import { citationsOnly, tidyScanned } from '@/lib/scannedText'
 import { useScanner } from '@/lib/scanner'
-import { track } from '@/lib/analytics'
+import { trackScan } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
 
 
@@ -97,7 +97,7 @@ export function InputActions({
   // afterwards on the live path: the keyboard would come up over the results
   // the scan just went and fetched.
   const runScan = () => {
-    track('scan')
+    trackScan()
     startScan()
   }
   const startScan = () =>

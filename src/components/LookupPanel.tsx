@@ -31,7 +31,7 @@ import { useIsTouch } from '@/lib/useIsTouch'
 import { useCarousel, COMMIT_MS } from '@/lib/useCarousel'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { useDebouncedValue } from '@/lib/useDebouncedValue'
-import { track } from '@/lib/analytics'
+import { trackCopy, trackSearch, trackSoundSuggestion, trackVerseLookup } from '@/lib/analytics'
 import { GlossaryCards } from '@/components/GlossaryCards'
 import { toTraditional } from '@/lib/s2t'
 import { loadFold, soundMatches, type Fold } from '@/lib/homophones'
@@ -643,11 +643,11 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     const term = kwRead.trim()
     if (!term || !data || kwPending || trackedKw.current === kwRead) return
     trackedKw.current = kwRead
-    track('search', {
-      search_term: term,
+    trackSearch({
+      term,
       scope: kwScope,
       results: kwResult.total,
-      by_sound: bySound,
+      bySound,
       suggestion: bySound ? soundWords[0] : undefined,
     })
   }, [kwRead, data, kwPending, kwScope, kwResult.total, bySound, soundWords])
@@ -657,7 +657,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   useEffect(() => {
     if (!qSettled.trim() || trackedQ.current === qSettled) return
     trackedQ.current = qSettled
-    track('verse_lookup', { query: qSettled.trim(), refs: refs.length })
+    trackVerseLookup(qSettled.trim(), refs.length)
   }, [qSettled, refs.length])
 
   const resolved = tab === 'ref' ? resolvedRefs : kwResult.rows
@@ -867,7 +867,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
               <button
                 type="button"
                 onClick={() => {
-                  track('sound_suggestion', { typed: kw.trim(), picked: w })
+                  trackSoundSuggestion(kw.trim(), w)
                   setKw(w)
                 }}
                 className="text-primary underline-offset-2 hover:underline"
@@ -1285,14 +1285,14 @@ function CopyAllBar({
   const copy = async () => {
     const t = text()
     if (!t) return
-    track('copy', { from: 'search', method: 'copy', count: target.length })
+    trackCopy('search', 'copy', target.length)
     try { await navigator.clipboard.writeText(t) } catch { /* denied */ }
     onClear()
   }
   const share = async () => {
     const t = text()
     if (!t) return
-    track('copy', { from: 'search', method: 'share', count: target.length })
+    trackCopy('search', 'share', target.length)
     try {
       if (navigator.share) await navigator.share({ text: t })
       else await navigator.clipboard.writeText(t)

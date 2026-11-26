@@ -3,7 +3,7 @@ import { Slider as SliderPrimitive } from '@base-ui/react/slider'
 import { useBibleEn } from '@/data/loadBible'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import type { Script } from '@/lib/zhScript'
-import { track } from '@/lib/analytics'
+import { trackFontSize, trackSetting } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
 import {
   CITE_FORMATS,
@@ -25,20 +25,12 @@ type Theme = 'light' | 'dark' | 'system'
 const HEADER_CLS =
   'sticky top-0 z-10 flex h-[var(--header-h)] shrink-0 items-center justify-center border-b border-border bg-muted/80 px-4 text-base font-medium backdrop-blur md:h-9 md:justify-between md:text-xs md:font-semibold'
 
-/** Analytics for a setting the reader changed. In the handlers, not an effect on
- * the value: this panel is rendered twice (phone + desktop), and an effect would
- * report every change twice. */
-function change<T>(name: string, set: (v: T) => void, value: T) {
+/** Change a setting and report it. In the handlers, not an effect on the value:
+ * this panel is rendered twice (phone + desktop), and an effect would report
+ * every change twice. */
+function change<T extends string | number | boolean>(name: string, set: (v: T) => void, value: T) {
   set(value)
-  track('setting', { name, value: String(value) })
-}
-
-// The slider reports every step of a drag; the size the reader settled on is the
-// one worth counting.
-let fontSizeTimer: number | undefined
-function trackFontSize(px: number) {
-  window.clearTimeout(fontSizeTimer)
-  fontSizeTimer = window.setTimeout(() => track('setting', { name: 'font_size', value: String(px) }), 1500)
+  trackSetting(name, value)
 }
 
 // All settings state lives here. The values themselves are picked up by other

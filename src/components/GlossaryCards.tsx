@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { BOOK_ABBREV } from '@/data/abbrev'
 import { useGlossary, type Glossary } from '@/data/loadBible'
-import { track } from '@/lib/analytics'
+import { trackGlossaryOpen, trackGlossaryView } from '@/lib/analytics'
 
 // Cards shown before 「還有 N 個相關詞」: the best match (the word itself when
 // there is one); words that contain it (耶和華 → 耶和華以勒 …) on request.
@@ -52,7 +52,7 @@ function GlossaryCardList({ query, onNavigate }: { query: string; onNavigate?: (
   // Analytics: which word's card a search brought up.
   const shownTerm = entries[0]?.term
   useEffect(() => {
-    if (shownTerm) track('glossary_view', { term: shownTerm })
+    if (shownTerm) trackGlossaryView(shownTerm)
   }, [shownTerm])
   if (entries.length === 0) return null
   const shown = all ? entries : entries.slice(0, MAX_CARDS)
@@ -97,7 +97,7 @@ function RefLinks({
       // Note 0: the verse itself explains the word (約1:38 拉比繙出來，就是夫子).
       search={{ hl: n ? `${v}:${n}` : `${v}` }}
       onClick={() => {
-        track('glossary_open', { term, ref: `${BOOK_ABBREV[b]}${c}:${v}${n ? `註${n}` : ''}` })
+        trackGlossaryOpen(term, [b, c, v, n])
         onNavigate?.()
       }}
       className={`ml-1.5 whitespace-nowrap ${LABEL_CLS} hover:text-primary/80`}

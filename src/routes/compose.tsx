@@ -11,7 +11,7 @@ import { displayMarker } from '@/lib/chinese'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { toTraditional } from '@/lib/s2t'
 import { displayText } from '@/lib/zhScript'
-import { track } from '@/lib/analytics'
+import { trackCopy, trackPrint } from '@/lib/analytics'
 import { parseStudyLines, type StudyLine, type StudySegment, type VerseRef } from '@/lib/studyParse'
 import { renderMarkedText, renderNoteText } from '@/lib/renderVerse'
 import { ScrollBody } from '@/components/ScrollBody'
@@ -413,7 +413,7 @@ function ComposePage() {
   const copyText = async () => {
     const text = displayText(buildComposeText(parsed, lines, bible, annotations, merge))
     if (!text) return
-    track('copy', { from: 'compose', method: 'copy' })
+    trackCopy('compose', 'copy')
     try {
       await navigator.clipboard.writeText(text)
     } catch {
@@ -526,7 +526,7 @@ function ComposePage() {
       <button
         type="button"
         onClick={() => {
-          track('print', { from: 'compose' })
+          trackPrint('compose')
           window.print()
         }}
         className={ACTION_BAR_BTN_PRIMARY}
