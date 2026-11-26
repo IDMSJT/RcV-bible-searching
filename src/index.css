@@ -160,6 +160,15 @@ html, body, #root {
   height: 100dvh;
 }
 
+/* No zoom on a quick double tap — taps on verses, markers and rows come in
+ * quick pairs while reading, and the page jumping to 2× in between is never what
+ * was meant. `manipulation` keeps panning and pinch-zoom (so text can still be
+ * enlarged), and drops only the double-tap gesture. Elements that set their own
+ * touch-action (the rails, the pager) still do. */
+html {
+  touch-action: manipulation;
+}
+
 body {
   margin: 0;
   background: var(--color-background);
