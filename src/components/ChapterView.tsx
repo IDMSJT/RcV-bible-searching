@@ -23,6 +23,7 @@ import {
   chapterOutlineByAnchor,
 } from '@/data/loadBible'
 import { BOOK_BY_NO } from '@/data/canon'
+import { BOOK_ABBREV } from '@/data/abbrev'
 import { BOOK_ABBREV_EN } from '@/data/abbrevEn'
 import {
   formatVerseRef,
@@ -59,6 +60,7 @@ import { REVEAL_GAP, revealInScroll } from '@/lib/revealInScroll'
 import { useIsTouch } from '@/lib/useIsTouch'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { displayText } from '@/lib/zhScript'
+import { track } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
 import type { Annotation, CrossRef, Mark, OutlineEntry } from '@/types/bible'
 
@@ -459,6 +461,13 @@ export function ChapterView({
       const refKeys = at.refs.map((m) => `${verse}:${m}`)
       const allOpen =
         noteKeys.every((k) => expandedNotes.has(k)) && refKeys.every((k) => expandedRefs.has(k))
+      if (!allOpen) {
+        track('open_note', {
+          ref: `${BOOK_ABBREV[bookNo] ?? ''}${chapterNo}:${verse}`,
+          notes: at.notes.length,
+          crossrefs: at.refs.length,
+        })
+      }
       if (allOpen) {
         forgetCites([...noteKeys.map((k) => `n${k}`), ...refKeys.map((k) => `r${k}`)])
       }
@@ -481,7 +490,7 @@ export function ChapterView({
         return next
       })
     },
-    [expandedNotes, expandedRefs, persist, forgetCites],
+    [expandedNotes, expandedRefs, persist, forgetCites, bookNo, chapterNo],
   )
 
   const toggleNote = useCallback(
@@ -894,6 +903,7 @@ export function ChapterView({
     })
 
     e.clipboardData.setData('text/plain', displayText(lines.join('\n')))
+    track('copy', { from: 'chapter', method: 'text_selection', count: lines.length })
     e.preventDefault()
   }
 
@@ -958,6 +968,7 @@ export function ChapterView({
   const copySelected = async () => {
     const text = selectedText()
     if (text) {
+      track('copy', { from: 'chapter', method: 'copy', count: selected.size + selectedNotes.size })
       try {
         await navigator.clipboard.writeText(text)
       } catch {
@@ -970,6 +981,7 @@ export function ChapterView({
   const shareSelected = async () => {
     const text = selectedText()
     if (!text) return
+    track('copy', { from: 'chapter', method: 'share', count: selected.size + selectedNotes.size })
     try {
       if (navigator.share) await navigator.share({ text })
       else await navigator.clipboard.writeText(text)
@@ -1009,6 +1021,7 @@ export function ChapterView({
   const copyHl = async () => {
     const text = hlText()
     if (text) {
+      track('copy', { from: 'chapter_highlight', method: 'copy' })
       try {
         await navigator.clipboard.writeText(text)
       } catch {
@@ -1019,6 +1032,7 @@ export function ChapterView({
   const shareHl = async () => {
     const text = hlText()
     if (!text) return
+    track('copy', { from: 'chapter_highlight', method: 'share' })
     try {
       if (navigator.share) await navigator.share({ text })
       else await navigator.clipboard.writeText(text)

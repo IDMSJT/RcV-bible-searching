@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { Scan, Star } from 'lucide-react'
 import { citationsOnly, tidyScanned } from '@/lib/scannedText'
 import { useScanner } from '@/lib/scanner'
+import { track } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
 
 
@@ -95,7 +96,11 @@ export function InputActions({
   // left on a desktop, and what a refused permission falls back to. No focus
   // afterwards on the live path: the keyboard would come up over the results
   // the scan just went and fetched.
-  const runScan = () =>
+  const runScan = () => {
+    track('scan')
+    startScan()
+  }
+  const startScan = () =>
     openScanner && typeof navigator.mediaDevices?.getUserMedia === 'function'
       ? openScanner(onChange)
       : fileRef.current?.click()

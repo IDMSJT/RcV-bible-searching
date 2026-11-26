@@ -4,6 +4,9 @@ import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { routeTree } from './routeTree.gen'
 import './index.css'
 import { applyScript } from './lib/zhScript'
+import { initAnalytics } from './lib/analytics'
+
+initAnalytics()
 
 // 簡體 chosen last time: start converting before the first render, so the page
 // never paints in Traditional first. (<ScriptConverter> keeps it in step after.)

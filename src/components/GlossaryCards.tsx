@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { BOOK_ABBREV } from '@/data/abbrev'
 import { useGlossary, type Glossary } from '@/data/loadBible'
+import { track } from '@/lib/analytics'
 
 // Cards shown before 「還有 N 個相關詞」: the best match (the word itself when
 // there is one); words that contain it (耶和華 → 耶和華以勒 …) on request.
@@ -48,6 +49,11 @@ function GlossaryCardList({ query, onNavigate }: { query: string; onNavigate?: (
   const { data } = useGlossary(wanted)
   const entries = useMemo(() => (data && wanted ? matchEntries(data, query) : []), [data, query, wanted])
   const [all, setAll] = useState(false)
+  // Analytics: which word's card a search brought up.
+  const shownTerm = entries[0]?.term
+  useEffect(() => {
+    if (shownTerm) track('glossary_view', { term: shownTerm })
+  }, [shownTerm])
   if (entries.length === 0) return null
   const shown = all ? entries : entries.slice(0, MAX_CARDS)
   const hidden = entries.length - shown.length
@@ -74,7 +80,15 @@ function GlossaryCardList({ query, onNavigate }: { query: string; onNavigate?: (
 // holding a digit: 「（Darby，達祕。）」 stays.
 const REF_PARENS = /（[^（）]*[0-9][^（）]*）/g
 
-function RefLinks({ refs, onNavigate }: { refs: [number, number, number, number][]; onNavigate?: () => void }) {
+function RefLinks({
+  refs,
+  term,
+  onNavigate,
+}: {
+  refs: [number, number, number, number][]
+  term: string
+  onNavigate?: () => void
+}) {
   return refs.map(([b, c, v, n]) => (
     <Link
       key={`${b}.${c}.${v}.${n}`}
@@ -82,7 +96,10 @@ function RefLinks({ refs, onNavigate }: { refs: [number, number, number, number]
       params={{ bookNo: b, chapterNo: c }}
       // Note 0: the verse itself explains the word (約1:38 拉比繙出來，就是夫子).
       search={{ hl: n ? `${v}:${n}` : `${v}` }}
-      onClick={onNavigate}
+      onClick={() => {
+        track('glossary_open', { term, ref: `${BOOK_ABBREV[b]}${c}:${v}${n ? `註${n}` : ''}` })
+        onNavigate?.()
+      }}
       className={`ml-1.5 whitespace-nowrap ${LABEL_CLS} hover:text-primary/80`}
     >
       {BOOK_ABBREV[b]}
@@ -121,7 +138,7 @@ function GlossaryCard({ entry, onNavigate }: { entry: Entry; onNavigate?: () => 
           {/* Floated after the text: on its last line, pushed to the right edge
            * when there's room there, else on a line of its own, still right. */}
           <span className="float-right">
-            <RefLinks refs={d.refs} onNavigate={onNavigate} />
+            <RefLinks refs={d.refs} term={entry.term} onNavigate={onNavigate} />
           </span>
         </p>
       ))}

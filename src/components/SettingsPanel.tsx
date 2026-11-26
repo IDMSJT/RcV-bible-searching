@@ -3,6 +3,7 @@ import { Slider as SliderPrimitive } from '@base-ui/react/slider'
 import { useBibleEn } from '@/data/loadBible'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import type { Script } from '@/lib/zhScript'
+import { track } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
 import {
   CITE_FORMATS,
@@ -23,6 +24,22 @@ type Theme = 'light' | 'dark' | 'system'
 
 const HEADER_CLS =
   'sticky top-0 z-10 flex h-[var(--header-h)] shrink-0 items-center justify-center border-b border-border bg-muted/80 px-4 text-base font-medium backdrop-blur md:h-9 md:justify-between md:text-xs md:font-semibold'
+
+/** Analytics for a setting the reader changed. In the handlers, not an effect on
+ * the value: this panel is rendered twice (phone + desktop), and an effect would
+ * report every change twice. */
+function change<T>(name: string, set: (v: T) => void, value: T) {
+  set(value)
+  track('setting', { name, value: String(value) })
+}
+
+// The slider reports every step of a drag; the size the reader settled on is the
+// one worth counting.
+let fontSizeTimer: number | undefined
+function trackFontSize(px: number) {
+  window.clearTimeout(fontSizeTimer)
+  fontSizeTimer = window.setTimeout(() => track('setting', { name: 'font_size', value: String(px) }), 1500)
+}
 
 // All settings state lives here. The values themselves are picked up by other
 // consumers (ChapterView, ReadingPreferences, …) via useLocalStorage on the
@@ -54,7 +71,7 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
     <>
       <h2 className={HEADER_CLS}><span>設定</span></h2>
       <div className="flex flex-col divide-y divide-border">
-        <SettingRow label="顯示綱目" onClick={() => setShowOutline(!showOutline)}>
+        <SettingRow label="顯示綱目" onClick={() => change('show_outline', setShowOutline, !showOutline)}>
           <Switch on={showOutline} />
         </SettingRow>
         <SettingRow
@@ -64,18 +81,21 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
               {enLoading && <span className="ml-2 text-muted-foreground">載入中</span>}
             </>
           }
-          onClick={() => setShowEnglish(!showEnglish)}
+          onClick={() => change('show_english', setShowEnglish, !showEnglish)}
         >
           <Switch on={showEnglish} />
         </SettingRow>
-        <SettingRow label="顯示註釋" onClick={() => setShowNotes(!showNotes)}>
+        <SettingRow label="顯示註釋" onClick={() => change('show_notes', setShowNotes, !showNotes)}>
           <Switch on={showNotes} />
         </SettingRow>
-        <SettingRow label="顯示串珠" onClick={() => setShowRefs(!showRefs)}>
+        <SettingRow label="顯示串珠" onClick={() => change('show_crossrefs', setShowRefs, !showRefs)}>
           <Switch on={showRefs} />
         </SettingRow>
         <SettingRow label={`字體大小　${fontSize}px`} stack>
-          <FontSizeSlider value={fontSize} min={13} max={24} onChange={setFontSize} />
+          <FontSizeSlider value={fontSize} min={13} max={24} onChange={(v) => {
+            setFontSize(v)
+            trackFontSize(v)
+          }} />
           {/* The slider moves a number; this shows what the number does, in the
            * reading page's own type (serif, scripture colour, its line height). */}
           <p
@@ -87,9 +107,9 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
         </SettingRow>
         <SettingRow label="主題" stack>
           <div className="grid grid-cols-3 gap-3 pt-1">
-            <ThemeSwatch active={theme === 'light'} onClick={() => setTheme('light')} variant="light" label="淺色" />
-            <ThemeSwatch active={theme === 'dark'} onClick={() => setTheme('dark')} variant="dark" label="深色" />
-            <ThemeSwatch active={theme === 'system'} onClick={() => setTheme('system')} variant="system" label="系統" />
+            <ThemeSwatch active={theme === 'light'} onClick={() => change('theme', setTheme, 'light')} variant="light" label="淺色" />
+            <ThemeSwatch active={theme === 'dark'} onClick={() => change('theme', setTheme, 'dark')} variant="dark" label="深色" />
+            <ThemeSwatch active={theme === 'system'} onClick={() => change('theme', setTheme, 'system')} variant="system" label="系統" />
           </div>
         </SettingRow>
         <SettingRow label="繁體 / 簡體">
@@ -98,7 +118,7 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
           <div className="relative">
             <select
               value={script}
-              onChange={(e) => setScript(e.target.value as Script)}
+              onChange={(e) => change('script', setScript, e.target.value as Script)}
               className="h-9 appearance-none rounded-lg bg-secondary py-0 pr-9 pl-3 text-base font-medium text-secondary-foreground md:text-sm"
             >
               <option value="hant">繁體</option>
@@ -124,7 +144,7 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
                   key={l.value}
                   type="button"
                   disabled={!showEnglish && l.value !== 'zh'}
-                  onClick={() => setCopyLang(l.value)}
+                  onClick={() => change('copy_lang', setCopyLang, l.value)}
                   className={cn(
                     // relative + an absolute check mark (below) instead of a
                     // flex row, so the check circle's reserved width can't
@@ -157,7 +177,7 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
                 <button
                   key={p.value}
                   type="button"
-                  onClick={() => setCitePosition(p.value)}
+                  onClick={() => change('cite_position', setCitePosition, p.value)}
                   className={cn(
                     'relative rounded-lg px-3 py-2.5 text-left text-base transition-all duration-150 select-none active:scale-95 md:py-2 md:text-sm',
                     citePosition === p.value
@@ -220,7 +240,7 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
                 <button
                   key={f.value}
                   type="button"
-                  onClick={() => setCiteFormat(f.value)}
+                  onClick={() => change('cite_format', setCiteFormat, f.value)}
                   className={cn(
                     'relative rounded-lg px-3 py-2.5 text-left text-base transition-all duration-150 select-none active:scale-[0.98] md:py-2 md:text-sm',
                     citeFormat === f.value
@@ -269,10 +289,13 @@ export function SettingsPanel({ onShowChangelog }: { onShowChangelog?: () => voi
           </div>
         </SettingRow>
       </div>
+      <p className="mt-auto px-4 pt-4 text-center text-xs text-muted-foreground">
+        本 App 使用 Google Analytics 統計匿名的使用情形
+      </p>
       <button
         type="button"
         onClick={onShowChangelog}
-        className="mt-auto w-full shrink-0 px-4 py-4 text-center text-xs text-muted-foreground transition-colors hover:text-foreground"
+        className="w-full shrink-0 px-4 pt-1 pb-4 text-center text-xs text-muted-foreground transition-colors hover:text-foreground"
       >
         v{__APP_VERSION__}
       </button>

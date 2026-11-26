@@ -31,6 +31,7 @@ import { useIsTouch } from '@/lib/useIsTouch'
 import { useCarousel, COMMIT_MS } from '@/lib/useCarousel'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { useDebouncedValue } from '@/lib/useDebouncedValue'
+import { track } from '@/lib/analytics'
 import { GlossaryCards } from '@/components/GlossaryCards'
 import { toTraditional } from '@/lib/s2t'
 import { loadFold, soundMatches, type Fold } from '@/lib/homophones'
@@ -635,6 +636,30 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     return [...count.entries()].sort((a, b) => b[1] - a[1]).map(([w]) => w)
   }, [bySound, soundKw, fold, kwRead])
 
+  // Analytics: each search the reader actually waited for — after typing paused
+  // and any sound lookup came back — but not the query restored on opening.
+  const trackedKw = useRef(kwRead)
+  useEffect(() => {
+    const term = kwRead.trim()
+    if (!term || !data || kwPending || trackedKw.current === kwRead) return
+    trackedKw.current = kwRead
+    track('search', {
+      search_term: term,
+      scope: kwScope,
+      results: kwResult.total,
+      by_sound: bySound,
+      suggestion: bySound ? soundWords[0] : undefined,
+    })
+  }, [kwRead, data, kwPending, kwScope, kwResult.total, bySound, soundWords])
+  // And the 經節 field, once typing has rested a second.
+  const qSettled = useDebouncedValue(q, 1000)
+  const trackedQ = useRef(qSettled)
+  useEffect(() => {
+    if (!qSettled.trim() || trackedQ.current === qSettled) return
+    trackedQ.current = qSettled
+    track('verse_lookup', { query: qSettled.trim(), refs: refs.length })
+  }, [qSettled, refs.length])
+
   const resolved = tab === 'ref' ? resolvedRefs : kwResult.rows
 
   // Per-ref: did it resolve to at least one real verse? (parsed but not found → error)
@@ -841,7 +866,10 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
               {/* Takes the suggestion as the query — the search then runs as typed. */}
               <button
                 type="button"
-                onClick={() => setKw(w)}
+                onClick={() => {
+                  track('sound_suggestion', { typed: kw.trim(), picked: w })
+                  setKw(w)
+                }}
                 className="text-primary underline-offset-2 hover:underline"
               >
                 {w}
@@ -1257,12 +1285,14 @@ function CopyAllBar({
   const copy = async () => {
     const t = text()
     if (!t) return
+    track('copy', { from: 'search', method: 'copy', count: target.length })
     try { await navigator.clipboard.writeText(t) } catch { /* denied */ }
     onClear()
   }
   const share = async () => {
     const t = text()
     if (!t) return
+    track('copy', { from: 'search', method: 'share', count: target.length })
     try {
       if (navigator.share) await navigator.share({ text: t })
       else await navigator.clipboard.writeText(t)
