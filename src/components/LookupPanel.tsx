@@ -1,6 +1,6 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
-import { ChevronDown, Star, X } from 'lucide-react'
+import { ChevronDown, LoaderCircle, Star, X } from 'lucide-react'
 import { parseRefs, type Segment, type VerseRef } from '@/lib/parseRefs'
 import {
   refsExist,
@@ -602,6 +602,9 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   useEffect(() => {
     if (needSound && !fold) void loadFold().then((f) => setFold(() => f))
   }, [needSound, fold])
+  // Results on screen are for an older query: typing hasn't paused yet, or the
+  // sound table for a misspelling is still on its way.
+  const kwPending = kw.trim() !== '' && (kw !== kwSettled || (needSound && !fold))
   const soundKw = useMemo(
     () =>
       needSound && fold
@@ -824,6 +827,11 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
           onRemove={savedKw.toggle}
         />
       )}
+      {/* While a search is pending the old results stay, faded, under a spinner —
+       * they're still roughly right, and an empty flash on every keystroke
+       * would be worse. */}
+      <div className="relative">
+      <div className={cn('transition-opacity duration-150', kwPending && 'opacity-40')}>
       {bySound && (
         <p className="mb-2 text-sm text-muted-foreground">
           你是不是想搜尋：
@@ -858,6 +866,16 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
         onHover={onHover}
         onNavigate={onNavigate}
       />
+      </div>
+      {kwPending && (
+        <div className="pointer-events-none absolute inset-x-0 top-6 flex justify-center">
+          {/* On a disc of its own so it reads over the faded text under it. */}
+          <span className="rounded-full bg-background p-2 shadow-md ring-1 ring-border">
+            <LoaderCircle aria-label="搜尋中" className="size-5 animate-spin text-primary" />
+          </span>
+        </div>
+      )}
+      </div>
     </SearchTabPanel>
   )
   const refPanel = (
