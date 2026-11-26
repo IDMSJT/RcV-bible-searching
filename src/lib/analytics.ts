@@ -159,9 +159,10 @@ export function trackPrint(from: 'compose'): void {
 
 // ---------- settings, scan ----------
 
-/** A setting the reader changed, as its stored value. */
+/** A setting the reader changed, as its stored value. (Not `value`: GA4 reads
+ * that parameter as a monetary amount and drops text.) */
 export function trackSetting(name: string, value: string | number | boolean): void {
-  track('setting', { name, value: String(value) })
+  track('setting', { name, setting_value: String(value) })
 }
 
 let fontSizeTimer: number | undefined
