@@ -56,6 +56,9 @@ NAME_START_RE = re.compile(
 ALIAS_RE = re.compile(r"^即(?!使)")
 ALIAS_SUFFIX = "海河話語教人山地城省"
 UNKNOWN_RE = re.compile(r"意不詳|意義不明")
+# 「意」 straight into the meaning, no comma — 太10:25 別西卜 「意蒼蠅之王…」, 啟12:9 撒但
+# 「原文意對頭」 — but not where 意 begins a word of its own (意志, 意念, 意見 …).
+BARE_MEANING_RE = re.compile(r"^(?:原文)?意(?![，,：:即思義志念見願旨向圖欲識味外料])")
 # 「X，意，…」「X這名，意思是…」「名叫X，意思是…」 anywhere in any note: X is a
 # name when the text right before 意 ends in one. One note can explain several
 # (結1:3 「布西，意，可輕視的…；以西結，意，神加強…」).
@@ -277,6 +280,14 @@ def main() -> int:
                     cterm = ""
                 for cdef in concept_definition(n["text"], cterm) if cterm else []:
                     found.append((cterm, cdef, "concept"))
+            if not found and BARE_MEANING_RE.match(n["text"]) and not UNKNOWN_RE.search(first):
+                # The word: what the verse and the note share (魔鬼的試誘 → 魔鬼), or,
+                # when the note doesn't repeat it (別西卜), the verse up to a stop.
+                bterm = (concept_term(text, off, n["text"]) if how != "mark" else term) or (
+                    term if how == "punct" and len(term) <= 5 else ""
+                )
+                if bterm:
+                    found.append((bterm, n["text"], "meaning"))
             quoted = quoted_definition(n["text"], text)
             if quoted:
                 found.append((quoted[0], quoted[1], "quoted"))
