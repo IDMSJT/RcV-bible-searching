@@ -25,6 +25,13 @@ export const FLOATING_ACTION_BAR_CLS = cn(
   'fixed bottom-[var(--nav-h)] z-40 gap-3 md:bottom-0',
 )
 
+/** A picked verse's tint, edge to edge of the panel: a shadow spread sideways
+ * past the padding (the box itself isn't under its own shadow, hence the bg,
+ * mixed exactly the same so the two meet without a seam). Each place clips it
+ * back top and bottom with its own clip-path, to its own height. */
+export const PICKED_TINT_CLS =
+  'rounded-none bg-blue-500/14 shadow-[0_0_0_100vmax_color-mix(in_oklab,var(--color-blue-500)_14%,transparent)] dark:bg-blue-400/18 dark:shadow-[0_0_0_100vmax_color-mix(in_oklab,var(--color-blue-400)_18%,transparent)]'
+
 /** A small grey pill — the default action on a bar (分享, 清除, 合併…). */
 export const ACTION_BAR_BTN =
   'rounded-md bg-secondary px-2.5 py-1.5 text-xs font-medium text-secondary-foreground transition-all duration-150 hover:bg-secondary/80 active:scale-95'

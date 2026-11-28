@@ -1,6 +1,6 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
-import { ChevronDown, LoaderCircle, Star, X } from 'lucide-react'
+import { Check, ChevronDown, LoaderCircle, Star, X } from 'lucide-react'
 import { parseRefs, type Segment, type VerseRef } from '@/lib/parseRefs'
 import {
   refsExist,
@@ -42,7 +42,7 @@ import { renderMarkedText } from '@/lib/renderVerse'
 import { InputActions } from '@/components/InputActions'
 import { BookRail, type RailBook } from '@/components/BookRail'
 import { ScrollBody } from '@/components/ScrollBody'
-import { ACTION_BAR_CLS, ACTION_BAR_BTN, ACTION_BAR_BTN_GHOST } from '@/lib/chrome'
+import { ACTION_BAR_CLS, ACTION_BAR_BTN, PICKED_TINT_CLS } from '@/lib/chrome'
 import { cn } from '@/lib/utils'
 
 // The /search field, shared by both tabs (and both viewports) so they read
@@ -244,6 +244,12 @@ const KW_RESULT_CAP = 500
 const COPY_ALL_MAX = 200
 // How long typing has to pause before the keyword search runs.
 const KW_DEBOUNCE_MS = 200
+// …and before that search counts as one the reader made (analytics).
+const KW_TRACK_MS = 1500
+
+// 注音 still in the input method: ㄅ–ㄩ (and the extended block) or a tone mark.
+const BOPOMOFO = /[\u3100-\u312f\u31a0-\u31bf\u02c7\u02ca\u02cb\u02d9]/
+const isComposing = (v: string) => BOPOMOFO.test(v)
 // Stable empty-tokens reference so the 經節 panel's memoized ResultList isn't
 // invalidated by a fresh [] on every parent re-render (e.g. each swipe frame).
 const NO_TOKENS: string[] = []
@@ -322,6 +328,8 @@ const ResultList = memo(function ResultList({
   activeHl,
   hovered,
   selected,
+  selectMode,
+  onToggle,
   onHover,
   onNavigate,
   fromHoveredRef,
@@ -341,6 +349,9 @@ const ResultList = memo(function ResultList({
   hovered: number | null
   /** Indices of the currently selected rows (multi-select). */
   selected: ReadonlySet<number>
+  /** A tap picks the row instead of opening it. */
+  selectMode: boolean
+  onToggle: (index: number) => void
   onHover: (index: number, hovering: boolean) => void
   /** After a row's link is followed — closes the drawer even when the path
    * doesn't change (another verse in the chapter on screen). */
@@ -374,6 +385,8 @@ const ResultList = memo(function ResultList({
             active={active}
             hover={hovered === i || fromHovered}
             selected={selected.has(i)}
+            selectMode={selectMode}
+            onToggle={() => onToggle(i)}
             sameChapter={r.bookNo === activeBookNo && r.chapterNo === activeChapterNo}
             onHover={(h) => onHover(i, h)}
             onNavigate={onNavigate}
@@ -583,7 +596,9 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   // The keyword search reads the whole Bible (and notes, outlines) each time, so
   // it runs when typing pauses rather than on every keystroke; the field itself
   // still shows each character at once.
-  const kwSettled = useDebouncedValue(kw, KW_DEBOUNCE_MS, (v) => v.trim() === '')
+  // While 注音 is still being composed (ㄈㄥˋ before it becomes 奉) the field holds
+  // keys, not words: the search waits for the character.
+  const kwSettled = useDebouncedValue(kw, KW_DEBOUNCE_MS, (v) => v.trim() === '', isComposing)
   const kwRead = useMemo(() => toTraditional(kwSettled), [kwSettled])
   const resolvedKw = useMemo(
     () =>
@@ -605,7 +620,8 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   }, [needSound, fold])
   // Results on screen are for an older query: typing hasn't paused yet, or the
   // sound table for a misspelling is still on its way.
-  const kwPending = kw.trim() !== '' && (kw !== kwSettled || (needSound && !fold))
+  const kwPending =
+    kw.trim() !== '' && !isComposing(kw) && (kw !== kwSettled || (needSound && !fold))
   const soundKw = useMemo(
     () =>
       needSound && fold
@@ -636,13 +652,15 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     return [...count.entries()].sort((a, b) => b[1] - a[1]).map(([w]) => w)
   }, [bySound, soundKw, fold, kwRead])
 
-  // Analytics: each search the reader actually waited for — after typing paused
-  // and any sound lookup came back — but not the query restored on opening.
+  // Analytics: each search the reader actually stopped at — the query unchanged
+  // for a while, not each pause on the way to it (奉 on the way to 奉獻), and any
+  // sound lookup back — but not the query restored on opening.
+  const kwStopped = useDebouncedValue(kwRead, KW_TRACK_MS)
   const trackedKw = useRef(kwRead)
   useEffect(() => {
-    const term = kwRead.trim()
-    if (!term || !data || kwPending || trackedKw.current === kwRead) return
-    trackedKw.current = kwRead
+    const term = kwStopped.trim()
+    if (!term || !data || kwPending || kwStopped !== kwRead || trackedKw.current === kwStopped) return
+    trackedKw.current = kwStopped
     trackSearch({
       term,
       scope: kwScope,
@@ -650,12 +668,12 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
       bySound,
       suggestion: bySound ? soundWords[0] : undefined,
     })
-  }, [kwRead, data, kwPending, kwScope, kwResult.total, bySound, soundWords])
+  }, [kwStopped, kwRead, data, kwPending, kwScope, kwResult.total, bySound, soundWords])
   // And the 經節 field, once typing has rested a second.
   const qSettled = useDebouncedValue(q, 1000)
   const trackedQ = useRef(qSettled)
   useEffect(() => {
-    if (!qSettled.trim() || trackedQ.current === qSettled) return
+    if (!qSettled.trim() || isComposing(qSettled) || trackedQ.current === qSettled) return
     trackedQ.current = qSettled
     trackVerseLookup(qSettled.trim(), refs.length)
   }, [qSettled, refs.length])
@@ -720,12 +738,25 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   // Stable so the memoized ResultList isn't re-rendered every swipe frame.
   const onHover = useCallback((i: number, h: boolean) => setHovered(h ? i : null), [])
 
-  // Multi-select. Nothing turns it on yet — rows are plain links now, and the
-  // long-press that used to start it is gone until selection gets a control
-  // of its own; the copy bar still reads it. Indices into the active tab's
-  // result list; reset on tab change or query edit (so stale indices never linger).
+  // Multi-select: the copy bar's 選擇 turns it on; then a tap on a row picks it
+  // instead of opening it, and 複製 / 分享 take the picked rows. Indices into the
+  // active tab's result list; reset on tab change or query edit (so stale indices
+  // never linger).
   const [selected, setSelected] = useState<Set<number>>(() => new Set())
-  const clearSel = useCallback(() => setSelected(new Set()), [])
+  const [selectMode, setSelectMode] = useState(false)
+  const toggleSel = useCallback((i: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i)
+      else next.add(i)
+      return next
+    })
+  }, [])
+  const startSelect = useCallback(() => setSelectMode(true), [])
+  const clearSel = useCallback(() => {
+    setSelected(new Set())
+    setSelectMode(false)
+  }, [])
   // Reset the selection when the active tab or its query changes — stale indices
   // would point at the wrong rows. Done during render (React's "adjust state when
   // an input changes" pattern), not an effect.
@@ -734,6 +765,7 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   if (prevSelScope !== selScope) {
     setPrevSelScope(selScope)
     setSelected(new Set())
+    setSelectMode(false)
   }
 
   // Tokens the keyword search highlights inside its result rows — always derived
@@ -836,6 +868,8 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
       resolved={kwResult.rows}
       total={kwResult.total}
       selected={tab === 'kw' ? selected : EMPTY_SELECTION}
+      selectMode={tab === 'kw' && selectMode}
+      onStartSelect={startSelect}
       onClear={clearSel}
       scrollKey={`lookup:kw:${kw}`}
       active={tab === 'kw'}
@@ -891,6 +925,8 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
         activeHl={activeHl}
         hovered={hovered}
         selected={tab === 'kw' ? selected : EMPTY_SELECTION}
+        selectMode={tab === 'kw' && selectMode}
+        onToggle={toggleSel}
         onHover={onHover}
         onNavigate={onNavigate}
       />
@@ -912,6 +948,8 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
       resolved={resolvedRefs}
       total={resolvedRefs.length}
       selected={tab === 'ref' ? selected : EMPTY_SELECTION}
+      selectMode={tab === 'ref' && selectMode}
+      onStartSelect={startSelect}
       onClear={clearSel}
       scrollKey={`lookup:ref:${q}`}
       active={tab === 'ref'}
@@ -939,6 +977,8 @@ export function LookupPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
         activeHl={activeHl}
         hovered={hovered}
         selected={tab === 'ref' ? selected : EMPTY_SELECTION}
+        selectMode={tab === 'ref' && selectMode}
+        onToggle={toggleSel}
         onHover={onHover}
         onNavigate={onNavigate}
       />
@@ -1028,6 +1068,8 @@ function SearchTabPanel({
   resolved,
   total,
   selected,
+  selectMode,
+  onStartSelect,
   onClear,
   scrollKey,
   active,
@@ -1037,6 +1079,8 @@ function SearchTabPanel({
   resolved: ResolvedVerse[]
   total: number
   selected: ReadonlySet<number>
+  selectMode: boolean
+  onStartSelect: () => void
   onClear: () => void
   /** Remembers this tab's scroll under this key, so leaving the phone's /search
    * page into a verse and coming back lands where the reader left the list.
@@ -1084,8 +1128,15 @@ function SearchTabPanel({
           {/* min-h-full + a flex-1 content row pushes the sticky copy bar to the
            * bottom even when the results don't fill the pane. */}
           <div className="flex min-h-full flex-col">
-            <div className="flex-1 p-4">{children}</div>
-            <CopyAllBar resolved={resolved} total={total} selected={selected} onClear={onClear} />
+            <div className="flex-1 px-4 py-2">{children}</div>
+            <CopyAllBar
+              resolved={resolved}
+              total={total}
+              selected={selected}
+              selectMode={selectMode}
+              onStartSelect={onStartSelect}
+              onClear={onClear}
+            />
           </div>
         </ScrollBody>
         {active && isTouch && books.length > 0 && (
@@ -1096,12 +1147,53 @@ function SearchTabPanel({
   )
 }
 
+/** A picked row's tint (PICKED_TINT_CLS), clipped back a little inside the row's
+ * top and bottom: a margin of white above and below without making the row
+ * taller, and two picked rows in a row stay apart. */
+const PICKED_ROW_CLS = cn(PICKED_TINT_CLS, '[clip-path:inset(2px_-100vmax)]')
+
+/** The pick mark on a row: an empty ring, or filled with a check. Always in the
+ * row, so entering and leaving 選擇 can animate — it opens from no width to its
+ * own as the mode starts, and the reference slides over to make room. The check
+ * is always there too, only faded and shrunk when unpicked: a ring that gained
+ * content when picked moved its baseline, and jumped. */
+function SelectDot({ shown, on }: { shown: boolean; on: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        // Not align-middle: that centres on the x-height of Latin lowercase,
+        // which sits low beside CJK and digits. The ring (1.1em) is lifted so its
+        // centre meets theirs, about 0.38em above the baseline.
+        'inline-flex overflow-hidden transition-[max-width,margin,opacity] duration-200 ease-out',
+        shown ? 'mr-1.5 max-w-[1.2em] opacity-100' : 'mr-0 max-w-0 opacity-0',
+      )}
+    >
+      <span
+        className={cn(
+          'inline-flex size-[1.1em] shrink-0 items-center justify-center rounded-full border transition-colors duration-150',
+          on ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/50',
+        )}
+      >
+        <Check
+          className={cn(
+            'size-[0.75em] [stroke-width:3] transition-[opacity,transform] duration-150',
+            on ? 'scale-100 opacity-100' : 'scale-50 opacity-0',
+          )}
+        />
+      </span>
+    </span>
+  )
+}
+
 function ResultRow({
   resolved,
   highlightTokens: hlTokens,
   active,
   hover,
   selected,
+  selectMode,
+  onToggle,
   sameChapter,
   onHover,
   onNavigate,
@@ -1114,11 +1206,15 @@ function ResultRow({
   active: boolean
   hover: boolean
   selected: boolean
+  selectMode: boolean
+  onToggle: () => void
   /** The row points into the chapter already on screen. */
   sameChapter: boolean
   onHover: (hovering: boolean) => void
   onNavigate?: () => void
 }) {
+  // Keyword rows open to the whole text on a tap (see below).
+  const [open, setOpen] = useState(false)
   const { bookNo, chapterNo, verse, enText, noteToShow, noteOnly, outlineTitle, outlineMarker } =
     resolved
   const abbrev = BOOK_ABBREV[bookNo] ?? ''
@@ -1133,17 +1229,29 @@ function ResultRow({
         ? `${abbrev} 綱目 ${outlineMarker}`
         : `${abbrev}${chapterNo}:${verse.verse}`
   const lit = active || hover
+  // In 選擇 mode a row shows whether it's picked, ahead of its reference.
+  const pick = <SelectDot shown={selectMode} on={selected} />
 
   // Each row is a real link, so it opens in a new tab / shows the link menu like
   // any other. Into the chapter already on screen, skip the router's
   // scroll-to-top so the page glides straight to the verse instead of bouncing
   // off the top first; another chapter keeps the default reset.
-  const linkProps = {
+  const navProps = {
     to: '/$bookNo/$chapterNo',
     params: { bookNo, chapterNo },
     search: { hl: refHl(resolved.ref) },
     resetScroll: sameChapter ? false : undefined,
-    onClick: onNavigate,
+  } as const
+  const linkProps = {
+    ...navProps,
+    onClick: (e: React.MouseEvent) => {
+      if (selectMode) {
+        e.preventDefault()
+        onToggle()
+        return
+      }
+      onNavigate?.()
+    },
     onMouseEnter: () => onHover(true),
     // The book rail scrolls to a book by its first data-book row (results are
     // in canonical order).
@@ -1152,7 +1260,9 @@ function ResultRow({
 
   // Keyword results read as a list of hits, one line each: the reference, then
   // the text from just before the first match, cut at the end of the line. The
-  // full verse is a tap away; what this list answers is where the word occurs.
+  // full verse opens in place on a tap; what this list answers first is where the
+  // word occurs. The references share one column (the list's subgrid), so the
+  // excerpts line up.
   if (hlTokens.length > 0) {
     const body = outlineTitle ?? (noteToShow ? noteToShow.text.replace(/\n+/g, ' ') : verse.text)
     let line = body
@@ -1165,37 +1275,90 @@ function ResultRow({
         at = enAt
       }
     }
+    const toggle = () => (selectMode ? onToggle() : setOpen(!open))
     return (
-      <Link
-        {...linkProps}
-        className="col-span-2 grid grid-cols-subgrid items-baseline gap-x-4 border-b border-border/60 py-2.5 transition-colors"
+      // A tap opens the row to the whole verse (or note, heading) and closes it
+      // again; the reference is the link into the chapter.
+      <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        data-book={bookNo}
+        data-picked={selected || undefined}
+        onClick={toggle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            toggle()
+          }
+        }}
+        onMouseEnter={() => onHover(true)}
+        className={cn(
+          // Ring, reference and text on one centre line — they're three sizes, and
+          // a shared baseline left each sitting at a different height. Opened to
+          // several lines, the reference stays level with the first.
+          'col-span-2 grid cursor-pointer grid-cols-subgrid gap-x-4 border-b border-border/60 py-2.5 last:border-b-0',
+          open ? 'items-start' : 'items-center',
+          // A picked row is a band of its own: no rule under it, nor under the
+          // row above (the one that would run along its top edge).
+          '[&:has(+[data-picked])]:border-b-transparent',
+          selected && ['border-b-transparent', PICKED_ROW_CLS],
+        )}
       >
-        <span
+        <Link
+          {...navProps}
+          onClick={(e) => {
+            e.stopPropagation()
+            if (selectMode) {
+              e.preventDefault()
+              onToggle()
+              return
+            }
+            onNavigate?.()
+          }}
           className={cn(
-            'whitespace-nowrap font-sans text-[0.8em] tabular-nums text-primary transition-opacity',
+            'inline-flex shrink-0 items-center whitespace-nowrap font-sans text-[0.8em] tabular-nums text-primary transition-opacity hover:underline',
+            // Opened: the label's line box matches the text's first line, so the
+            // two stay centred on each other.
+            open && 'h-[calc(1em/0.8*1.625)]',
             !lit && 'opacity-90',
           )}
         >
+          {pick}
           {label}
-        </span>
-        <p
+        </Link>
+        <div
           className={cn(
-            'min-w-0 truncate transition-colors',
-            line === enText && 'font-sans text-[0.9em]',
+            'min-w-0 flex-1 transition-colors',
             lit ? 'text-foreground' : 'text-foreground/90',
-            selected && 'rounded bg-blue-500/20 px-1 -mx-1 dark:bg-blue-400/25',
           )}
         >
-          {highlightTokens(excerptAround(line, Math.max(at, 0)), hlTokens)}
-        </p>
-      </Link>
+          {open ? (
+            <>
+              <p>{highlightTokens(body, hlTokens)}</p>
+              {enText && body === verse.text && (
+                <p className="mt-0.5 font-sans text-[0.9em] text-muted-foreground">
+                  {highlightTokens(enText, hlTokens)}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className={cn('truncate', line === enText && 'font-sans text-[0.9em]')}>
+              {highlightTokens(excerptAround(line, Math.max(at, 0)), hlTokens)}
+            </p>
+          )}
+        </div>
+      </div>
     )
   }
 
   return (
     <Link
       {...linkProps}
-      className="col-span-2 grid grid-cols-subgrid items-baseline rounded py-[0.3125rem] transition-colors"
+      className={cn(
+        'col-span-2 grid grid-cols-subgrid items-baseline py-[0.3125rem]',
+        selected && PICKED_ROW_CLS,
+      )}
     >
       <span
         className={cn(
@@ -1204,9 +1367,10 @@ function ResultRow({
           lit ? 'text-foreground' : 'text-muted-foreground',
         )}
       >
+        {pick}
         {label}
       </span>
-      <div className={cn(selected && 'rounded bg-blue-500/20 px-1 -mx-1 dark:bg-blue-400/25')}>
+      <div>
         {outlineTitle ? (
           // Outline row — a single-line heading, so no split/link-parsing like
           // the note branch needs.
@@ -1250,20 +1414,24 @@ function ResultRow({
   )
 }
 
-/** Bottom action bar for the results. Copies / shares either the current
- * selection or, when nothing is selected,
- * every result. The language (中文 / 英文 / 中英文) is a setting, so 複製 / 分享 are
+/** Bottom action bar for the results. Copies / shares every result, or — after
+ * 選擇 — the rows picked. The language (中文 / 英文 / 中英文) is a setting, so 複製 / 分享 are
  * plain buttons. Same pill shell as the chapter selection bar. Returns null when
  * there's nothing. */
 function CopyAllBar({
   resolved,
   total,
   selected,
+  selectMode,
+  onStartSelect,
   onClear,
 }: {
   resolved: ResolvedVerse[]
   total: number
   selected: ReadonlySet<number>
+  /** Picking rows: 複製 / 分享 act on the picked ones, 選擇 again leaves the mode. */
+  selectMode: boolean
+  onStartSelect: () => void
   onClear: () => void
 }) {
   const [cite] = useLocalStorage<CiteFormat>('rcv/cite-format', DEFAULT_CITE_FORMAT)
@@ -1277,8 +1445,7 @@ function CopyAllBar({
   // en / both only make sense with English loaded; otherwise force 中文.
   const lang: CopyLang = showEnglish ? copyLang : 'zh'
   const sep = lang === 'both' ? '\n\n' : '\n'
-  const selecting = selected.size > 0
-  const target = selecting ? resolved.filter((_, i) => selected.has(i)) : resolved
+  const target = selectMode ? resolved.filter((_, i) => selected.has(i)) : resolved
   const text = () =>
     displayText(target.map((r) => formatCopyText(r, lang, cite, pos, template)).filter(Boolean).join(sep))
 
@@ -1309,38 +1476,40 @@ function CopyAllBar({
   return (
     <div className={cn('sticky bottom-0 z-10 shrink-0 gap-2', ACTION_BAR_CLS)}>
       <span className="whitespace-nowrap text-sm text-muted-foreground">
-        {selecting
-          ? `選取 ${selected.size} 節`
+        {selectMode
+          ? `已選 ${selected.size} 節`
           : total > resolved.length
             ? `共 ${total} 節（顯示前 ${resolved.length}）`
             : `共 ${total} 節`}
       </span>
-      {!selecting && resolved.length > COPY_ALL_MAX ? (
-        // Too many to copy in one go — a copy-all would choke the clipboard /
-        // share sheet. (Pointed at selecting before; that has no control yet.)
-        <span className="ml-auto whitespace-nowrap text-sm text-muted-foreground">
-          結果太多，無法一次複製
-        </span>
-      ) : (
-        <div className="ml-auto flex items-center gap-2">
-          <button type="button" onClick={share} className={ACTION_BAR_BTN}>
-            分享
-          </button>
-          <button type="button" onClick={copy} className={ACTION_BAR_BTN}>
-            複製
-          </button>
-          {selecting && (
-            <button
-              type="button"
-              onClick={onClear}
-              aria-label="取消選取"
-              className={ACTION_BAR_BTN_GHOST}
-            >
-              <X className="size-4" />
-            </button>
+      <div className="ml-auto flex items-center gap-2">
+        {/* A toggle: lit while picking, tapped again to stop — so no ✕ beside it. */}
+        <button
+          type="button"
+          onClick={selectMode ? onClear : onStartSelect}
+          aria-pressed={selectMode}
+          className={cn(
+            ACTION_BAR_BTN,
+            // Pressed in, not a filled call to action: the same pill in a tint.
+            selectMode && 'bg-primary/15 text-primary ring-1 ring-primary/40 ring-inset hover:bg-primary/20',
           )}
-        </div>
-      )}
+        >
+          選擇
+        </button>
+        {/* Copying everything only while it's a reasonable amount — a copy of
+         * hundreds of verses would choke the clipboard / share sheet; 選擇 is
+         * the way to take some of them. */}
+        {(selectMode || resolved.length <= COPY_ALL_MAX) && (
+          <>
+            <button type="button" onClick={share} disabled={selectMode && selected.size === 0} className={ACTION_BAR_BTN}>
+              分享
+            </button>
+            <button type="button" onClick={copy} disabled={selectMode && selected.size === 0} className={ACTION_BAR_BTN}>
+              複製
+            </button>
+          </>
+        )}
+      </div>
     </div>
   )
 }
