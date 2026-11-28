@@ -7,12 +7,13 @@
 // Only the published site reports — not `pnpm dev`, not a preview build, not a
 // copy served from anywhere else — so testing never shows up in the numbers.
 //
-// Page views are sent by hand on route changes (trackPage, from __root): the
-// stream's automatic page views are switched off, because the drawer (?panel=)
-// also changes the URL and isn't a page.
+// Page views: GA sends the landing page's itself; every later route change is
+// sent by hand (trackPage, from __root). The stream's automatic page views on
+// history changes are switched off, because the drawer (?panel=) also changes
+// the URL and isn't a page.
 
 import { BOOK_ABBREV } from '@/data/abbrev'
-import { BOOK_BY_NO } from '@/data/canon'
+import { pageTitle } from '@/lib/pageTitle'
 
 const GA_ID = 'G-GCP8PFZF98'
 const SITE_HOST = 'idmsjt.github.io'
@@ -72,22 +73,21 @@ function refLabel(bookNo: number, chapter: number, verse: number, note?: number)
 
 // ---------- pages ----------
 
-/** What a route is called in the reports: 「加拉太書 4」, 「搜尋」, 「圖表 3」. */
-function pageTitle(pathname: string): string {
-  const m = pathname.match(/^\/(\d+)(?:\/(\d+))?/)
-  if (m) {
-    const book = BOOK_BY_NO.get(Number(m[1]))?.name ?? m[1]
-    return m[2] ? `${book} ${m[2]}` : book
-  }
-  if (pathname === '/search') return '搜尋'
-  if (pathname === '/compose') return '綱要'
-  if (pathname.startsWith('/charts')) return `圖表 ${pathname.split('/')[2] ?? ''}`.trim()
-  return '首頁'
-}
+let landed = false
 
-/** A page view for the router's path (no ?panel=: the drawer isn't a page). */
+/** A page view for the router's path (no ?panel=: the drawer isn't a page).
+ *
+ * Not for the page the app opens on: GA sends that one itself when its script
+ * loads — `send_page_view: false` doesn't stop it — so sending ours as well
+ * would count every visit's first page twice. (Its title is the tab's, which
+ * __root keeps in step with the route.) Later routes are ours alone: the
+ * stream's automatic page views on history changes are switched off. */
 export function trackPage(pathname: string): void {
   if (!enabled) return
+  if (!landed) {
+    landed = true
+    return
+  }
   // Built from the route, not window.location: the router can still be flushing
   // the URL when this runs.
   const location = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, '') + pathname

@@ -5,7 +5,13 @@ import { routeTree } from './routeTree.gen'
 import './index.css'
 import { applyScript } from './lib/zhScript'
 import { initAnalytics } from './lib/analytics'
+import { documentTitle } from './lib/pageTitle'
 
+// The tab title before anything else: GA reads it for the page the app opens
+// on, and its script can load (from cache) before the first render sets it.
+document.title = documentTitle(
+  '/' + window.location.pathname.slice(import.meta.env.BASE_URL.length).replace(/^\/+/, ''),
+)
 initAnalytics()
 
 // 簡體 chosen last time: start converting before the first render, so the page

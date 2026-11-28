@@ -18,6 +18,7 @@ import { ReloadPrompt } from '@/components/ReloadPrompt'
 import { HISTORY_KEY, recordVisit, removeVisit, type Visit } from '@/lib/readingHistory'
 import { requestFocusSearch } from '@/lib/focusSearchSignal'
 import { trackPage } from '@/lib/analytics'
+import { documentTitle } from '@/lib/pageTitle'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { cn } from '@/lib/utils'
@@ -70,8 +71,12 @@ function RootComponent() {
   const onCharts = pathname.startsWith('/charts')
   const isMobile = useIsMobile()
 
-  // Analytics: one page view per page — the path, not the drawer opening over it.
-  useEffect(() => trackPage(pathname), [pathname])
+  // The tab's title follows the page (「加拉太書 4｜恢復本聖經查詢」), and analytics
+  // gets one page view per page — the path, not the drawer opening over it.
+  useEffect(() => {
+    document.title = documentTitle(pathname)
+    trackPage(pathname)
+  }, [pathname])
 
   // The phone's drawer is the ?panel= param (see lib/panelNav): opening it is a
   // history entry, so back dismisses it, and what it shows survives a reload.
