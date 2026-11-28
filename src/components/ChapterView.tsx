@@ -53,6 +53,7 @@ import {
   ACTION_BAR_BTN,
   ACTION_BAR_BTN_PRIMARY,
   ACTION_BAR_BTN_GHOST,
+  PICKED_TINT_CLS,
 } from '@/lib/chrome'
 import type { HlItem } from '@/lib/highlight'
 import { REVEAL_GAP, revealInScroll } from '@/lib/revealInScroll'
@@ -1221,7 +1222,12 @@ export function ChapterView({
                     data-verse={r.verse}
                     className={cn(
                       'rounded px-1 -mx-1',
-                      selected.has(r.verse) && 'bg-blue-500/20 dark:bg-blue-400/25',
+                      // Edge to edge like the search results, taking the verse
+                      // number with it; clipped to the verse box plus 3px each
+                      // way — so it stays off the cards open below, and two
+                      // verses picked one after the other keep a thin strip of
+                      // page between them (gap-y-2.5 less 2 × 3px), as there.
+                      selected.has(r.verse) && [PICKED_TINT_CLS, '[clip-path:inset(-3px_-100vmax)]'],
                     )}
                   >
                     <p className="px-1 -mx-1 font-normal leading-[1.75] text-scripture">
@@ -1333,7 +1339,7 @@ export function ChapterView({
           <span className="flex min-w-0 flex-1 items-center gap-2 text-sm text-muted-foreground">
             <span
               aria-hidden
-              className="size-3 shrink-0 rounded-sm bg-blue-500/20 dark:bg-blue-400/25"
+              className="size-3 shrink-0 rounded-sm bg-blue-500/14 dark:bg-blue-400/18"
             />
             <span className="truncate">
               已選 {selected.size > 0 ? `${selected.size} 節` : `${selectedNotes.size} 註`}：

@@ -1029,7 +1029,7 @@ export function NoteCard({
       className={
         'space-y-2 rounded-md px-3 py-2 ' +
         (selected
-          ? 'bg-blue-500/20 text-foreground dark:bg-blue-400/25'
+          ? 'bg-blue-500/14 text-foreground dark:bg-blue-400/18'
           : highlighted
             ? 'bg-highlight/25 text-foreground'
             : 'bg-muted/40 text-muted-foreground')
