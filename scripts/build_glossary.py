@@ -166,6 +166,9 @@ def verse_definitions(verses: dict[str, dict]) -> list[tuple[str, str, str]]:
 CONCEPT_PUNCT = re.compile(r"[，。；：、！？「」『』（）“”‘’〔〕\s—]")
 NOT_A_WORD_START = set("的了在與和並而就也又是這那我你他她它們之其所把被將對從於向給以及或但都要不必")
 CONTEXT_PREFIX = r"(?:這裏的|本節的|此處的|這|人的)?"
+# 「指…」 opening a note, also behind what the original word is: 「原文指擲骰子之人的
+# 欺騙手法」 (弗4:14 欺騙手法), 「原文同加四1之孩童，指在基督裏幼稚…」 (小孩子).
+POINTS_TO_RE = re.compile(r"(?:原文[^。，]{0,14}，)?(?:乃|原文)?指(?!著)")
 
 
 def concept_term(text: str, off: int, note: str) -> str:
@@ -197,15 +200,43 @@ def concept_definition(note: str, term: str) -> list[str]:
             len(term) > 1 and re.match(t + r"，[^。]{0,24}?(?:乃是|是|就是)", sent)
         ):
             found = ["".join(sentences[i:]).strip().lstrip("）) ")]
-            if i > 0 and re.match(r"(?:乃)?指(?!著)", note):
+            if i > 0 and POINTS_TO_RE.match(note):
                 found.append(note)
             return found
-    if re.match(r"(?:乃)?指(?!著)", note):
+    if POINTS_TO_RE.match(note):
         return [note]
     m = re.match(r"(?:或，[^。]*。)?(?=(?:希臘文|希伯來文|原文)[，,])", note)
     if m and "意" in head:
         return [note[m.end() :]]  # past a leading 「或，計畫。」 to the original word
     return []
+
+
+# A definition can go on to define more words of the verse in the same sentence,
+# clause by clause — 提前1:14註2: 「信是叫我們接受主，（約一12，）愛是叫我們享受所接受的
+# 主。」 The note hangs on 信, but 愛 is defined just as plainly. Only such parallel
+# clauses: in the sentence that defines the marked word, after it, opening 「Y是…」,
+# with Y in the verse itself. (Any 「Y是…」 clause anywhere would take in 「祂是大衛
+# 的主」 and the like.)
+CLAUSE_DEF_RE = re.compile(r"([\u4e00-\u9fff]{1,4}?)(?:乃是|就是|是)")
+NOT_A_TERM = set("祂他她它這那乃只該也都就又亦即其此")
+
+
+def parallel_definitions(definition: str, verse_text: str, skip: str) -> list[tuple[str, str]]:
+    """Words defined alongside `skip` in `definition`'s first sentence."""
+    sent = re.split(r"(?<=。)", definition)[0]
+    out: list[tuple[str, str]] = []
+    # Clause starts after a comma or semicolon — stepping past a bracket
+    # (「（約一12，）愛是…」 starts at 愛). The sentence's own start is `skip`'s.
+    for m in re.finditer(r"[，；][）)\s]*", sent):
+        rest = sent[m.end() :]
+        d = CLAUSE_DEF_RE.match(rest)
+        if not d:
+            continue
+        word = d.group(1)
+        if word == skip or word[0] in NOT_A_TERM or word[0] in NOT_A_WORD_START or word not in verse_text:
+            continue
+        out.append((word, rest))
+    return out
 
 
 def main() -> int:
@@ -278,6 +309,12 @@ def main() -> int:
                     cterm = text[off : off + 1]  # one character, named first thing in the note
                 if cterm and len(cterm) == 1 and not re.match(r"[\u4e00-\u9fff]", cterm):
                     cterm = ""
+                # A note that names the same original word elsewhere (「原文同加四1之
+                # 孩童，指…」) doesn't repeat the word; the verse up to a stop gives it
+                # (小孩子). Only then — for any other note, a word it doesn't repeat is
+                # usually a phrase (「喫麼」「愛你」).
+                if not cterm and how == "punct" and 2 <= len(term) <= 5 and n["text"].startswith("原文同"):
+                    cterm = term
                 for cdef in concept_definition(n["text"], cterm) if cterm else []:
                     found.append((cterm, cdef, "concept"))
             if not found and BARE_MEANING_RE.match(n["text"]) and not UNKNOWN_RE.search(first):
@@ -293,6 +330,11 @@ def main() -> int:
                 found.append((quoted[0], quoted[1], "quoted"))
             for name, rest in names_explained(n["text"], names):
                 found.append((name, rest, "named"))
+            # Only after an idea's definition: a name's meaning (「意，耶和華是我的
+            # 旌旗」) is a translation, not a list of definitions.
+            if found and found[0][2] == "concept":
+                for word, rest in parallel_definitions(found[0][1], text, found[0][0]):
+                    found.append((word, rest, "concept"))
             dropped = set(ov.get("drop", []))
             seen: set[tuple[str, str]] = set()
             for term, note_text, how in found:
@@ -374,12 +416,13 @@ def citation_counts(notes: dict) -> Counter:
 
 def finish(entries: dict, review: list, cites: Counter) -> None:
     # Order within a word: a general definition (「恩典是…」) before what it means in
-    # one verse (「這裏的恩典指…」, or a bare 「指…」 — 盼望 「指盼望獲釋出獄…」); then
+    # one verse (「這裏的恩典指…」, a bare 「指…」 — 盼望 「指盼望獲釋出獄…」 — or 「X是指…」,
+    # 王 「王是指該撒」); then
     # the note other notes cite most; then canonical order.
     for e in entries.values():
         e["defs"].sort(
             key=lambda d: (
-                bool(re.match(r"這裏|本節|此處|(?:乃)?指", d["text"])),
+                bool(re.match(r"這裏|本節|此處|(?:乃)?指|[^，。]{1,6}(?:乃是指|是指)", d["text"])),
                 -max(cites[tuple(r)] for r in d["refs"]),
                 d["refs"][0],
             )
